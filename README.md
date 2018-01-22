@@ -11,6 +11,7 @@ Source files
 
 ### Common files
 
+| File            | Description                  |
 | --------------- | ---------------------------- |
 | `types.h`       | Type definitions             |
 | `lib.hh/cc`     | Chickadee C library          |
@@ -19,6 +20,7 @@ Source files
 
 ### Boot loader
 
+| File            | Description                  |
 | --------------- | ---------------------------- |
 | `bootentry.S`   | Boot loader entry point      |
 | `boot.cc`       | Boot loader main code        |
@@ -26,6 +28,7 @@ Source files
 
 ### Kernel libraries
 
+| File                | Description                          |
 | ------------------- | ------------------------------------ |
 | `k-lock.hh`         | Kernel spinlock                      |
 | `k-memrange.hh`     | Memory range type tracker            |
@@ -34,6 +37,7 @@ Source files
 
 ### Kernel core
 
+| File                | Description                          |
 | ------------------- | ------------------------------------ |
 | `kernel.hh`         | Kernel declarations                  |
 | `k-exception.S`     | Kernel entry points                  |
@@ -47,6 +51,7 @@ Source files
 
 ### Processes
 
+| File              | Description                                      |
 | ----------------- | ------------------------------------------------ |
 | `p-lib.cc/hh`     | Process library and system call implementations  |
 | `p-allocator.cc`  | Allocator process                                |
@@ -60,6 +65,7 @@ The main output of the build process is a disk image,
 could conceivably boot on real hardware! The build process also
 produces other files that can be useful to examine.
 
+| File                        | Description                          |
 | --------------------------- | ------------------------------------ |
 | `obj/kernel.asm`            | Kernel assembly (with addresses)     |
 | `obj/kernel.sym`            | Kernel defined symbols               |
