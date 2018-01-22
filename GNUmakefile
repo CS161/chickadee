@@ -19,8 +19,8 @@ cxxcompile = $(CXX) $(CPPFLAGS) $(CXXFLAGS) $(DEPCFLAGS) $(1)
 link = $(LD) $(LDFLAGS) $(1)
 run = $(1) $(3)
 else
-compile = @/bin/echo " " $(2) $< && $(CC) $(CPPFLAGS) $(CFLAGS) $(DEPCFLAGS) $(1)
-cxxcompile = @/bin/echo " " $(2) $< && $(CXX) $(CPPFLAGS) $(CXXFLAGS) $(DEPCFLAGS) $(1)
+compile = @/bin/echo " " $(2) && $(CC) $(CPPFLAGS) $(CFLAGS) $(DEPCFLAGS) $(1)
+cxxcompile = @/bin/echo " " $(2) && $(CXX) $(CPPFLAGS) $(CXXFLAGS) $(DEPCFLAGS) $(1)
 link = @/bin/echo " " $(2) $(patsubst %.full,%,$@) && $(LD) $(LDFLAGS) $(1)
 run = @$(if $(2),/bin/echo " " $(2) $(3) &&,) $(1) $(3)
 endif
@@ -47,26 +47,26 @@ FLATFS_CONTENTS = obj/p-allocator
 # How to make object files
 
 $(PROCESS_OBJS): $(OBJDIR)/%.o: %.cc $(BUILDSTAMPS)
-	$(call cxxcompile,-O1 -DCHICKADEE_PROCESS -c $< -o $@,COMPILE)
+	$(call cxxcompile,-O1 -DCHICKADEE_PROCESS -c $< -o $@,COMPILE $<)
 
 $(OBJDIR)/%.ko: %.cc $(BUILDSTAMPS)
-	$(call cxxcompile,-O2 -DCHICKADEE_KERNEL -mcmodel=kernel -c $< -o $@,COMPILE)
+	$(call cxxcompile,-O2 -DCHICKADEE_KERNEL -mcmodel=kernel -c $< -o $@,COMPILE $<)
 
 $(OBJDIR)/%.ko: %.S $(OBJDIR)/k-asm.h $(BUILDSTAMPS)
-	$(call cxxcompile,-O2 -mcmodel=kernel -c $< -o $@,ASSEMBLE)
+	$(call cxxcompile,-O2 -mcmodel=kernel -c $< -o $@,ASSEMBLE $<)
 
 $(OBJDIR)/boot.o: $(OBJDIR)/%.o: boot.cc $(BUILDSTAMPS)
-	$(call cxxcompile,-Os -fomit-frame-pointer -c $< -o $@,COMPILE)
+	$(call cxxcompile,-Os -fomit-frame-pointer -c $< -o $@,COMPILE $<)
 
 $(OBJDIR)/bootentry.o: $(OBJDIR)/%.o: \
 	bootentry.S $(OBJDIR)/k-asm.h $(BUILDSTAMPS)
-	$(call compile,-Os -fomit-frame-pointer -c $< -o $@,COMPILE)
+	$(call compile,-Os -fomit-frame-pointer -c $< -o $@,COMPILE $<)
 
 
 # How to make supporting source files
 
 $(OBJDIR)/k-asm.h: kernel.hh build/mkkernelasm.awk $(BUILDSTAMPS)
-	$(call run,gcc $(DEPCFLAGS) -dM -E kernel.hh | awk -f build/mkkernelasm.awk | sort >,CREATE,$@)
+	$(call cxxcompile,-dM -E kernel.hh | awk -f build/mkkernelasm.awk | sort > $@,CREATE $@)
 
 $(OBJDIR)/k-flatfs.c: \
 	build/mkflatfs.awk $(FLATFS_CONTENTS) $(BUILDSTAMPS) GNUmakefile
