@@ -191,6 +191,8 @@ void init_physical_ranges() {
     physical_ranges.set(ROUNDDOWN(ktext2pa(_kernel_start), PAGESIZE),
                         ROUNDUP(ktext2pa(_kernel_end), PAGESIZE),
                         mem_kernel);
+    // `physical_ranges` should never change after the initialization process
+    // completes.
 }
 
 
