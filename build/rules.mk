@@ -6,10 +6,10 @@ CCPREFIX =
 
 ifeq ($(CCPREFIX),)
 ifeq ($(origin CC),default)
-CC      = $(shell build/findgcc.sh $(CC))
+CC      := $(shell build/findgcc.sh $(CC))
 endif
 ifeq ($(origin CXX),default)
-CXX     = $(shell build/findgcc.sh $(CXX))
+CXX     := $(shell build/findgcc.sh $(CXX))
 endif
 else
 CC      = $(CCPREFIX)cc
@@ -33,7 +33,7 @@ CPPFLAGS := $(DEFS) -I.
 
 CCOMMONFLAGS := -m64 -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -mno-sse3 \
 	-mno-3dnow -ffreestanding -fno-omit-frame-pointer -fno-pic \
-	-Wall -W -Wshadow -Wno-format -Wno-unused -gdwarf-2
+	-Wall -W -Wshadow -Wno-format -Wno-unused
 # Include -fno-stack-protector if the option exists.
 CCOMMONFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 

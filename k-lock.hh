@@ -45,7 +45,7 @@ struct spinlock {
         irqstate s = irqstate::get();
         cli();
         lock_noirq();
-        return std::move(s);
+        return s;
     }
     void unlock(irqstate& x) {
         unlock_noirq();
