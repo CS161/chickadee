@@ -1,17 +1,14 @@
 IMAGE = chickadeeos.img
 all: $(IMAGE)
 
-QEMUOPT	= -net none -parallel file:log.txt -smp 2
-ifneq ($(D),)
-QEMUOPT += -d int,cpu_reset -no-reboot
-endif
+# Place local configuration options, such as `CC=clang`, in
+# `config.mk` so you don't have to list them every time.
+-include config.mk
 
-# '$(V)' controls whether the lab makefiles print verbose commands (the
-# actual shell commands run by Make), as well as the "overview" commands
-# (such as '+ cc lib/readline.c').
-#
-# For overview commands only, run 'make all'.
-# For overview and verbose commands, run 'make V=1 all'.
+# `$(V)` controls whether the lab makefiles print verbose commands (the
+# actual shell commands run by Make) or brief commands (like `COMPILE`).
+# For brief commands, run `make all`.
+# For verbose commands, run `make V=1 all`.
 V = 0
 ifeq ($(V),1)
 compile = $(CC) $(CPPFLAGS) $(CFLAGS) $(DEPCFLAGS) $(1)
@@ -23,6 +20,14 @@ compile = @/bin/echo " " $(2) && $(CC) $(CPPFLAGS) $(CFLAGS) $(DEPCFLAGS) $(1)
 cxxcompile = @/bin/echo " " $(2) && $(CXX) $(CPPFLAGS) $(CXXFLAGS) $(DEPCFLAGS) $(1)
 link = @/bin/echo " " $(2) $(patsubst %.full,%,$@) && $(LD) $(LDFLAGS) $(1)
 run = @$(if $(2),/bin/echo " " $(2) $(3) &&,) $(1) $(3)
+endif
+
+# `$(D)` controls how QEMU responds to faults. Run `make D=1 run` to
+# ask QEMU to print debugging information about interrupts and CPU resets,
+# and to quit after the first triple fault instead of rebooting.
+QEMUOPT	= -net none -parallel file:log.txt -smp 2
+ifneq ($(D),)
+QEMUOPT += -d int,cpu_reset -no-reboot
 endif
 
 -include build/rules.mk

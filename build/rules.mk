@@ -1,17 +1,25 @@
 OBJDIR := obj
 comma = ,
 
-# Cross-compiler toolchain
-GCCPREFIX =
-CC      = $(GCCPREFIX)cc
-CXX     = $(GCCPREFIX)c++
-AS      = $(GCCPREFIX)as
-AR      = $(GCCPREFIX)ar
-LD      = $(GCCPREFIX)ld
-OBJCOPY = $(GCCPREFIX)objcopy
-OBJDUMP = $(GCCPREFIX)objdump
-NM      = $(GCCPREFIX)nm
-STRIP   = $(GCCPREFIX)strip
+# Compiler toolchain
+CCPREFIX =
+
+ifeq ($(CCPREFIX),)
+ifeq ($(origin CC),default)
+CC      = $(shell build/findgcc.sh $(CC))
+endif
+ifeq ($(origin CXX),default)
+CXX     = $(shell build/findgcc.sh $(CXX))
+endif
+else
+CC      = $(CCPREFIX)cc
+CXX     = $(CCPREFIX)c++
+endif
+LD      = $(CCPREFIX)ld
+OBJCOPY = $(CCPREFIX)objcopy
+OBJDUMP = $(CCPREFIX)objdump
+NM      = $(CCPREFIX)nm
+STRIP   = $(CCPREFIX)strip
 
 # Native commands
 HOSTCC  = cc
