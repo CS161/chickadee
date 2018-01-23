@@ -62,7 +62,7 @@ void memusage::refresh() {
     memset(v_, 0, (maxpa / PAGESIZE) * sizeof(*v_));
 
     // mark kernel ranges of physical memory
-    // We handle reserved ranges of physical memory below.
+    // We handle reserved ranges of physical memory separately.
     for (auto range = physical_ranges.begin();
          range != physical_ranges.end();
          ++range) {
@@ -78,24 +78,19 @@ void memusage::refresh() {
     // must be called with `ptable_lock` held
     for (int pid = 1; pid < NPROC; ++pid) {
         proc* p = ptable[pid];
-        if (!p) {
-            continue;
+        if (p) {
+            mark(ka2pa(p), f_kernel | f_process(pid));
         }
+        if (p && p->pagetable_) {
+            for (ptiter it(p); it.low(); it.next()) {
+                mark(it.ptp_pa(), f_kernel | f_process(pid));
+            }
+            mark(ka2pa(p->pagetable_), f_kernel | f_process(pid));
 
-        mark(ka2pa(p), f_kernel | f_process(pid));
-
-        if (!p->pagetable_) {
-            continue;
-        }
-
-        for (ptiter it(p); it.low(); it.next()) {
-            mark(it.ptp_pa(), f_kernel | f_process(pid));
-        }
-        mark(ka2pa(p->pagetable_), f_kernel | f_process(pid));
-
-        for (vmiter it(p); it.low(); it.next()) {
-            if (it.user()) {
-                mark(it.pa(), f_process(pid));
+            for (vmiter it(p); it.low(); it.next()) {
+                if (it.user()) {
+                    mark(it.pa(), f_process(pid));
+                }
             }
         }
     }
@@ -113,7 +108,7 @@ uint16_t memusage::symbol_at(uintptr_t pa) const {
         if (range->type() == mem_kernel) {
             return 'K' | 0x4000;
         } else {
-            return 'R' | 0x4000;
+            return '?' | 0x4000;
         }
     }
 
@@ -122,7 +117,7 @@ uint16_t memusage::symbol_at(uintptr_t pa) const {
     } else if (range->type() == mem_reserved) {
         return 'R' | (v_[pa / PAGESIZE] ? 0xC000 : 0x4000);
     } else if (range->type() == mem_kernel) {
-        return 'K' | (v_[pa / PAGESIZE] ? 0xCD00 : 0x4D00);
+        return 'K' | (v_[pa / PAGESIZE] > f_kernel ? 0xCD00 : 0x4D00);
     } else if (range->type() == mem_nonexistent) {
         return ' ' | 0x0700;
     } else {
@@ -131,19 +126,24 @@ uint16_t memusage::symbol_at(uintptr_t pa) const {
         } else if (v_[pa / PAGESIZE] == f_kernel) {
             return 'K' | 0x4000;
         } else {
+            // find lowest process involved with this page
             int pid = 1;
             while (!(v_[pa / PAGESIZE] & f_process(pid))) {
                 ++pid;
             }
-            static const char names[] = "K123456789ABCDEFGHIJKLMNOPQRST?";
+            // foreground color is that associated with `pid`
             static const uint8_t colors[] = { 0xF, 0xC, 0xA, 0x9, 0xE };
             uint16_t ch = colors[pid % 5] << 8;
             if (v_[pa / PAGESIZE] & f_kernel) {
+                // kernel page: dark red background
                 ch |= 0x4000;
             }
             if (v_[pa / PAGESIZE] > (f_process(pid) | f_kernel)) {
+                // shared page
                 ch = (ch & 0x7700) | 'S';
             } else {
+                // non-shared page
+                static const char names[] = "K123456789ABCDEFGHIJKLMNOPQRST?";
                 ch |= names[pid];
             }
             return ch;
