@@ -100,11 +100,15 @@ inline bool vmiter::low() const {
     return va_ <= VA_LOWMAX;
 }
 inline uint64_t vmiter::pa() const {
-    uintptr_t pa = *pep_ & PTE_PAMASK;
-    if (level_ > 0) {
-        pa &= ~0x1000;
+    if (*pep_ & PTE_P) {
+        uintptr_t pa = *pep_ & PTE_PAMASK;
+        if (level_ > 0) {
+            pa &= ~0x1000;
+        }
+        return pa + (va_ & pageoffmask(level_));
+    } else {
+        return -1;
     }
-    return pa + (va_ & pageoffmask(level_));
 }
 inline uint64_t vmiter::perm() const {
     if (*pep_ & PTE_P) {
