@@ -27,7 +27,8 @@ class vmiter {
     inline vmiter& operator+=(intptr_t delta);  // advance `va` by `delta`
     inline vmiter& operator-=(intptr_t delta);
 
-    // move to next va, skipping large empty address blocks
+    // move to next page-aligned va, skipping large empty regions
+    // Never skips present pages.
     void next();
 
     // map current va to `pa` with permissions `perm`
@@ -46,7 +47,7 @@ class vmiter {
     static constexpr int initial_perm = 0xFFF;
 
     void down();
-    void find_body(uintptr_t va);
+    void real_find(uintptr_t va);
 };
 
 
@@ -88,7 +89,7 @@ class ptiter {
 
 inline vmiter::vmiter(x86_64_pagetable* pt, uintptr_t va)
     : pt_(pt), pep_(&pt_->entry[0]), level_(3), perm_(initial_perm), va_(0) {
-    find_body(va);
+    real_find(va);
 }
 inline vmiter::vmiter(const proc* p, uintptr_t va)
     : vmiter(p->pagetable_, va) {
@@ -127,7 +128,7 @@ inline bool vmiter::user() const {
     return (*pep_ & perm_ & (PTE_P | PTE_U)) == (PTE_P | PTE_U);
 }
 inline vmiter& vmiter::find(uintptr_t va) {
-    find_body(va);
+    real_find(va);
     return *this;
 }
 inline vmiter& vmiter::operator+=(intptr_t delta) {

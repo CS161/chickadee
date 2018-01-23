@@ -10,7 +10,7 @@ void vmiter::down() {
     }
 }
 
-void vmiter::find_body(uintptr_t va) {
+void vmiter::real_find(uintptr_t va) {
     if ((va_ ^ va) & ~pageoffmask(level_ + 1)) {
         level_ = 3;
         pep_ = &pt_->entry[pageindex(va, level_)];
@@ -28,7 +28,7 @@ void vmiter::next() {
     if (level_ > 0 && !perm()) {
         level = level_;
     }
-    find_body((va_ | pageoffmask(level)) + 1);
+    real_find((va_ | pageoffmask(level)) + 1);
 }
 
 int vmiter::map(uintptr_t pa, int perm) {
