@@ -1,5 +1,6 @@
 #define _LARGEFILE_SOURCE 1
 #define _FILE_OFFSET_BITS 64
+#define CHICKADEE_TYPES_H
 #include <sys/types.h>
 #include <inttypes.h>
 #include <fcntl.h>
