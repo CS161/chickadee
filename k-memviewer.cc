@@ -13,15 +13,15 @@ class memusage {
         return maxpa;
     }
 
-    // `f_kernel` is the flag bit indicating kernel-only memory
-    static constexpr unsigned f_kernel = 1;
-    // `f_process(pid)` is the flag bit indicating memory associated
-    // with process `pid`
+    // Flag bits for memory types:
+    static constexpr unsigned f_kernel = 1;     // kernel-restricted
+    static constexpr unsigned f_user = 2;       // user-accessible
+    // `f_process(pid)` is for memory associated with process `pid`
     static constexpr unsigned f_process(int pid) {
-        if (pid >= 31) {
-            return 1U << 31;
+        if (pid >= 30) {
+            return 2U << 31;
         } else if (pid >= 1) {
-            return 1U << pid;
+            return 2U << pid;
         } else {
             return 0;
         }
@@ -89,7 +89,7 @@ void memusage::refresh() {
 
             for (vmiter it(p); it.low(); it.next()) {
                 if (it.user()) {
-                    mark(it.pa(), f_process(pid));
+                    mark(it.pa(), f_user | f_process(pid));
                 }
             }
         }
@@ -112,38 +112,42 @@ uint16_t memusage::symbol_at(uintptr_t pa) const {
         }
     }
 
+    auto v = v_[pa / PAGESIZE];
     if (range->type() == mem_console) {
         return 'C' | 0x4F00;
     } else if (range->type() == mem_reserved) {
-        return 'R' | (v_[pa / PAGESIZE] ? 0xC000 : 0x4000);
+        return 'R' | (v ? 0xC000 : 0x4000);
     } else if (range->type() == mem_kernel) {
-        return 'K' | (v_[pa / PAGESIZE] > f_kernel ? 0xCD00 : 0x4D00);
+        return 'K' | (v > f_kernel ? 0xCD00 : 0x4D00);
     } else if (range->type() == mem_nonexistent) {
         return ' ' | 0x0700;
     } else {
-        if (v_[pa / PAGESIZE] == 0) {
+        if (v == 0) {
             return '.' | 0x0700;
-        } else if (v_[pa / PAGESIZE] == f_kernel) {
+        } else if (v == f_kernel) {
             return 'K' | 0x4000;
+        } else if ((v & f_kernel) && (v & f_user)) {
+            // kernel-restricted + user-accessible = error
+            return 'E' | 0xF400;
         } else {
             // find lowest process involved with this page
             int pid = 1;
-            while (!(v_[pa / PAGESIZE] & f_process(pid))) {
+            while (!(v & f_process(pid))) {
                 ++pid;
             }
             // foreground color is that associated with `pid`
             static const uint8_t colors[] = { 0xF, 0xC, 0xA, 0x9, 0xE };
             uint16_t ch = colors[pid % 5] << 8;
-            if (v_[pa / PAGESIZE] & f_kernel) {
+            if (v & f_kernel) {
                 // kernel page: dark red background
                 ch |= 0x4000;
             }
-            if (v_[pa / PAGESIZE] > (f_process(pid) | f_kernel)) {
+            if (v > (f_process(pid) | f_kernel | f_user)) {
                 // shared page
                 ch = (ch & 0x7700) | 'S';
             } else {
                 // non-shared page
-                static const char names[] = "K123456789ABCDEFGHIJKLMNOPQRST?";
+                static const char names[] = "K123456789ABCDEFGHIJKLMNOPQRST??";
                 ch |= names[pid];
             }
             return ch;
