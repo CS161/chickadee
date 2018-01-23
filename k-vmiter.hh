@@ -107,7 +107,7 @@ inline uint64_t vmiter::pa() const {
     if (*pep_ & PTE_P) {
         uintptr_t pa = *pep_ & PTE_PAMASK;
         if (level_ > 0) {
-            pa &= ~0x1000;
+            pa &= ~0x1000UL;
         }
         return pa + (va_ & pageoffmask(level_));
     } else {
