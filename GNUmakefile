@@ -25,7 +25,10 @@ endif
 # `$(D)` controls how QEMU responds to faults. Run `make D=1 run` to
 # ask QEMU to print debugging information about interrupts and CPU resets,
 # and to quit after the first triple fault instead of rebooting.
-QEMUOPT	= -net none -parallel file:log.txt -smp 2
+#
+# `$(NCPU)` controls the number of CPUs QEMU should use. It defaults to 2.
+NCPU = 2
+QEMUOPT = -net none -parallel file:log.txt -smp $(NCPU)
 ifneq ($(D),)
 QEMUOPT += -d int,cpu_reset -no-reboot
 endif
