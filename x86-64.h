@@ -38,6 +38,7 @@
 #define VA_LOWMAX       0x00007FFFFFFFFFFFUL // max canonical low address
 #define VA_HIGHMIN      0xFFFF800000000000UL // min canonical high address
 #define VA_HIGHMAX      0xFFFFFFFFFFFFFFFFUL // max canonical high address
+#define VA_NONCANONMAX  0x0000FFFFFFFFFFFFUL // max non-canonical address
 
 // Parts of a paged address: page index, page offset
 static inline int pageindex(uintptr_t addr, int level) {

@@ -42,7 +42,8 @@ int vmiter::map(uintptr_t pa, int perm) {
 
     while (level_ > 0 && perm) {
         assert(!(*pep_ & PTE_P));
-        x86_64_pagetable* pt = reinterpret_cast<x86_64_pagetable*>(kallocpage());
+        x86_64_pagetable* pt = reinterpret_cast<x86_64_pagetable*>
+            (kallocpage());
         if (!pt) {
             return -1;
         }
@@ -81,6 +82,10 @@ void ptiter::down(bool skip) {
             uintptr_t va = (va_ | pageoffmask(level_)) + 1;
             if ((va ^ va_) & ~pageoffmask(level_ + 1)) {
                 // up one level
+                if (level_ == 3) {
+                    va_ = VA_NONCANONMAX + 1;
+                    return;
+                }
                 stop_level = level_ + 1;
                 level_ = 3;
                 pep_ = &pt_->entry[pageindex(va_, level_)];

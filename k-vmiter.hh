@@ -60,6 +60,7 @@ class vmiter {
 // }
 // freepage(pt);
 // ```
+// Note that `ptiter` will never visit the level 4 page table page.
 
 class ptiter {
   public:
@@ -68,10 +69,12 @@ class ptiter {
     inline ptiter(const proc* p, uintptr_t va = 0);
 
     inline uintptr_t va() const;            // current virtual address
+    inline uintptr_t end_va() const;        // one past last va covered by ptp
+    inline bool active() const;             // does va exist?
     inline bool low() const;                // is va low?
     inline int level() const;               // current level (0-2)
     inline x86_64_pagetable* ptp() const;   // current page table page
-    inline uintptr_t ptp_pa() const;        // physical address of ptp()
+    inline uintptr_t ptp_pa() const;        // physical address of ptp
 
     // move to next page table page in depth-first order
     inline void next();
@@ -147,6 +150,12 @@ inline ptiter::ptiter(const proc* p, uintptr_t va)
 }
 inline uintptr_t ptiter::va() const {
     return va_ & ~pageoffmask(level_);
+}
+inline uintptr_t ptiter::end_va() const {
+    return (va_ | pageoffmask(level_)) + 1;
+}
+inline bool ptiter::active() const {
+    return va_ <= VA_NONCANONMAX;
 }
 inline bool ptiter::low() const {
     return va_ <= VA_LOWMAX;

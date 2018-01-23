@@ -11,7 +11,7 @@ class memrange {
   public:
     inline int type() const;                // type of range
     inline uintptr_t first() const;         // first address in range
-    inline uintptr_t last() const;          // last address in range
+    inline uintptr_t last() const;          // one past last address in range
 
   private:
     uintptr_t addr_;
