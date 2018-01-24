@@ -75,6 +75,7 @@ $(OBJDIR)/bootentry.o: $(OBJDIR)/%.o: \
 
 $(OBJDIR)/k-asm.h: kernel.hh build/mkkernelasm.awk $(BUILDSTAMPS)
 	$(call cxxcompile,-dM -E kernel.hh | awk -f build/mkkernelasm.awk | sort > $@,CREATE $@)
+	@if test ! -s $@; then echo '* Error creating $@!' 1>&2; exit 1; fi
 
 $(OBJDIR)/k-flatfs.c: \
 	build/mkflatfs.awk $(FLATFS_CONTENTS) $(BUILDSTAMPS) GNUmakefile
