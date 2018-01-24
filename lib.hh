@@ -26,7 +26,7 @@ int rand();
 void srand(unsigned seed);
 
 // Return the offset of `member` relative to the beginning of a struct type
-#define offsetof(type, member)  ((size_t) (&((type*) 0)->member))
+#define offsetof(type, member)  __builtin_offsetof(type, member)
 
 // Return the number of elements in an array
 #define arraysize(array)  (sizeof(array) / sizeof(array[0]))

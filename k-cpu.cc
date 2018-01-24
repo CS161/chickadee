@@ -29,6 +29,7 @@ void cpustate::init() {
     runq_tail_ = nullptr;
     runq_lock_.clear();
     idle_task_ = nullptr;
+    spinlock_depth_ = 0;
 
     // now initialize the CPU hardware
     init_cpu_hardware();
@@ -53,7 +54,8 @@ void cpustate::enqueue(proc* p) {
 //    run `yielding_from` unless no other runnable process exists.
 
 void cpustate::schedule(proc* yielding_from) {
-    assert(is_cli());
+    assert(is_cli());              // interrupts are currently disabled
+    assert(spinlock_depth_ == 0);  // no spinlocks are held
 
     // do not run idle task unless nothing else is runnable
     if (current_ == idle_task_) {
@@ -72,12 +74,16 @@ void cpustate::schedule(proc* yielding_from) {
         // otherwise load the next process from the run queue
         runq_lock_.lock_noirq();
         if (current_) {
-            assert(current_ == yielding_from);
-            enqueue(current_);
+            // re-enqueue `current_` at end of run queue if runnable
+            if (current_->state_ == proc::runnable) {
+                enqueue(current_);
+            }
             current_ = yielding_from = nullptr;
+            // switch to a safe page table
             lcr3(ktext2pa(early_pagetable));
         }
         if (runq_head_) {
+            // pop head of run queue into `current_`
             current_ = runq_head_;
             runq_head_ = runq_head_->runq_next_;
             if (runq_head_) {

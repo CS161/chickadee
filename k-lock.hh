@@ -3,6 +3,7 @@
 #include <atomic>
 #include <utility>
 #include "x86-64.h"
+inline void adjust_this_cpu_spinlock_depth(int delta);
 
 struct irqstate {
     irqstate()
@@ -15,7 +16,7 @@ struct irqstate {
     irqstate(const irqstate&) = delete;
     irqstate& operator=(const irqstate&) = delete;
     ~irqstate() {
-        assert(!flags_);
+        assert(!flags_ && "forgot to unlock a spinlock");
     }
 
     static irqstate get() {
@@ -45,9 +46,11 @@ struct spinlock {
         irqstate s = irqstate::get();
         cli();
         lock_noirq();
+        adjust_this_cpu_spinlock_depth(1);
         return s;
     }
     void unlock(irqstate& x) {
+        adjust_this_cpu_spinlock_depth(-1);
         unlock_noirq();
         x.restore();
     }

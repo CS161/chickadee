@@ -32,6 +32,8 @@ struct __attribute__((aligned(4096))) cpustate {
     spinlock runq_lock_;
     proc* idle_task_;
 
+    unsigned spinlock_depth_;
+
     uint64_t gdt_segments_[7];
     x86_64_taskstate task_descriptor_;
 
@@ -57,7 +59,7 @@ extern cpustate cpus[NCPU];
 extern int ncpu;
 #define CPUSTACK_SIZE 4096
 
-cpustate* this_cpu();
+inline cpustate* this_cpu();
 
 
 // Process descriptor type
@@ -341,6 +343,13 @@ inline cpustate* this_cpu() {
     cpustate* result;
     asm volatile ("movq %%gs:(0), %0" : "=r" (result));
     return result;
+}
+
+inline void adjust_this_cpu_spinlock_depth(int delta) {
+    asm volatile ("addl %1, %%gs:%0"
+                  : "+m" (*reinterpret_cast<int*>
+                          (offsetof(cpustate, spinlock_depth_)))
+                  : "er" (delta) : "cc", "memory");
 }
 
 #endif
