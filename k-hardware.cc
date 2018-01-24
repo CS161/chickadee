@@ -7,6 +7,23 @@
 //    Functions for interacting with x86 hardware.
 
 
+// kalloc_pagetable
+//    Allocate and initialize a new page table. The page is allocated
+//    using `kallocpage()`. The page table's high memory is copied from
+//    `early_pagetable`.
+
+x86_64_pagetable* kalloc_pagetable() {
+    x86_64_pagetable* pt = reinterpret_cast<x86_64_pagetable*>
+        (kallocpage());
+    if (pt) {
+        memset(&pt->entry[0], 0, sizeof(x86_64_pageentry_t) * 256);
+        memcpy(&pt->entry[256], &early_pagetable->entry[256],
+               sizeof(x86_64_pageentry_t) * 256);
+    }
+    return pt;
+}
+
+
 // set_pagetable
 //    Change page directory. lcr3() is the hardware instruction;
 //    set_pagetable() additionally checks that important kernel procedures are

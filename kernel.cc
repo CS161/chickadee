@@ -42,9 +42,9 @@ void kernel_start(const char* command) {
 void process_setup(pid_t pid, const char* name) {
     assert(!ptable[pid]);
     proc* p = ptable[pid] = reinterpret_cast<proc*>(kallocpage());
-    x86_64_page* npt = kallocpage();
+    x86_64_pagetable* npt = kalloc_pagetable();
     assert(p && npt);
-    p->init_user(pid, reinterpret_cast<x86_64_pagetable*>(npt));
+    p->init_user(pid, npt);
 
     int r = p->load(name);
     assert(r >= 0);
@@ -52,7 +52,6 @@ void process_setup(pid_t pid, const char* name) {
     x86_64_page* stkpg = kallocpage();
     assert(stkpg);
     vmiter(p, p->regs_->reg_rsp - PAGESIZE).map(ka2pa(stkpg));
-    p->state_ = proc::runnable;
 
     int cpu = pid % ncpu;
     cpus[cpu].runq_lock_.lock_noirq();

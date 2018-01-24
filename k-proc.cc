@@ -6,18 +6,22 @@ proc* ptable[NPROC];            // array of process descriptor pointers
 spinlock ptable_lock;           // protects `ptable`
 
 
-// proc::init_user(pid, pg)
-//    Initialize this `proc` as a new user process with PID `pid` and
-//    initial page table `pg`. `pg` is initialized from `early_pagetable`.
+// proc::init_user(pid, pt)
+//    Initialize this `proc` as a new runnable user process with PID `pid`
+//    and initial page table `pt`.
 
-void proc::init_user(pid_t pid, x86_64_pagetable* pg) {
+void proc::init_user(pid_t pid, x86_64_pagetable* pt) {
     uintptr_t addr = reinterpret_cast<uintptr_t>(this);
     assert(!(addr & PAGEOFFMASK));
-    assert(!(reinterpret_cast<uintptr_t>(pg) & PAGEOFFMASK));
     // ensure layout `k-exception.S` expects
     assert(reinterpret_cast<uintptr_t>(&pid_) == addr);
     assert(reinterpret_cast<uintptr_t>(&regs_) == addr + 8);
     assert(reinterpret_cast<uintptr_t>(&yields_) == addr + 16);
+    // ensure initialized page table
+    assert(!(reinterpret_cast<uintptr_t>(pt) & PAGEOFFMASK));
+    assert(pt->entry[256] == early_pagetable->entry[256]);
+    assert(pt->entry[510] == early_pagetable->entry[510]);
+    assert(pt->entry[511] == early_pagetable->entry[511]);
 
     pid_ = pid;
 
@@ -30,12 +34,10 @@ void proc::init_user(pid_t pid, x86_64_pagetable* pg) {
     regs_->reg_rflags = EFLAGS_IF;
 
     yields_ = nullptr;
-    state_ = proc::blank;
 
-    // initialize pagetable from `early_pagetable`, but zero out low memory
-    pagetable_ = pg;
-    memcpy(pg, early_pagetable, sizeof(x86_64_pagetable));
-    memset(pg, 0, sizeof(x86_64_pageentry_t) * 256);
+    state_ = proc::runnable;
+
+    pagetable_ = pt;
 
     runq_pprev_ = nullptr;
     runq_next_ = nullptr;

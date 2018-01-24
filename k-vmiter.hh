@@ -18,6 +18,8 @@ class vmiter {
     inline uintptr_t va() const;      // current virtual address
     inline bool low() const;          // is va low?
     inline uint64_t pa() const;       // current physical address
+    template <typename T = void*>
+    inline T ka() const;              // kernel version of pa()
     inline uint64_t perm() const;     // current permissions
     inline bool present() const;      // is va present?
     inline bool writable() const;     // is va writable?
@@ -113,6 +115,11 @@ inline uint64_t vmiter::pa() const {
     } else {
         return -1;
     }
+}
+template <typename T>
+inline T vmiter::ka() const {
+    assert(*pep_ & PTE_P);
+    return pa2ka<T>(pa());
 }
 inline uint64_t vmiter::perm() const {
     if (*pep_ & PTE_P) {

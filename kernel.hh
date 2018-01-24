@@ -82,7 +82,7 @@ struct __attribute__((aligned(4096))) proc {
     proc() = default;
     NO_COPY_OR_ASSIGN(proc);
 
-    void init_user(pid_t pid, x86_64_pagetable* pg);
+    void init_user(pid_t pid, x86_64_pagetable* pt);
     void init_kernel(pid_t pid, void (*f)(proc*));
     int load(const char* binary_name);
 
@@ -241,7 +241,7 @@ inline T read_unaligned_pa(uint64_t pa) {
 //    Initialize x86 hardware, including memory, interrupts, and segments.
 //    All accessible physical memory is initially mapped as readable
 //    and writable to both kernel and application code.
-void hardware_init(void);
+void hardware_init();
 
 // timer_init(rate)
 //    Set the timer interrupt to fire `rate` times a second. Disables the
@@ -252,19 +252,17 @@ void timer_init(int rate);
 // kernel page table (used for virtual memory)
 extern x86_64_pagetable early_pagetable[2];
 
-// set_pagetable
-//    Change page table. lcr3() is the hardware instruction;
-//    set_pagetable() additionally checks that important kernel procedures are
-//    mappable in `pagetable`, and calls panic() if they aren't.
+// allocate and initialize a new page table
+x86_64_pagetable* kalloc_pagetable();
+
+// change current page table
 void set_pagetable(x86_64_pagetable* pagetable);
 
-// poweroff
-//    Turn off the virtual machine.
-void poweroff(void) __attribute__((noreturn));
+// turn off the virtual machine
+void poweroff() __attribute__((noreturn));
 
-// reboot
-//    Reboot the virtual machine.
-void reboot(void) __attribute__((noreturn));
+// reboot the virtual machine
+void reboot() __attribute__((noreturn));
 
 extern "C" {
 void kernel_start(const char* command);
@@ -283,7 +281,7 @@ void console_show_cursor(int cpos);
 //    keyboard_readc() again (e.g. the user pressed a SHIFT key). Otherwise
 //    returns either an ASCII character code or one of the special characters
 //    listed below.
-int keyboard_readc(void);
+int keyboard_readc();
 
 #define KEY_UP          0300
 #define KEY_RIGHT       0301
@@ -301,7 +299,7 @@ int keyboard_readc(void);
 //    reboot where the kernel runs the allocator programs, "fork", or
 //    "forkexit", respectively. Control-C or 'q' exit the virtual machine.
 //    Returns key typed or -1 for no key.
-int check_keyboard(void);
+int check_keyboard();
 
 
 // program_load(p, programnumber)
