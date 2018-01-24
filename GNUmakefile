@@ -13,11 +13,13 @@ V = 0
 ifeq ($(V),1)
 compile = $(CC) $(CPPFLAGS) $(CFLAGS) $(DEPCFLAGS) $(1)
 cxxcompile = $(CXX) $(CPPFLAGS) $(CXXFLAGS) $(DEPCFLAGS) $(1)
+assemble = $(CC) $(CPPFLAGS) $(ASFLAGS) $(DEPCFLAGS) $(1)
 link = $(LD) $(LDFLAGS) $(1)
 run = $(1) $(3)
 else
 compile = @/bin/echo " " $(2) && $(CC) $(CPPFLAGS) $(CFLAGS) $(DEPCFLAGS) $(1)
 cxxcompile = @/bin/echo " " $(2) && $(CXX) $(CPPFLAGS) $(CXXFLAGS) $(DEPCFLAGS) $(1)
+assemble = @/bin/echo " " $(2) && $(CC) $(CPPFLAGS) $(ASFLAGS) $(DEPCFLAGS) $(1)
 link = @/bin/echo " " $(2) $(patsubst %.full,%,$@) && $(LD) $(LDFLAGS) $(1)
 run = @$(if $(2),/bin/echo " " $(2) $(3) &&,) $(1) $(3)
 endif
@@ -61,14 +63,14 @@ $(OBJDIR)/%.ko: %.cc $(BUILDSTAMPS)
 	$(call cxxcompile,-O2 -DCHICKADEE_KERNEL -mcmodel=kernel -c $< -o $@,COMPILE $<)
 
 $(OBJDIR)/%.ko: %.S $(OBJDIR)/k-asm.h $(BUILDSTAMPS)
-	$(call cxxcompile,-O2 -mcmodel=kernel -c $< -o $@,ASSEMBLE $<)
+	$(call assemble,-O2 -mcmodel=kernel -c $< -o $@,ASSEMBLE $<)
 
 $(OBJDIR)/boot.o: $(OBJDIR)/%.o: boot.cc $(BUILDSTAMPS)
 	$(call cxxcompile,-Os -fomit-frame-pointer -c $< -o $@,COMPILE $<)
 
 $(OBJDIR)/bootentry.o: $(OBJDIR)/%.o: \
 	bootentry.S $(OBJDIR)/k-asm.h $(BUILDSTAMPS)
-	$(call compile,-Os -fomit-frame-pointer -c $< -o $@,COMPILE $<)
+	$(call assemble,-Os -fomit-frame-pointer -c $< -o $@,ASSEMBLE $<)
 
 
 # How to make supporting source files
@@ -88,19 +90,19 @@ $(OBJDIR)/k-proc.ko: $(OBJDIR)/k-flatfs.c
 
 $(OBJDIR)/kernel.full: $(KERNEL_OBJS) $(FLATFS_CONTENTS) kernel.ld
 	$(call link,-T kernel.ld -o $@ $(KERNEL_OBJS) -b binary $(FLATFS_CONTENTS),LINK)
-	@if objdump -p $@ | grep off | grep -iv 'off[ 0-9a-fx]*000 ' >/dev/null 2>&1; then echo "* Warning: Some sections of kernel object file are not page-aligned." 1>&2; fi
+	@if $(OBJDUMP) -p $@ | grep off | grep -iv 'off[ 0-9a-fx]*000 ' >/dev/null 2>&1; then echo "* Warning: Some sections of kernel object file are not page-aligned." 1>&2; fi
 
 $(OBJDIR)/p-%.full: $(OBJDIR)/p-%.o $(PROCESS_LIB_OBJS) process.ld
 	$(call link,-T process.ld -o $@ $< $(PROCESS_LIB_OBJS),LINK)
 
 $(OBJDIR)/%: $(OBJDIR)/%.full
-	$(call run,$(OBJDUMP) -S -j .lowtext -j .text -j .ctors $< >$@.asm)
+	$(call run,$(OBJDUMP) -C -S -j .lowtext -j .text -j .ctors $< >$@.asm)
 	$(call run,$(NM) -n $< >$@.sym)
 	$(call run,$(OBJCOPY) -j .lowtext -j .lowdata -j .text -j .rodata -j .data -j .bss -j .ctors -j .init_array $<,STRIP,$@)
 
 $(OBJDIR)/bootsector: $(BOOT_OBJS) boot.ld
 	$(call link,-T boot.ld -o $@.full $(BOOT_OBJS),LINK)
-	$(call run,$(OBJDUMP) -S $@.full >$@.asm)
+	$(call run,$(OBJDUMP) -C -S $@.full >$@.asm)
 	$(call run,$(NM) -n $@.full >$@.sym)
 	$(call run,$(OBJCOPY) -S -O binary -j .text $@.full $@)
 

@@ -37,8 +37,9 @@ CCOMMONFLAGS := -m64 -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -mno-sse3 \
 # Include -fno-stack-protector if the option exists.
 CCOMMONFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 
-CFLAGS := $(CFLAGS) $(CCOMMONFLAGS) -std=gnu11
-CXXFLAGS := $(CXXFLAGS) $(CCOMMONFLAGS) -fno-exceptions -std=gnu++1z
+ASFLAGS := $(CCOMMONFLAGS)
+CFLAGS := $(CFLAGS) $(CCOMMONFLAGS) -gdwarf -std=gnu11
+CXXFLAGS := $(CXXFLAGS) $(CCOMMONFLAGS) -fno-exceptions -gdwarf -std=gnu++1z
 DEPCFLAGS = -MD -MF $(DEPSDIR)/$*.d -MP
 
 # Linker flags
@@ -56,6 +57,9 @@ endif
 
 ifneq ($(DEP_CC),$(CC) $(CPPFLAGS) $(CFLAGS) $(DEPCFLAGS) $(O) _ $(LDFLAGS))
 DEP_CC := $(shell mkdir -p $(DEPSDIR); echo >$(BUILDSTAMP); echo "DEP_CC:=$(CC) $(CPPFLAGS) $(CFLAGS) $(DEPCFLAGS) $(O) _ $(LDFLAGS)" >$(DEPSDIR)/_cc.d; echo "DEP_PREFER_GCC:=$(PREFER_GCC)" >>$(DEPSDIR)/_cc.d)
+endif
+ifneq ($(DEP_CXX),$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(DEPCFLAGS) $(O))
+DEP_CXX := $(shell mkdir -p $(DEPSDIR); echo >$(BUILDSTAMP); echo "DEP_CXX:=$(CXX) $(CPPFLAGS) $(CXXFLAGS) $(DEPCFLAGS) $(O)" >$(DEPSDIR)/_cxx.d)
 endif
 
 BUILDSTAMPS = $(OBJDIR)/stamp $(BUILDSTAMP)
