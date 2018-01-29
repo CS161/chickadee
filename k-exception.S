@@ -132,8 +132,6 @@ exception_entry:
         movq %gs:(8), %rdi
         // the second argument, `regstate`, is the current `%rsp`
         movq %rsp, %rsi
-        // also store it in `proc::regs_`
-        movq %rsp, 8(%rdi)
         call _ZN4proc9exceptionEP8regstate
 
 restore_and_iret:
@@ -207,7 +205,6 @@ syscall_entry:
 
         movq %gs:(8), %rdi
         movq %rsp, %rsi
-        movq %rsp, 8(%rdi)
         call _ZN4proc7syscallEP8regstate
 
         addq $(8 * 19), %rsp
@@ -269,8 +266,9 @@ resume_regstate:
         subq %rdi, %rax
         cmpq $KTASKSTACK_SIZE, %rax
         jae resume_regstate_fail
-        // restore stack pointer, pop regs
+        // restore stack pointer, clear regstate, pop regs
         movq 8(%rdi), %rsp
+        movq $0, 8(%rdi)
         jmp restore_and_iret
 
 resume_yieldstate:
