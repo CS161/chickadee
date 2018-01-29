@@ -261,7 +261,7 @@ _ZN4proc6resumeEv:
 
 resume_regstate:
         // no yieldstate, jump to the regstate
-        // assert(p->contains(p->regs_))
+        // assert(this->contains(regs_))
         movq 8(%rdi), %rax
         subq %rdi, %rax
         cmpq $KTASKSTACK_SIZE, %rax
@@ -273,7 +273,7 @@ resume_regstate:
 
 resume_yieldstate:
         // jump to the yieldstate
-        // assert(p->contains(p->yields_))
+        // assert(this->contains(yields_))
         subq %rdi, %rax
         cmpq $KTASKSTACK_SIZE, %rax
         jae resume_yieldstate_fail
@@ -305,9 +305,9 @@ resume_yieldstate_fail:
 k_exception_str:
         .asciz "k-exception.S"
 proc_contains_regs_assert:
-        .asciz "p->contains(p->regs_)"
+        .asciz "this->contains(regs_)"
 proc_contains_yields_assert:
-        .asciz "p->contains(p->yields_)"
+        .asciz "this->contains(yields_)"
 
 
 // ap_entry
