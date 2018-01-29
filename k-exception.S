@@ -132,6 +132,8 @@ exception_entry:
         movq %gs:(8), %rdi
         // the second argument, `regstate`, is the current `%rsp`
         movq %rsp, %rsi
+        // also store it in `proc::regs_`
+        movq %rsp, 8(%rdi)
         call _ZN4proc9exceptionEP8regstate
 
 restore_and_iret:
@@ -205,6 +207,7 @@ syscall_entry:
 
         movq %gs:(8), %rdi
         movq %rsp, %rsi
+        movq %rsp, 8(%rdi)
         call _ZN4proc7syscallEP8regstate
 
         addq $(8 * 19), %rsp
@@ -255,16 +258,29 @@ _ZN4proc14yield_noreturnEv:
 .globl _ZN4proc6resumeEv
 _ZN4proc6resumeEv:
         // do we have yieldstate? (is `this->yields_ != nullptr`?)
-        movq 16(%rdi), %rsp
-        testq %rsp, %rsp
-        jnz 1f
+        movq 16(%rdi), %rax
+        testq %rax, %rax
+        jnz resume_yieldstate
 
-        // no yieldstate: jump to the regstate
+resume_regstate:
+        // no yieldstate, jump to the regstate
+        // assert(p->contains(p->regs_))
+        movq 8(%rdi), %rax
+        subq %rdi, %rax
+        cmpq $KTASKSTACK_SIZE, %rax
+        jae resume_regstate_fail
+        // restore stack pointer, pop regs
         movq 8(%rdi), %rsp
-        movq $0, 8(%rdi)
         jmp restore_and_iret
 
-1:      // have yieldstate: clear it, pop callee-saved regs
+resume_yieldstate:
+        // jump to the yieldstate
+        // assert(p->contains(p->yields_))
+        subq %rdi, %rax
+        cmpq $KTASKSTACK_SIZE, %rax
+        jae resume_yieldstate_fail
+        // restore stack pointer, clear yieldstate, pop callee-saved regs
+        movq 16(%rdi), %rsp
         movq $0, 16(%rdi)
         popq %rbp
         popq %rbx
@@ -275,6 +291,25 @@ _ZN4proc6resumeEv:
         popfq
         // return to the `proc::yield()` caller
         retq
+
+resume_regstate_fail:
+        movq $proc_contains_regs_assert, %rdx
+        jmp 1f
+resume_yieldstate_fail:
+        movq $proc_contains_yields_assert, %rdx
+1:      xorl %esi, %esi
+        movq $k_exception_str, %rdi
+        callq _Z11assert_failPKciS0_
+1:      jmp 1b
+
+
+.section .rodata.str1.1
+k_exception_str:
+        .asciz "k-exception.S"
+proc_contains_regs_assert:
+        .asciz "p->contains(p->regs_)"
+proc_contains_yields_assert:
+        .asciz "p->contains(p->yields_)"
 
 
 // ap_entry

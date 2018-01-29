@@ -41,6 +41,8 @@ struct __attribute__((aligned(4096))) cpustate {
     cpustate() = default;
     NO_COPY_OR_ASSIGN(cpustate);
 
+    inline bool contains(void* ptr) const;
+
     void init();
     void init_ap();
 
@@ -81,6 +83,8 @@ struct __attribute__((aligned(4096))) proc {
 
     proc() = default;
     NO_COPY_OR_ASSIGN(proc);
+
+    inline bool contains(void* ptr) const;
 
     void init_user(pid_t pid, x86_64_pagetable* pt);
     void init_kernel(pid_t pid, void (*f)(proc*));
@@ -348,6 +352,18 @@ inline void adjust_this_cpu_spinlock_depth(int delta) {
                   : "+m" (*reinterpret_cast<int*>
                           (offsetof(cpustate, spinlock_depth_)))
                   : "er" (delta) : "cc", "memory");
+}
+
+inline bool cpustate::contains(void* ptr) const {
+    uintptr_t delta =
+        reinterpret_cast<uintptr_t>(ptr) - reinterpret_cast<uintptr_t>(this);
+    return delta < CPUSTACK_SIZE;
+}
+
+inline bool proc::contains(void* ptr) const {
+    uintptr_t delta =
+        reinterpret_cast<uintptr_t>(ptr) - reinterpret_cast<uintptr_t>(this);
+    return delta < KTASKSTACK_SIZE;
 }
 
 #endif
