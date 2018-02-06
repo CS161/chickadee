@@ -17,7 +17,7 @@ static void process_setup(pid_t pid, const char* program_name);
 //    string is an optional string passed from the boot loader.
 
 void kernel_start(const char* command) {
-    hardware_init();
+    init_hardware();
     console_clear();
 
     // Set up process descriptors

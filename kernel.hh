@@ -241,16 +241,34 @@ inline T read_unaligned_pa(uint64_t pa) {
 }
 
 
-// hardware_init
-//    Initialize x86 hardware, including memory, interrupts, and segments.
-//    All accessible physical memory is initially mapped as readable
-//    and writable to both kernel and application code.
-void hardware_init();
+// kallocpage
+//    Allocate and return a page. Returns `nullptr` on failure.
+//    Returns a high canonical address.
+x86_64_page* kallocpage();
 
-// timer_init(rate)
-//    Set the timer interrupt to fire `rate` times a second. Disables the
-//    timer interrupt if `rate <= 0`.
-void timer_init(int rate);
+// kalloc(sz)
+//    Allocate and return a pointer to at least `sz` contiguous bytes
+//    of memory. Returns `nullptr` if `sz == 0` or on failure.
+void* kalloc(size_t sz);
+
+// kfree(ptr)
+//    Free a pointer previously returned by `kalloc`, `kallocpage`, or
+//    `kalloc_pagetable`. Does nothing if `ptr == nullptr`.
+void kfree(void* ptr);
+
+// init_kalloc
+//    Initialize stuff needed by `kalloc`. Called from `init_hardware`,
+//    after `physical_ranges` is initialized.
+void init_kalloc();
+
+// test_kalloc
+//    Run unit tests on the kalloc system.
+void test_kalloc();
+
+
+// init_hardware
+//    Initialize hardware and CPUs.
+void init_hardware();
 
 
 // kernel page table (used for virtual memory)
@@ -261,6 +279,7 @@ x86_64_pagetable* kalloc_pagetable();
 
 // change current page table
 void set_pagetable(x86_64_pagetable* pagetable);
+
 
 // turn off the virtual machine
 void poweroff() __attribute__((noreturn));
@@ -313,9 +332,6 @@ int check_keyboard();
 //    -1 on failure (e.g. out-of-memory). `allocator` is passed to
 //    `vm_map`.
 int program_load(proc* p, int programnumber);
-
-x86_64_page* kallocpage();
-void kfree(x86_64_page*);
 
 // log_printf, log_vprintf
 //    Print debugging messages to the host's `log.txt` file. We run QEMU
