@@ -431,3 +431,26 @@ void console_clear(void) {
     }
     cursorpos = 0;
 }
+
+
+// Some static tests of our arithmetic functions
+
+static_assert(msb(0) == 0);
+static_assert(msb(1) == 1);
+static_assert(msb(2) == 2);
+static_assert(msb(3) == 2);
+static_assert(msb(0x1FABC) == 17);
+static_assert(msb(0x1FFFF) == 17);
+
+static_assert(rounddown_pow2(0U) == 0U);
+static_assert(rounddown_pow2(1U) == 1U);
+static_assert(rounddown_pow2(2U) == 2U);
+static_assert(rounddown_pow2(3U) == 2U);
+static_assert(rounddown_pow2(0x1FABCU) == 0x10000U);
+
+static_assert(roundup_pow2(0U) == 0U);
+static_assert(roundup_pow2(1U) == 1U);
+static_assert(roundup_pow2(2U) == 2U);
+static_assert(roundup_pow2(3U) == 4U);
+static_assert(roundup_pow2(0x1FABCU) == 0x20000U);
+static_assert(roundup_pow2(0x1FFFFU) == 0x20000U);
