@@ -49,9 +49,11 @@ KERNEL_OBJS = $(OBJDIR)/k-exception.ko \
 	$(OBJDIR)/k-memviewer.ko $(OBJDIR)/lib.ko
 
 PROCESS_LIB_OBJS = $(OBJDIR)/lib.o $(OBJDIR)/p-lib.o
-PROCESS_OBJS = $(OBJDIR)/p-allocator.o $(PROCESS_LIB_OBJS)
+PROCESS_OBJS = $(PROCESS_LIB_OBJS) \
+	$(OBJDIR)/p-allocator.o \
+	$(OBJDIR)/p-allocexit.o
 
-FLATFS_CONTENTS = obj/p-allocator
+FLATFS_CONTENTS = obj/p-allocator obj/p-allocexit
 
 
 # How to make object files
