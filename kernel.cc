@@ -51,7 +51,8 @@ void process_setup(pid_t pid, const char* name) {
     p->regs_->reg_rsp = MEMSIZE_VIRTUAL;
     x86_64_page* stkpg = kallocpage();
     assert(stkpg);
-    vmiter(p, p->regs_->reg_rsp - PAGESIZE).map(ka2pa(stkpg));
+    r = vmiter(p, MEMSIZE_VIRTUAL - PAGESIZE).map(ka2pa(stkpg));
+    assert(r >= 0);
 
     int cpu = pid % ncpu;
     cpus[cpu].runq_lock_.lock_noirq();

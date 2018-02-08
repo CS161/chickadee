@@ -37,7 +37,8 @@ class vmiter {
     // Current va must be page-aligned. Calls knewpage() to allocate
     // page table pages if necessary. Returns 0 on success,
     // negative on failure.
-    int map(uintptr_t pa, int perm = PTE_P | PTE_W | PTE_U);
+    int map(uintptr_t pa, int perm = PTE_P | PTE_W | PTE_U)
+        __attribute__((warn_unused_result));
 
   private:
     x86_64_pagetable* pt_;
