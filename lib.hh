@@ -10,6 +10,7 @@
 //
 //    Contents: (1) C library subset, (2) system call numbers, (3) console.
 
+extern "C" {
 void* memcpy(void* dst, const void* src, size_t n);
 void* memmove(void* dst, const void* src, size_t n);
 void* memset(void* s, int c, size_t n);
@@ -21,16 +22,19 @@ int strcmp(const char* a, const char* b);
 char* strchr(const char* s, int c);
 int snprintf(char* s, size_t size, const char* format, ...);
 int vsnprintf(char* s, size_t size, const char* format, va_list val);
+}
 
 #define RAND_MAX 0x7FFFFFFF
 int rand();
 void srand(unsigned seed);
+int rand(int min, int max);
+
 
 // Return the offset of `member` relative to the beginning of a struct type
 #define offsetof(type, member)  __builtin_offsetof(type, member)
 
 // Return the number of elements in an array
-#define arraysize(array)  (sizeof(array) / sizeof(array[0]))
+#define arraysize(array)        (sizeof(array) / sizeof(array[0]))
 
 
 // Assertions

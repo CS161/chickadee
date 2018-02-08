@@ -24,7 +24,7 @@ void process_main(void) {
     stack_bottom = ROUNDDOWN((uint8_t*) read_rsp() - 1, PAGESIZE);
 
     while (1) {
-        if ((rand() % ALLOC_SLOWDOWN) < p) {
+        if (rand(0, ALLOC_SLOWDOWN - 1) < p) {
             if (heap_top == stack_bottom || sys_page_alloc(heap_top) < 0) {
                 break;
             }

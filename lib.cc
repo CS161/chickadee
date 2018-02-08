@@ -6,6 +6,8 @@
 //    Functions useful in both kernel and applications.
 
 
+extern "C" {
+
 // memcpy, memmove, memset, strcmp, strlen, strnlen
 //    We must provide our own implementations.
 
@@ -94,23 +96,37 @@ char* strchr(const char* s, int c) {
     }
 }
 
+} // extern "C"
+
 
 // rand, srand
 
 static int rand_seed_set;
-static unsigned rand_seed;
+static unsigned long rand_seed;
 
-int rand(void) {
+int rand() {
     if (!rand_seed_set) {
         srand(819234718U);
     }
-    rand_seed = rand_seed * 1664525U + 1013904223U;
-    return rand_seed & RAND_MAX;
+    rand_seed = rand_seed * 6364136223846793005UL + 1;
+    return (rand_seed >> 32) & RAND_MAX;
 }
 
 void srand(unsigned seed) {
     rand_seed = seed;
     rand_seed_set = 1;
+}
+
+// rand(min, max)
+//    Return a pseudorandom number roughly evenly distributed between
+//    `min` and `max`, inclusive. Requires `min <= max` and
+//    `max - min <= RAND_MAX`.
+int rand(int min, int max) {
+    assert(min <= max);
+    assert(max - min <= RAND_MAX);
+
+    unsigned long r = rand();
+    return min + (r * (max - min + 1)) / ((unsigned long) RAND_MAX + 1);
 }
 
 
@@ -425,7 +441,7 @@ int snprintf(char* s, size_t size, const char* format, ...) {
 // console_clear
 //    Erases the console and moves the cursor to the upper left (CPOS(0, 0)).
 
-void console_clear(void) {
+void console_clear() {
     for (int i = 0; i < CONSOLE_ROWS * CONSOLE_COLUMNS; ++i) {
         console[i] = ' ' | 0x0700;
     }
