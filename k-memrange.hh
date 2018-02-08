@@ -184,9 +184,10 @@ void memrangeset<maxsize>::validate() const {
 }
 template <unsigned maxsize>
 void memrangeset<maxsize>::log_print(const char* prefix) const {
+    void log_printf(const char* format, ...) __attribute__((noinline));
     for (unsigned i = 0; i < n_; ++i) {
         log_printf("%s[%u]: [%p,%p)=%d\n",
-                   prefix, i, r_[i].low(), r_[i].high(), r_[i].type());
+                   prefix, i, r_[i].first(), r_[i].last(), r_[i].type());
     }
 }
 

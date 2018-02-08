@@ -13,6 +13,10 @@ struct list_links {
     }
     NO_COPY_OR_ASSIGN(list_links);
 
+    // Return true iff this `list_links` is empty
+    bool empty() const {
+        return !next_;
+    }
     // Reset this `list_links` to empty
     void clear() {
         next_ = prev_ = nullptr;
@@ -60,10 +64,12 @@ struct list {
     // If `position == nullptr`, insert at tail
     inline void insert(T* position, T* x);
 
+
 private:
-    static constexpr uintptr_t member_offset() {
-        return reinterpret_cast<uintptr_t>
-            (&(reinterpret_cast<T*>(0UL)->*member));
+    static constexpr size_t member_offset() {
+        alignas(T) char space[sizeof(T)] = {};
+        T* dummy = (T*)(space);
+        return size_t(&(dummy->*member)) - size_t(dummy);
     }
     static T* from_links(list_links* ll) {
         return reinterpret_cast<T*>

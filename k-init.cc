@@ -8,7 +8,7 @@
 
 
 // init_hardware
-//    Initialize hardware. Calls other functions bellow.
+//    Initialize hardware. Calls other functions below.
 
 static void init_early_memory();
 static void init_interrupts();
