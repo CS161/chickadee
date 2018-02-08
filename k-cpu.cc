@@ -38,9 +38,11 @@ void cpustate::init() {
 
 // cpustate::enqueue(p)
 //    Enqueue `p` on this CPU's run queue. `p` must not be on any
-//    run queue, and `this->runq_lock_` must be held.
+//    run queue, it must be resumable, and `this->runq_lock_` must
+//    be held.
 
 void cpustate::enqueue(proc* p) {
+    assert(p->resumable());
     assert(!p->runq_pprev_);
     p->runq_pprev_ = runq_head_ ? &runq_tail_->runq_next_ : &runq_head_;
     p->runq_next_ = nullptr;
@@ -54,6 +56,7 @@ void cpustate::enqueue(proc* p) {
 //    run `yielding_from` unless no other runnable process exists.
 
 void cpustate::schedule(proc* yielding_from) {
+    assert(contains(read_rsp()));  // running on CPU stack
     assert(is_cli());              // interrupts are currently disabled
     assert(spinlock_depth_ == 0);  // no spinlocks are held
 

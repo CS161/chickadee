@@ -41,6 +41,7 @@ struct __attribute__((aligned(4096))) cpustate {
     cpustate() = default;
     NO_COPY_OR_ASSIGN(cpustate);
 
+    inline bool contains(uintptr_t addr) const;
     inline bool contains(void* ptr) const;
 
     void init();
@@ -84,6 +85,7 @@ struct __attribute__((aligned(4096))) proc {
     proc() = default;
     NO_COPY_OR_ASSIGN(proc);
 
+    inline bool contains(uintptr_t addr) const;
     inline bool contains(void* ptr) const;
 
     void init_user(pid_t pid, x86_64_pagetable* pt);
@@ -96,6 +98,8 @@ struct __attribute__((aligned(4096))) proc {
     void yield();
     void yield_noreturn() __attribute__((noreturn));
     void resume() __attribute__((noreturn));
+
+    inline bool resumable() const;
 
  private:
     int load_segment(const elf_program* ph, const uint8_t* data);
@@ -356,6 +360,8 @@ int error_vprintf(int cpos, int color, const char* format, va_list val)
     __attribute__((noinline));
 
 
+// this_cpu
+//    Return a pointer to the current CPU. Requires disabled interrupts.
 inline cpustate* this_cpu() {
     assert(is_cli());
     cpustate* result;
@@ -370,16 +376,34 @@ inline void adjust_this_cpu_spinlock_depth(int delta) {
                   : "er" (delta) : "cc", "memory");
 }
 
+// cpustate::contains(ptr)
+//    Return true iff `ptr` lies within this cpustate's allocation.
 inline bool cpustate::contains(void* ptr) const {
-    uintptr_t delta =
-        reinterpret_cast<uintptr_t>(ptr) - reinterpret_cast<uintptr_t>(this);
-    return delta < CPUSTACK_SIZE;
+    return contains(reinterpret_cast<uintptr_t>(ptr));
+}
+inline bool cpustate::contains(uintptr_t addr) const {
+    uintptr_t delta = addr - reinterpret_cast<uintptr_t>(this);
+    return delta <= CPUSTACK_SIZE;
 }
 
+// proc::contains(ptr)
+//    Return true iff `ptr` lies within this cpustate's allocation.
 inline bool proc::contains(void* ptr) const {
-    uintptr_t delta =
-        reinterpret_cast<uintptr_t>(ptr) - reinterpret_cast<uintptr_t>(this);
-    return delta < KTASKSTACK_SIZE;
+    return contains(reinterpret_cast<uintptr_t>(ptr));
+}
+inline bool proc::contains(uintptr_t addr) const {
+    uintptr_t delta = addr - reinterpret_cast<uintptr_t>(this);
+    return delta <= KTASKSTACK_SIZE;
+}
+
+// proc::resumable()
+//    Return true iff this `proc` can be resumed (`regs_` or `yields_`
+//    is set). Also checks some assertions about `regs_` and `yields_`.
+inline bool proc::resumable() const {
+    assert(!(regs_ && yields_));            // at most one at a time
+    assert(!regs_ || contains(regs_));      // `regs_` points within this
+    assert(!yields_ || contains(yields_));  // same for `yields_`
+    return regs_ || yields_;
 }
 
 #endif
