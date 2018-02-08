@@ -224,11 +224,10 @@ _ZN4proc5yieldEv:
         pushq %rbx
         pushq %rbp
 
-        // store yieldstate pointer
-        movq %rsp, 16(%rdi)
-
-        // disable interrupts, switch to cpustack
+        // disable interrupts, store yieldstate pointer,
+        // switch to cpustack
         cli
+        movq %rsp, 16(%rdi)
         movq %rdi, %rsi
         movq %gs:(0), %rdi
         leaq CPUSTACK_SIZE(%rdi), %rsp
