@@ -40,8 +40,8 @@ void process_main() {
         sys_exit(0);
     }
 
-    // Original process: Yield a bunch so others can run tests
-    sys_msleep(10);
+    // Original process: Delay so others can run tests
+    sys_msleep(50);
     console_printf("ppid tests without exit succeed\n");
 
     // Tests that implicate `exit` behavior

@@ -15,15 +15,15 @@ void process_main() {
         my_idx = (my_idx * 2) + (f == 0);
     }
 
-    // each process sleeps for `10 * order[my_idx]` milliseconds
-    int r = sys_msleep(10 * order[my_idx]);
+    // each process sleeps for `100 * order[my_idx]` milliseconds
+    int r = sys_msleep(100 * order[my_idx]);
     assert(r == 0);
 
     // then prints its position
     console_printf("%d: pid %d\n", order[my_idx], sys_getpid());
 
     if (my_idx == 0) {
-        sys_msleep(80);
+        sys_msleep(800);
         console_printf("You should see 8 lines in sequential order.\n");
     }
     sys_exit(0);
