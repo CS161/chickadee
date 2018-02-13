@@ -359,6 +359,9 @@ void error_printf(const char* format, ...) __attribute__((noinline));
 int error_vprintf(int cpos, int color, const char* format, va_list val)
     __attribute__((noinline));
 
+// `panicing == true` iff some CPU has paniced
+extern bool panicing;
+
 
 // this_cpu
 //    Return a pointer to the current CPU. Requires disabled interrupts.

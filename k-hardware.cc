@@ -397,8 +397,7 @@ int check_keyboard() {
 // fail
 //    Loop until user presses Control-C, then poweroff.
 
-static void fail() __attribute__((noreturn));
-static void fail() {
+void __attribute__((noreturn)) fail() {
     while (1) {
         check_keyboard();
     }
@@ -409,9 +408,12 @@ static void fail() {
 //    Use console_printf() to print a failure message and then wait for
 //    control-C. Also write the failure message to the log.
 
+bool panicing;
+
 void panic(const char* format, ...) {
     va_list val;
     va_start(val, format);
+    panicing = true;
 
     if (format) {
         // Print panic message to both the screen and the log
@@ -422,6 +424,7 @@ void panic(const char* format, ...) {
         }
     } else {
         error_printf(CPOS(23, 0), COLOR_ERROR, "PANIC");
+        log_printf("\n");
     }
 
     va_end(val);
@@ -484,4 +487,5 @@ int __cxa_guard_acquire(std::atomic<char>* guard) {
 void __cxa_guard_release(std::atomic<char>* guard) {
     guard->store(2);
 }
+
 }
