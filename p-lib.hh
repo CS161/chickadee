@@ -64,15 +64,35 @@ static inline pid_t sys_fork(void) {
 
 // sys_exit(status)
 //    Exit this process. Does not return.
-static inline void sys_exit(int) __attribute__((noreturn));
-static inline void sys_exit(int status) {
+static inline void __attribute__((noreturn)) sys_exit(int status) {
     syscall0(SYSCALL_EXIT, status);
     while (1) {
     }
 }
 
+// sys_pause()
+//    A version of `sys_yield` that spins in the kernel long enough
+//    for kernel timer interrupts to occur.
 static inline void sys_pause() {
     syscall0(SYSCALL_PAUSE);
+}
+
+// sys_kdisplay(display_type)
+//    Set the display type (one of the KDISPLAY constants).
+static inline int sys_kdisplay(int display_type) {
+    return syscall0(SYSCALL_KDISPLAY, display_type);
+}
+
+// sys_msleep(msec)
+//    Block for approximately `msec` milliseconds.
+static inline int sys_msleep(unsigned msec) {
+    return E_NOSYS;
+}
+
+// sys_getppid()
+//    Return parent process ID.
+static inline pid_t sys_getppid() {
+    return E_NOSYS;
 }
 
 // sys_panic(msg)
