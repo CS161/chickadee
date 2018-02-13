@@ -51,10 +51,10 @@ struct __attribute__((aligned(4096))) cpustate {
 
     void enqueue(proc* p);
     void schedule(proc* yielding_from) __attribute__((noreturn));
-    proc* idle_task();
 
  private:
     void init_cpu_hardware();
+    void init_idle_task();
 };
 
 #define NCPU 16
