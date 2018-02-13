@@ -81,7 +81,7 @@ void memusage::refresh() {
         if (p) {
             mark(ka2pa(p), f_kernel | f_process(pid));
         }
-        if (p && p->pagetable_) {
+        if (p && p->pagetable_ && p->pagetable_ != early_pagetable) {
             for (ptiter it(p); it.low(); it.next()) {
                 mark(it.ptp_pa(), f_kernel | f_process(pid));
             }
@@ -174,7 +174,7 @@ void console_memviewer(const proc* vmp) {
     }
 
     // print virtual memory
-    if (vmp) {
+    if (vmp && vmp->pagetable_ != early_pagetable) {
         console_printf(CPOS(10, 26), 0x0F00,
                        "VIRTUAL ADDRESS SPACE FOR %d\n", vmp->pid_);
 

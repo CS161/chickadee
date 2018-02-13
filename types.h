@@ -44,4 +44,6 @@ typedef int pid_t;                    // process IDs
     t& operator=(t&&) = delete;
 #endif
 
+#define __section(x) __attribute__((section(x)))
+
 #endif /* !CHICKADEE_TYPES_H */

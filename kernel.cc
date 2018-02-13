@@ -7,8 +7,9 @@
 //    This is the kernel.
 
 unsigned long ticks;            // # timer interrupts so far on CPU 0
+int kdisplay;                   // type of display
 
-static void memshow();
+static void kdisplay_ontick();
 static void process_setup(pid_t pid, const char* program_name);
 
 
@@ -19,6 +20,7 @@ static void process_setup(pid_t pid, const char* program_name);
 void kernel_start(const char* command) {
     init_hardware();
     console_clear();
+    kdisplay = KDISPLAY_MEMVIEWER;
 
     // Set up process descriptors
     for (pid_t i = 0; i < NPROC; i++) {
@@ -89,7 +91,7 @@ void proc::exception(regstate* regs) {
         cpustate* cpu = this_cpu();
         if (cpu->index_ == 0) {
             ++ticks;
-            memshow();
+            kdisplay_ontick();
         }
         lapicstate::get().ack();
         this->regs_ = regs;
@@ -138,6 +140,13 @@ void proc::exception(regstate* regs) {
 
 uintptr_t proc::syscall(regstate* regs) {
     switch (regs->reg_rax) {
+
+    case SYSCALL_KDISPLAY:
+        if (kdisplay != (int) regs->reg_rdi) {
+            console_clear();
+        }
+        kdisplay = regs->reg_rdi;
+        return 0;
 
     case SYSCALL_PANIC:
         panic(NULL);
@@ -189,25 +198,38 @@ uintptr_t proc::syscall(regstate* regs) {
 //    Switches to a new process's virtual memory map every 0.25 sec.
 //    Uses `console_memviewer()`, a function defined in `k-memviewer.cc`.
 
-void memshow() {
+static void memshow() {
     static unsigned last_ticks = 0;
     static int showing = 1;
 
     // switch to a new process every 0.25 sec
     if (last_ticks == 0 || ticks - last_ticks >= HZ / 2) {
         last_ticks = ticks;
-        ++showing;
+        showing = (showing + 1) % NPROC;
     }
 
     auto irqs = ptable_lock.lock();
 
-    while (showing <= 2*NPROC && !ptable[showing % NPROC]) {
-        ++showing;
+    int search = 0;
+    while ((!ptable[showing] || ptable[showing]->pagetable_ == early_pagetable)
+           && search < NPROC) {
+        showing = (showing + 1) % NPROC;
+        ++search;
     }
-    showing = showing % NPROC;
 
     extern void console_memviewer(const proc* vmp);
     console_memviewer(ptable[showing]);
 
     ptable_lock.unlock(irqs);
+}
+
+
+// kdisplay_ontick()
+//    Shows the currently-configured kdisplay. Called once every tick
+//    (every 0.01 sec) by CPU 0.
+
+void kdisplay_ontick() {
+    if (kdisplay == KDISPLAY_MEMVIEWER) {
+        memshow();
+    }
 }
