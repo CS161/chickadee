@@ -1,13 +1,5 @@
 #include "p-lib.hh"
 
-void yield_n(int n) {
-    while (n > 0) {
-        sys_yield();
-        --n;
-    }
-}
-
-
 void process_main() {
     sys_kdisplay(KDISPLAY_NONE);
 
@@ -49,8 +41,8 @@ void process_main() {
     }
 
     // Original process: Yield a bunch so others can run tests
-    yield_n(1000);
-    console_printf("ppid tests without exit succeeded\n");
+    sys_msleep(10);
+    console_printf("ppid tests without exit succeed\n");
 
     // Tests that implicate `exit` behavior
     assert(original != 1);
@@ -79,25 +71,24 @@ void process_main() {
         assert(after1_parent == original);
         assert(after2_parent == after1);
         assert(sys_getppid() == after2);
-        yield_n(100);
+        sys_msleep(100);
         assert(sys_getppid() == after2);
-        yield_n(100);
+        sys_msleep(100);
         assert(sys_getppid() == 1);
         sys_exit(0);
     } else if (fork2 == 0) {
         assert(original != after1);
         assert(sys_getppid() == after1);
-        yield_n(100);
+        sys_msleep(100);
         assert(sys_getppid() == 1);
-        yield_n(50);
+        sys_msleep(50);
         sys_exit(0);
     } else if (fork1 == 0) {
-        yield_n(50);
+        sys_msleep(50);
         sys_exit(0);
     }
 
-    yield_n(100);
+    sys_msleep(300);
     console_printf("ppid tests with exit succeed\n");
-
     sys_exit(0);
 }

@@ -259,6 +259,9 @@ _ZN4proc14yield_noreturnEv:
 // proc::resume()
 .globl _ZN4proc6resumeEv
 _ZN4proc6resumeEv:
+1:      testb $1, panicing             // loop if panicing
+        jne 1b
+
         // do we have yieldstate? (is `this->yields_ != nullptr`?)
         movq 16(%rdi), %rax
         testq %rax, %rax
