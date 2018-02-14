@@ -61,6 +61,19 @@ FLATFS_CONTENTS = obj/p-allocator \
 	obj/p-testppid
 
 
+# Define `CHICKADEE_FIRST_PROCESS` if appropriate
+ifneq ($(filter run-%,$(MAKECMDGOALS)),)
+ifeq ($(words $(MAKECMDGOALS)),1)
+RUNCMD_LASTWORD := $(lastword $(subst -, ,$(MAKECMDGOALS)))
+ifneq ($(filter obj/p-$(RUNCMD_LASTWORD),$(FLATFS_CONTENTS)),)
+CPPFLAGS += -DCHICKADEE_FIRST_PROCESS='"p-$(RUNCMD_LASTWORD)"'
+DEFAULTIMAGE = $(IMAGE)
+$(OBJDIR)/kernel.ko: always
+endif
+endif
+endif
+
+
 # How to make object files
 
 $(PROCESS_OBJS): $(OBJDIR)/%.o: %.cc $(BUILDSTAMPS)
@@ -120,29 +133,23 @@ chickadeeos.img: $(OBJDIR)/mkbootdisk $(OBJDIR)/bootsector $(OBJDIR)/kernel
 	$(call run,$(OBJDIR)/mkbootdisk $(OBJDIR)/bootsector $(OBJDIR)/kernel > $@,CREATE $@)
 
 
+DEFAULTIMAGE ?= %.img
 run-%: run-qemu-%
 	@:
-
 run-qemu-%: run-$(QEMUDISPLAY)-%
 	@:
-
-run-graphic-%: %.img check-qemu
+run-graphic-%: $(DEFAULTIMAGE) check-qemu
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) $(QEMUIMG),QEMU $<)
-
-run-console-%: %.img check-qemu
+run-console-%: $(DEFAULTIMAGE) check-qemu
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -curses $(QEMUIMG),QEMU $<)
-
-run-monitor-%: %.img check-qemu
+run-monitor-%: $(DEFAULTIMAGE) check-qemu
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -monitor stdio $(QEMUIMG),QEMU $<)
-
 run-gdb-%: run-gdb-$(QEMUDISPLAY)-%
 	@:
-
-run-gdb-graphic-%: %.img check-qemu
+run-gdb-graphic-%: $(DEFAULTIMAGE) check-qemu
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -gdb tcp::1234 $(QEMUIMG) &,QEMU $<)
 	$(call run,sleep 0.5; gdb -x build/chickadee.gdb,GDB)
-
-run-gdb-console-%: %.img check-qemu
+run-gdb-console-%: $(DEFAULTIMAGE) check-qemu
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -curses -gdb tcp::1234 $(QEMUIMG),QEMU $<)
 
 run: run-qemu-$(basename $(IMAGE))
@@ -150,7 +157,6 @@ run-qemu: run-qemu-$(basename $(IMAGE))
 run-graphic: run-graphic-$(basename $(IMAGE))
 run-console: run-console-$(basename $(IMAGE))
 run-monitor: run-monitor-$(basename $(IMAGE))
-run-quit: run-quit-$(basename $(IMAGE))
 run-gdb: run-gdb-$(basename $(IMAGE))
 run-gdb-graphic: run-gdb-graphic-$(basename $(IMAGE))
 run-gdb-console: run-gdb-console-$(basename $(IMAGE))

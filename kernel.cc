@@ -42,6 +42,10 @@ void kernel_start(const char* command) {
 //    %rip and %rsp, gives it a stack page, and marks it as runnable.
 
 void process_setup(pid_t pid, const char* name) {
+#ifdef CHICKADEE_FIRST_PROCESS
+    name = CHICKADEE_FIRST_PROCESS;
+#endif
+
     assert(!ptable[pid]);
     proc* p = ptable[pid] = reinterpret_cast<proc*>(kallocpage());
     x86_64_pagetable* npt = kalloc_pagetable();
