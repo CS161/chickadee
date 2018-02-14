@@ -13,13 +13,14 @@ struct list_links {
     }
     NO_COPY_OR_ASSIGN(list_links);
 
+    // Reset this `list_links` to empty
+    inline void reset();
+    // Deprecated synonym for `reset()`
+    inline void clear();
+
     // Return true iff this `list_links` is empty
     bool empty() const {
         return !next_;
-    }
-    // Reset this `list_links` to empty
-    void clear() {
-        next_ = prev_ = nullptr;
     }
     // Remove this `list_links` from its containing list
     inline void erase();
@@ -35,6 +36,8 @@ struct list {
 
     // Construct an empty list
     inline list();
+    // Reset this list to empty, ignoring its current contents
+    inline void reset();
 
     // Return true iff list is empty
     inline constexpr bool empty() const;
@@ -78,6 +81,14 @@ private:
 };
 
 
+inline void list_links::reset() {
+    next_ = prev_ = nullptr;
+}
+
+inline void list_links::clear() {
+    reset();
+}
+
 inline void list_links::erase() {
     assert(next_ && prev_);
     prev_->next_ = next_;
@@ -97,6 +108,11 @@ inline void list_links::insert_before(list_links* position) {
 
 template <typename T, list_links (T::* member)>
 inline list<T, member>::list() {
+    reset();
+}
+
+template <typename T, list_links (T::* member)>
+inline void list<T, member>::reset() {
     head_.next_ = head_.prev_ = &head_;
 }
 
