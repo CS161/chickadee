@@ -19,11 +19,12 @@ proc::proc()
 //    Allocate and return a new `proc`. Calls the constructor.
 
 proc* kalloc_proc() {
-    proc* p = reinterpret_cast<proc*>(kallocpage());
-    if (p) {
-        new (static_cast<void*>(p)) proc;
+    void* ptr = kallocpage();
+    if (ptr) {
+        return new (ptr) proc;
+    } else {
+        return nullptr;
     }
-    return p;
 }
 
 
