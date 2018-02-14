@@ -373,6 +373,9 @@ inline cpustate* this_cpu() {
     return result;
 }
 
+// adjust_this_cpu_spinlock_depth(delta)
+//    Adjust this CPU's spinlock_depth_ by `delta`. Does *not* require
+//    disabled interrupts.
 inline void adjust_this_cpu_spinlock_depth(int delta) {
     asm volatile ("addl %1, %%gs:%0"
                   : "+m" (*reinterpret_cast<int*>
