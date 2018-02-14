@@ -230,7 +230,19 @@ _ZN4proc5yieldEv:
         pushq %rbx
         pushq %rbp
 
-        // disable interrupts, store yieldstate pointer,
+        // check if interrupts are disabled
+        testq $EFLAGS_IF, 48(%rsp)
+        jnz 1f
+        // if interrupts are disabled, momentarily enable them.
+        // This bounds interrupt delay to the time it takes a
+        // single kernel task to yield.
+        // Note that `sti; cli` would not work! `sti` only enables
+        // external, maskable interrupts at the end of the *next*
+        // instruction. A no-op instruction is required.
+        sti
+        movq (%rsp), %rax     // any delayed interrupts will happen here
+
+1:      // disable interrupts, store yieldstate pointer,
         // switch to cpustack
         cli
         movq %rsp, 16(%rdi)
