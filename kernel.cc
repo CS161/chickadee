@@ -47,7 +47,7 @@ void process_setup(pid_t pid, const char* name) {
 #endif
 
     assert(!ptable[pid]);
-    proc* p = ptable[pid] = reinterpret_cast<proc*>(kallocpage());
+    proc* p = ptable[pid] = kalloc_proc();
     x86_64_pagetable* npt = kalloc_pagetable();
     assert(p && npt);
     p->init_user(pid, npt);

@@ -9,6 +9,8 @@ int ncpu;
 //    by the relevant CPU.
 
 void cpustate::init() {
+    // Note that the `cpu::cpu` constructor has already been called.
+
     {
         // check that this CPU is one of the expected CPUs
         uintptr_t addr = reinterpret_cast<uintptr_t>(this);

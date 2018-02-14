@@ -6,6 +6,27 @@ proc* ptable[NPROC];            // array of process descriptor pointers
 spinlock ptable_lock;           // protects `ptable`
 
 
+// proc::proc()
+//    The constructor initializes the `proc` to empty.
+
+proc::proc()
+    : pid_(0), regs_(nullptr), yields_(nullptr),
+      state_(blank), pagetable_(nullptr) {
+}
+
+
+// kalloc_proc()
+//    Allocate and return a new `proc`. Calls the constructor.
+
+proc* kalloc_proc() {
+    proc* p = reinterpret_cast<proc*>(kallocpage());
+    if (p) {
+        new (static_cast<void*>(p)) proc;
+    }
+    return p;
+}
+
+
 // proc::init_user(pid, pt)
 //    Initialize this `proc` as a new runnable user process with PID `pid`
 //    and initial page table `pt`.

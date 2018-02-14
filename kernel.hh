@@ -83,7 +83,7 @@ struct __attribute__((aligned(4096))) proc {
     proc* runq_next_;
 
 
-    proc() = default;
+    proc();
     NO_COPY_OR_ASSIGN(proc);
 
     inline bool contains(uintptr_t addr) const;
@@ -110,6 +110,9 @@ struct __attribute__((aligned(4096))) proc {
 extern proc* ptable[NPROC];
 extern spinlock ptable_lock;
 #define KTASKSTACK_SIZE  4096
+
+// allocate a new `proc` and call its constructor
+proc* kalloc_proc();
 
 
 // yieldstate: callee-saved registers that must be preserved across
@@ -266,13 +269,11 @@ void kfree(void* ptr);
 //    after `physical_ranges` is initialized.
 void init_kalloc();
 
-// test_kalloc
-//    Run unit tests on the kalloc system.
+// run unit tests on the kalloc system
 void test_kalloc();
 
 
-// init_hardware
-//    Initialize hardware and CPUs.
+// initialize hardware and CPUs
 void init_hardware();
 
 
