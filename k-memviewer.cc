@@ -163,7 +163,7 @@ void console_memviewer(const proc* vmp) {
 
     // print physical memory
     console_printf(CPOS(0, 32), 0x0F00,
-                   "PHYSICAL MEMORY                  @%d\n",
+                   "PHYSICAL MEMORY                  @%lu\n",
                    ticks);
 
     for (int pn = 0; pn * PAGESIZE < MEMSIZE_PHYSICAL; ++pn) {

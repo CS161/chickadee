@@ -6,7 +6,7 @@
 //
 //    This is the kernel.
 
-unsigned long ticks;            // # timer interrupts so far on CPU 0
+volatile unsigned long ticks;   // # timer interrupts so far on CPU 0
 int kdisplay;                   // type of display
 
 static void kdisplay_ontick();

@@ -127,8 +127,8 @@ struct yieldstate {
 
 // timekeeping
 
-#define HZ 100                  // number of ticks per second
-extern unsigned long ticks;     // number of ticks since boot
+#define HZ 100                           // number of ticks per second
+extern volatile unsigned long ticks;     // number of ticks since boot
 
 
 // Segment selectors
