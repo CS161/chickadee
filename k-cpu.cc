@@ -29,6 +29,7 @@ void cpustate::init() {
     runq_tail_ = nullptr;
     runq_lock_.clear();
     idle_task_ = nullptr;
+    nschedule_ = 0;
     spinlock_depth_ = 0;
 
     // now initialize the CPU hardware
@@ -66,6 +67,9 @@ void cpustate::schedule(proc* yielding_from) {
     } else if (current_ == idle_task_) {
         yielding_from = idle_task_;
     }
+
+    // increment schedule counter
+    ++nschedule_;
 
     while (1) {
         // try to run `current`

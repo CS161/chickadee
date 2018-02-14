@@ -30,6 +30,7 @@ struct __attribute__((aligned(4096))) cpustate {
     proc* runq_head_;
     proc* runq_tail_;
     spinlock runq_lock_;
+    unsigned long nschedule_;
     proc* idle_task_;
 
     unsigned spinlock_depth_;
