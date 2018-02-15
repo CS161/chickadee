@@ -95,5 +95,6 @@ void process_main() {
     console_printf("waitpid(pid) blocking tests succeed.\n");
 
 
+    console_printf("testwaitpid succeeded.\n");
     sys_exit(0);
 }

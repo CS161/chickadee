@@ -90,5 +90,6 @@ void process_main() {
 
     sys_msleep(300);
     console_printf("ppid tests with exit succeed\n");
+    console_printf("testppid succeeded.\n");
     sys_exit(0);
 }

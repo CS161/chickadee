@@ -25,6 +25,7 @@ void process_main() {
     if (my_idx == 0) {
         sys_msleep(800);
         console_printf("You should see 8 lines in sequential order.\n");
+        console_printf("If you do, then testmsleep succeeded.\n");
     }
     sys_exit(0);
 }

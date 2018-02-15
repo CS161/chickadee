@@ -24,7 +24,7 @@ void process_main() {
         console_printf("zombies hopefully being reaped\n");
         sys_msleep(200);
     }
-    console_printf("testzombie succeeded\n");
 
+    console_printf("testzombie succeeded.\n");
     sys_exit(0);
 }
