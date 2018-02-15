@@ -95,6 +95,16 @@ static inline pid_t sys_getppid() {
     return E_NOSYS;
 }
 
+// sys_waitpid(pid, status, options)
+//    Wait until process `pid` exits and report its status. The status
+//    is stored in `*status`, if `status != nullptr`. If `pid == 0`,
+//    waits for any child. If `options == W_NOHANG`, returns immediately.
+static inline pid_t sys_waitpid(pid_t pid,
+                                int* status = nullptr,
+                                int options = 0) {
+    return E_NOSYS;
+}
+
 // sys_panic(msg)
 //    Panic.
 static inline pid_t __attribute__((noreturn)) sys_panic(const char* msg) {

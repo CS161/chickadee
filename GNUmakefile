@@ -53,12 +53,16 @@ PROCESS_OBJS = $(PROCESS_LIB_OBJS) \
 	$(OBJDIR)/p-allocator.o \
 	$(OBJDIR)/p-allocexit.o \
 	$(OBJDIR)/p-testmsleep.o \
-	$(OBJDIR)/p-testppid.o
+	$(OBJDIR)/p-testppid.o \
+	$(OBJDIR)/p-testwaitpid.o \
+	$(OBJDIR)/p-testzombie.o
 
 FLATFS_CONTENTS = obj/p-allocator \
 	obj/p-allocexit \
 	obj/p-testmsleep \
-	obj/p-testppid
+	obj/p-testppid \
+	obj/p-testwaitpid \
+	obj/p-testzombie
 
 
 # Define `CHICKADEE_FIRST_PROCESS` if appropriate
