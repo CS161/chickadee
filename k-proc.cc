@@ -1,6 +1,7 @@
 #include "elf.h"
 #include "kernel.hh"
 #include "k-vmiter.hh"
+#include <new>                  // get placement new
 
 proc* ptable[NPROC];            // array of process descriptor pointers
 spinlock ptable_lock;           // protects `ptable`
