@@ -21,6 +21,8 @@ struct waiter {
 struct wait_queue {
     list<waiter, &waiter::links_> q_;
     spinlock lock_;
+
+    // you might want to provide some convenience methods here
 };
 
 
