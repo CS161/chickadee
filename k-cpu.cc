@@ -40,16 +40,17 @@ void cpustate::init() {
 
 
 // cpustate::enqueue(p)
-//    Enqueue `p` on this CPU's run queue. `p` must not be on any
-//    run queue, it must be resumable (or not runnable), and
-//    `this->runq_lock_` must be held.
+//    Enqueue `p` on this CPU's run queue. Does nothing if `p` is
+//    already on some run queue. `p` must be resumable (or not
+//    runnable), and `this->runq_lock_` must be held.
 
 void cpustate::enqueue(proc* p) {
     assert(p->resumable() || p->state_ != proc::runnable);
-    assert(!p->runq_pprev_);
-    p->runq_pprev_ = runq_head_ ? &runq_tail_->runq_next_ : &runq_head_;
-    p->runq_next_ = nullptr;
-    *p->runq_pprev_ = runq_tail_ = p;
+    if (!p->runq_pprev_) {
+        p->runq_pprev_ = runq_head_ ? &runq_tail_->runq_next_ : &runq_head_;
+        p->runq_next_ = nullptr;
+        *p->runq_pprev_ = runq_tail_ = p;
+    }
 }
 
 
