@@ -16,12 +16,12 @@ struct list_links {
     // Reset this `list_links` to empty
     inline void reset();
     // Deprecated synonym for `reset()`
-    inline void clear();
+    inline void clear() __attribute__((deprecated("Prefer using list_links::reset().")));
 
-    // Return true iff this `list_links` is empty
-    bool empty() const {
-        return !next_;
-    }
+    // Return true iff this `list_links` is linked in to some list
+    inline bool is_linked() const;
+    // Synonym for `is_linked()`
+    inline bool empty() const;
     // Remove this `list_links` from its containing list
     inline void erase();
     // Insert this `list_links` in a list immediately before `position`
@@ -89,11 +89,19 @@ inline void list_links::clear() {
     reset();
 }
 
+inline bool list_links::is_linked() const {
+    return next_ != nullptr;
+}
+
+inline bool list_links::empty() const {
+    return !is_linked();
+}
+
 inline void list_links::erase() {
     assert(next_ && prev_);
     prev_->next_ = next_;
     next_->prev_ = prev_;
-    clear();
+    reset();
 }
 
 inline void list_links::insert_before(list_links* position) {
