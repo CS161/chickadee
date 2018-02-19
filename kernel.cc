@@ -215,7 +215,9 @@ static void memshow() {
     auto irqs = ptable_lock.lock();
 
     int search = 0;
-    while ((!ptable[showing] || ptable[showing]->pagetable_ == early_pagetable)
+    while ((!ptable[showing]
+            || !ptable[showing]->pagetable_
+            || ptable[showing]->pagetable_ == early_pagetable)
            && search < NPROC) {
         showing = (showing + 1) % NPROC;
         ++search;
