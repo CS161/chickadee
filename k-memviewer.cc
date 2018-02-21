@@ -156,6 +156,31 @@ uint16_t memusage::symbol_at(uintptr_t pa) const {
 }
 
 
+static void console_memviewer_virtual(memusage& mu, const proc* vmp) {
+    console_printf(CPOS(10, 26), 0x0F00,
+                   "VIRTUAL ADDRESS SPACE FOR %d\n", vmp->pid_);
+
+    for (vmiter it(vmp); it.va() < MEMSIZE_VIRTUAL; it += PAGESIZE) {
+        unsigned long pn = it.va() / PAGESIZE;
+        if (pn % 64 == 0) {
+            console_printf(CPOS(11 + pn / 64, 3), 0x0F00,
+                           "0x%06X ", it.va());
+        }
+        uint16_t ch;
+        if (!it.present()) {
+            ch = ' ';
+        } else {
+            ch = mu.symbol_at(it.pa());
+            if (it.user()) { // switch foreground & background colors
+                uint16_t z = (ch & 0x0F00) ^ ((ch & 0xF000) >> 4);
+                ch ^= z | (z << 4);
+            }
+        }
+        console[CPOS(11 + pn/64, 12 + pn%64)] = ch;
+    }
+}
+
+
 void console_memviewer(const proc* vmp) {
     static memusage mu;
     mu.refresh();
@@ -174,29 +199,16 @@ void console_memviewer(const proc* vmp) {
     }
 
     // print virtual memory
-    if (vmp && vmp->pagetable_ && vmp->pagetable_ != early_pagetable) {
-        console_printf(CPOS(10, 26), 0x0F00,
-                       "VIRTUAL ADDRESS SPACE FOR %d\n", vmp->pid_);
-
-        for (vmiter it(vmp); it.va() < MEMSIZE_VIRTUAL; it += PAGESIZE) {
-            unsigned long pn = it.va() / PAGESIZE;
-            if (pn % 64 == 0) {
-                console_printf(CPOS(11 + pn / 64, 3), 0x0F00,
-                               "0x%06X ", it.va());
-            }
-            uint16_t ch;
-            if (!it.present()) {
-                ch = ' ';
-            } else {
-                ch = mu.symbol_at(it.pa());
-                if (it.user()) { // switch foreground & background colors
-                    uint16_t z = (ch & 0x0F00) ^ ((ch & 0xF000) >> 4);
-                    ch ^= z | (z << 4);
-                }
-            }
-            console[CPOS(11 + pn/64, 12 + pn%64)] = ch;
+    bool need_clear = true;
+    if (vmp) {
+        auto irqs = vmp->lock_pagetable_read();
+        if (vmp->pagetable_ && vmp->pagetable_ != early_pagetable) {
+            console_memviewer_virtual(mu, vmp);
+            need_clear = false;
         }
-    } else {
+        vmp->unlock_pagetable_read(irqs);
+    }
+    if (need_clear) {
         console_printf(CPOS(10, 0), 0x0F00, "\n\n\n\n\n\n\n\n\n\n");
     }
 }
