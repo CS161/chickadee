@@ -223,7 +223,7 @@ static void memshow() {
         ++search;
     }
 
-    extern void console_memviewer(const proc* vmp);
+    extern void console_memviewer(proc* vmp);
     console_memviewer(ptable[showing]);
 
     ptable_lock.unlock(irqs);

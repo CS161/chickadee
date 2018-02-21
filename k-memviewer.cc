@@ -156,7 +156,7 @@ uint16_t memusage::symbol_at(uintptr_t pa) const {
 }
 
 
-static void console_memviewer_virtual(memusage& mu, const proc* vmp) {
+static void console_memviewer_virtual(memusage& mu, proc* vmp) {
     console_printf(CPOS(10, 26), 0x0F00,
                    "VIRTUAL ADDRESS SPACE FOR %d\n", vmp->pid_);
 
@@ -181,7 +181,7 @@ static void console_memviewer_virtual(memusage& mu, const proc* vmp) {
 }
 
 
-void console_memviewer(const proc* vmp) {
+void console_memviewer(proc* vmp) {
     static memusage mu;
     mu.refresh();
     // must be called with `ptable_lock` held
