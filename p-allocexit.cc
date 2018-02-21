@@ -15,6 +15,7 @@ void process_main(void) {
                 break;
             }
         } else {
+            (void) sys_waitpid(0, nullptr, W_NOHANG);
             sys_yield();
         }
     }
@@ -48,6 +49,7 @@ void process_main(void) {
                    || (x < p && heap_top == stack_bottom)) {
             sys_exit(0);
         } else {
+            (void) sys_waitpid(0, nullptr, W_NOHANG);
             sys_yield();
         }
     }
