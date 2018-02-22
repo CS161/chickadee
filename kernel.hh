@@ -2,6 +2,7 @@
 #define CHICKADEE_KERNEL_H
 #include "x86-64.h"
 #include "lib.hh"
+#include "k-list.hh"
 #include "k-lock.hh"
 #include "k-memrange.hh"
 #if CHICKADEE_PROCESS
@@ -17,55 +18,6 @@ struct yieldstate;
 //    Functions, constants, and definitions for the kernel.
 
 
-// CPU state type
-struct __attribute__((aligned(4096))) cpustate {
-    // These three members must come first:
-    cpustate* self_;
-    proc* current_;
-    uint64_t syscall_scratch_;
-
-    int index_;
-    int lapic_id_;
-
-    proc* runq_head_;
-    proc* runq_tail_;
-    spinlock runq_lock_;
-    unsigned long nschedule_;
-    proc* idle_task_;
-
-    unsigned spinlock_depth_;
-
-    uint64_t gdt_segments_[7];
-    x86_64_taskstate task_descriptor_;
-
-
-    cpustate() = default;
-    NO_COPY_OR_ASSIGN(cpustate);
-
-    inline bool contains(uintptr_t addr) const;
-    inline bool contains(void* ptr) const;
-
-    void init();
-    void init_ap();
-
-    void exception(regstate* reg);
-
-    void enqueue(proc* p);
-    void schedule(proc* yielding_from) __attribute__((noreturn));
-
- private:
-    void init_cpu_hardware();
-    void init_idle_task();
-};
-
-#define NCPU 16
-extern cpustate cpus[NCPU];
-extern int ncpu;
-#define CPUSTACK_SIZE 4096
-
-inline cpustate* this_cpu();
-
-
 // Process descriptor type
 struct __attribute__((aligned(4096))) proc {
     // These three members must come first:
@@ -79,8 +31,7 @@ struct __attribute__((aligned(4096))) proc {
     state_t state_;                    // process state
     x86_64_pagetable* pagetable_;      // process's page table
 
-    proc** runq_pprev_;
-    proc* runq_next_;
+    list_links runq_links_;
 
 
     proc();
@@ -116,6 +67,54 @@ extern spinlock ptable_lock;
 
 // allocate a new `proc` and call its constructor
 proc* kalloc_proc();
+
+
+// CPU state type
+struct __attribute__((aligned(4096))) cpustate {
+    // These three members must come first:
+    cpustate* self_;
+    proc* current_;
+    uint64_t syscall_scratch_;
+
+    int index_;
+    int lapic_id_;
+
+    list<proc, &proc::runq_links_> runq_;
+    spinlock runq_lock_;
+    unsigned long nschedule_;
+    proc* idle_task_;
+
+    unsigned spinlock_depth_;
+
+    uint64_t gdt_segments_[7];
+    x86_64_taskstate task_descriptor_;
+
+
+    cpustate() = default;
+    NO_COPY_OR_ASSIGN(cpustate);
+
+    inline bool contains(uintptr_t addr) const;
+    inline bool contains(void* ptr) const;
+
+    void init();
+    void init_ap();
+
+    void exception(regstate* reg);
+
+    void enqueue(proc* p);
+    void schedule(proc* yielding_from) __attribute__((noreturn));
+
+ private:
+    void init_cpu_hardware();
+    void init_idle_task();
+};
+
+#define NCPU 16
+extern cpustate cpus[NCPU];
+extern int ncpu;
+#define CPUSTACK_SIZE 4096
+
+inline cpustate* this_cpu();
 
 
 // yieldstate: callee-saved registers that must be preserved across
