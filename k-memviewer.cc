@@ -80,18 +80,21 @@ void memusage::refresh() {
         proc* p = ptable[pid];
         if (p) {
             mark(ka2pa(p), f_kernel | f_process(pid));
-        }
-        if (p && p->pagetable_ && p->pagetable_ != early_pagetable) {
-            for (ptiter it(p); it.low(); it.next()) {
-                mark(it.ptp_pa(), f_kernel | f_process(pid));
-            }
-            mark(ka2pa(p->pagetable_), f_kernel | f_process(pid));
 
-            for (vmiter it(p); it.low(); it.next()) {
-                if (it.user()) {
-                    mark(it.pa(), f_user | f_process(pid));
+            auto irqs = p->lock_pagetable_read();
+            if (p->pagetable_ && p->pagetable_ != early_pagetable) {
+                for (ptiter it(p); it.low(); it.next()) {
+                    mark(it.ptp_pa(), f_kernel | f_process(pid));
+                }
+                mark(ka2pa(p->pagetable_), f_kernel | f_process(pid));
+
+                for (vmiter it(p); it.low(); it.next()) {
+                    if (it.user()) {
+                        mark(it.pa(), f_user | f_process(pid));
+                    }
                 }
             }
+            p->unlock_pagetable_read(irqs);
         }
     }
 }
