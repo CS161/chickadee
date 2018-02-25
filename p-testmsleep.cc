@@ -20,12 +20,14 @@ void process_main() {
     assert(r == 0);
 
     // then prints its position
-    console_printf("%d: pid %d\n", order[my_idx], sys_getpid());
+    console_printf("%d [pid %d]\n", order[my_idx], sys_getpid());
 
     if (my_idx == 0) {
         sys_msleep(800);
         console_printf("You should see 8 lines in sequential order.\n");
         console_printf("If you do, then testmsleep succeeded.\n");
+    } else {
+        sys_msleep(1000);
     }
     sys_exit(0);
 }
