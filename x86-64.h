@@ -423,7 +423,7 @@ static inline uint64_t rdtsc() {
 }
 
 static inline void pause() {
-    __builtin_ia32_pause();
+    asm volatile("pause" : : : "memory");
 }
 
 
