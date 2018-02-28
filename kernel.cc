@@ -206,7 +206,7 @@ uintptr_t proc::syscall(regstate* regs) {
 
         // block until a line is available
         waiter(this).block_until(kbd.wq_, [&] () {
-                return kbd.eol_ != 0;
+                return sz == 0 || kbd.eol_ != 0;
             }, kbd.lock_, irqs);
 
         // read that line or lines
