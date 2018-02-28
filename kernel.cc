@@ -190,6 +190,66 @@ uintptr_t proc::syscall(regstate* regs) {
         // Your code here
         return -1;
 
+    case SYSCALL_READ: {
+        int fd = regs->reg_rdi;
+        uintptr_t addr = regs->reg_rsi;
+        size_t sz = regs->reg_rdx;
+
+        auto& kbd = keyboardstate::get();
+        auto irqs = kbd.lock_.lock();
+
+        // mark that we are now reading from the keyboard
+        // (so `q` should not power off)
+        if (kbd.state_ == kbd.boot) {
+            kbd.state_ = kbd.input;
+        }
+
+        // block until a line is available
+        waiter(this).block_until(kbd.wq_, [&] () {
+                return kbd.eol_ != 0;
+            }, kbd.lock_, irqs);
+
+        // read that line or lines
+        size_t n = 0;
+        while (kbd.eol_ != 0 && n < sz) {
+            if (kbd.buf_[kbd.pos_] == 0x04) {
+                // Ctrl-D means EOF
+                if (n == 0) {
+                    kbd.consume(1);
+                }
+                break;
+            } else {
+                *reinterpret_cast<char*>(addr) = kbd.buf_[kbd.pos_];
+                ++addr;
+                ++n;
+                kbd.consume(1);
+            }
+        }
+
+        kbd.lock_.unlock(irqs);
+        return n;
+    }
+
+    case SYSCALL_WRITE: {
+        int fd = regs->reg_rdi;
+        uintptr_t addr = regs->reg_rsi;
+        size_t sz = regs->reg_rdx;
+
+        auto& csl = consolestate::get();
+        auto irqs = csl.lock_.lock();
+
+        size_t n = 0;
+        while (n < sz) {
+            int ch = *reinterpret_cast<const char*>(addr);
+            ++addr;
+            ++n;
+            console_printf(0x0F00, "%c", ch);
+        }
+
+        csl.lock_.unlock(irqs);
+        return n;
+    }
+
     default:
         // no such system call
         log_printf("%d: no such system call %u\n", pid_, regs->reg_rax);
