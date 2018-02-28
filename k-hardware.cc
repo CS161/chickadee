@@ -1,5 +1,6 @@
 #include "kernel.hh"
 #include "k-apic.hh"
+#include "k-devices.hh"
 #include "k-vmiter.hh"
 
 // k-hardware.cc
@@ -116,133 +117,6 @@ void reboot() {
 }
 
 
-// console_show_cursor(cpos)
-//    Move the console cursor to position `cpos`, which should be between 0
-//    and 80 * 25.
-
-void console_show_cursor(int cpos) {
-    if (cpos < 0 || cpos > CONSOLE_ROWS * CONSOLE_COLUMNS) {
-        cpos = 0;
-    }
-    outb(0x3D4, 14);
-    outb(0x3D5, cpos / 256);
-    outb(0x3D4, 15);
-    outb(0x3D5, cpos % 256);
-}
-
-
-
-// keyboard_readc
-//    Read a character from the keyboard. Returns -1 if there is no character
-//    to read, and 0 if no real key press was registered but you should call
-//    keyboard_readc() again (e.g. the user pressed a SHIFT key). Otherwise
-//    returns either an ASCII character code or one of the special characters
-//    listed in kernel.h.
-
-// Unfortunately mapping PC key codes to ASCII takes a lot of work.
-
-#define MOD_SHIFT       (1 << 0)
-#define MOD_CONTROL     (1 << 1)
-#define MOD_CAPSLOCK    (1 << 3)
-
-#define KEY_SHIFT       0372
-#define KEY_CONTROL     0373
-#define KEY_ALT         0374
-#define KEY_CAPSLOCK    0375
-#define KEY_NUMLOCK     0376
-#define KEY_SCROLLLOCK  0377
-
-#define CKEY(cn)        0x80 + cn
-
-static const uint8_t keymap[256] = {
-    /*0x00*/ 0, 033, CKEY(0), CKEY(1), CKEY(2), CKEY(3), CKEY(4), CKEY(5),
-        CKEY(6), CKEY(7), CKEY(8), CKEY(9), CKEY(10), CKEY(11), '\b', '\t',
-    /*0x10*/ 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i',
-        'o', 'p', CKEY(12), CKEY(13), CKEY(14), KEY_CONTROL, 'a', 's',
-    /*0x20*/ 'd', 'f', 'g', 'h', 'j', 'k', 'l', CKEY(15),
-        CKEY(16), CKEY(17), KEY_SHIFT, CKEY(18), 'z', 'x', 'c', 'v',
-    /*0x30*/ 'b', 'n', 'm', CKEY(19), CKEY(20), CKEY(21), KEY_SHIFT, '*',
-        KEY_ALT, ' ', KEY_CAPSLOCK, 0, 0, 0, 0, 0,
-    /*0x40*/ 0, 0, 0, 0, 0, KEY_NUMLOCK, KEY_SCROLLLOCK, '7',
-        '8', '9', '-', '4', '5', '6', '+', '1',
-    /*0x50*/ '2', '3', '0', '.', 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
-    /*0x60*/ 0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
-    /*0x70*/ 0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
-    /*0x80*/ 0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
-    /*0x90*/ 0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, CKEY(14), KEY_CONTROL, 0, 0,
-    /*0xA0*/ 0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
-    /*0xB0*/ 0, 0, 0, 0, 0, '/', 0, 0,  KEY_ALT, 0, 0, 0, 0, 0, 0, 0,
-    /*0xC0*/ 0, 0, 0, 0, 0, 0, 0, KEY_HOME,
-        KEY_UP, KEY_PAGEUP, 0, KEY_LEFT, 0, KEY_RIGHT, 0, KEY_END,
-    /*0xD0*/ KEY_DOWN, KEY_PAGEDOWN, KEY_INSERT, KEY_DELETE, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0,
-    /*0xE0*/ 0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0,
-    /*0xF0*/ 0, 0, 0, 0, 0, 0, 0, 0,  0, 0, 0, 0, 0, 0, 0, 0
-};
-
-static const struct keyboard_key {
-    uint8_t map[4];
-} complex_keymap[] = {
-    /*CKEY(0)*/ {{'1', '!', 0, 0}},  /*CKEY(1)*/ {{'2', '@', 0, 0}},
-    /*CKEY(2)*/ {{'3', '#', 0, 0}},  /*CKEY(3)*/ {{'4', '$', 0, 0}},
-    /*CKEY(4)*/ {{'5', '%', 0, 0}},  /*CKEY(5)*/ {{'6', '^', 0, 036}},
-    /*CKEY(6)*/ {{'7', '&', 0, 0}},  /*CKEY(7)*/ {{'8', '*', 0, 0}},
-    /*CKEY(8)*/ {{'9', '(', 0, 0}},  /*CKEY(9)*/ {{'0', ')', 0, 0}},
-    /*CKEY(10)*/ {{'-', '_', 0, 037}},  /*CKEY(11)*/ {{'=', '+', 0, 0}},
-    /*CKEY(12)*/ {{'[', '{', 033, 0}},  /*CKEY(13)*/ {{']', '}', 035, 0}},
-    /*CKEY(14)*/ {{'\n', '\n', '\r', '\r'}},
-    /*CKEY(15)*/ {{';', ':', 0, 0}},
-    /*CKEY(16)*/ {{'\'', '"', 0, 0}},  /*CKEY(17)*/ {{'`', '~', 0, 0}},
-    /*CKEY(18)*/ {{'\\', '|', 034, 0}},  /*CKEY(19)*/ {{',', '<', 0, 0}},
-    /*CKEY(20)*/ {{'.', '>', 0, 0}},  /*CKEY(21)*/ {{'/', '?', 0, 0}}
-};
-
-int keyboard_readc() {
-    static uint8_t modifiers;
-    static uint8_t last_escape;
-
-    if ((inb(KEYBOARD_STATUSREG) & KEYBOARD_STATUS_READY) == 0) {
-        return -1;
-    }
-
-    uint8_t data = inb(KEYBOARD_DATAREG);
-    uint8_t escape = last_escape;
-    last_escape = 0;
-
-    if (data == 0xE0) {         // mode shift
-        last_escape = 0x80;
-        return 0;
-    } else if (data & 0x80) {   // key release: matters only for modifier keys
-        int ch = keymap[(data & 0x7F) | escape];
-        if (ch >= KEY_SHIFT && ch < KEY_CAPSLOCK) {
-            modifiers &= ~(1 << (ch - KEY_SHIFT));
-        }
-        return 0;
-    }
-
-    int ch = (unsigned char) keymap[data | escape];
-
-    if (ch >= 'a' && ch <= 'z') {
-        if (modifiers & MOD_CONTROL) {
-            ch -= 0x60;
-        } else if (!(modifiers & MOD_SHIFT) != !(modifiers & MOD_CAPSLOCK)) {
-            ch -= 0x20;
-        }
-    } else if (ch >= KEY_CAPSLOCK) {
-        modifiers ^= 1 << (ch - KEY_SHIFT);
-        ch = 0;
-    } else if (ch >= KEY_SHIFT) {
-        modifiers |= 1 << (ch - KEY_SHIFT);
-        ch = 0;
-    } else if (ch >= CKEY(0) && ch <= CKEY(21)) {
-        ch = complex_keymap[ch - CKEY(0)].map[modifiers & 3];
-    } else if (ch < 0x80 && (modifiers & MOD_CONTROL)) {
-        ch = 0;
-    }
-
-    return ch;
-}
-
 
 // log_printf, log_vprintf
 //    Print debugging messages to the host's `log.txt` file. We run QEMU
@@ -353,53 +227,14 @@ void error_printf(const char* format, ...) {
 }
 
 
-// check_keyboard
-//    Check for the user typing a control key. 'a', 'f', and 'e' cause a soft
-//    reboot where the kernel runs the allocator programs, "fork", or
-//    "forkexit", respectively. Control-C or 'q' exit the virtual machine.
-//    Returns key typed or -1 for no key.
-
-int check_keyboard() {
-    // XXX THIS WILL FAIL MISERABLY ON MULTICORE!!!!!!
-    int c = keyboard_readc();
-    if (c == 'a' || c == 'f' || c == 'e') {
-        // Install a temporary page table to carry us through the
-        // process of reinitializing memory. This replicates work the
-        // bootloader does.
-        x86_64_pagetable* pt = pa2ktext<x86_64_pagetable*>(0x1000);
-        memset(pt, 0, PAGESIZE * 2);
-        pt[0].entry[0] = pt[0].entry[511] = 0x2000 | PTE_P | PTE_W | PTE_U;
-        pt[1].entry[0] = pt[0].entry[510] = PTE_P | PTE_W | PTE_U | PTE_PS;
-        lcr3(ktext2pa(pt));
-        // The soft reboot process doesn't modify memory, so it's
-        // safe to pass `multiboot_info` on the kernel stack, even
-        // though it will get overwritten as the kernel runs.
-        uint32_t multiboot_info[5];
-        multiboot_info[0] = 4;
-        const char* argument = "fork";
-        if (c == 'a') {
-            argument = "allocator";
-        } else if (c == 'e') {
-            argument = "forkexit";
-        }
-        uintptr_t argument_ptr = ktext2pa(argument);
-        assert(argument_ptr < 0x100000000L);
-        multiboot_info[4] = (uint32_t) argument_ptr;
-        asm volatile("movl $0x2BADB002, %%eax; jmp kernel_entry"
-                     : : "b" (multiboot_info) : "memory");
-    } else if (c == 0x03 || c == 'q') {
-        poweroff();
-    }
-    return c;
-}
-
-
 // fail
 //    Loop until user presses Control-C, then poweroff.
 
 void __attribute__((noreturn)) fail() {
+    auto& kbd = keyboardstate::get();
+    kbd.state_ = kbd.fail;
     while (1) {
-        check_keyboard();
+        kbd.handle_interrupt();
     }
 }
 

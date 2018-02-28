@@ -42,6 +42,9 @@ void init_hardware() {
 
     // initialize other CPUs
     init_other_processors();
+
+    // enable interrupts
+    cpus[0].enable_irq(IRQ_KEYBOARD);
 }
 
 

@@ -309,33 +309,6 @@ void kernel_start(const char* command);
 void console_show_cursor(int cpos);
 
 
-// keyboard_readc
-//    Read a character from the keyboard. Returns -1 if there is no character
-//    to read, and 0 if no real key press was registered but you should call
-//    keyboard_readc() again (e.g. the user pressed a SHIFT key). Otherwise
-//    returns either an ASCII character code or one of the special characters
-//    listed below.
-int keyboard_readc();
-
-#define KEY_UP          0300
-#define KEY_RIGHT       0301
-#define KEY_DOWN        0302
-#define KEY_LEFT        0303
-#define KEY_HOME        0304
-#define KEY_END         0305
-#define KEY_PAGEUP      0306
-#define KEY_PAGEDOWN    0307
-#define KEY_INSERT      0310
-#define KEY_DELETE      0311
-
-// check_keyboard
-//    Check for the user typing a control key. 'a', 'f', and 'e' cause a soft
-//    reboot where the kernel runs the allocator programs, "fork", or
-//    "forkexit", respectively. Control-C or 'q' exit the virtual machine.
-//    Returns key typed or -1 for no key.
-int check_keyboard();
-
-
 // program_load(p, programnumber)
 //    Load the code corresponding to program `programnumber` into the process
 //    `p` and set `p->p_reg.reg_eip` to its entry point. Calls

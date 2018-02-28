@@ -1,5 +1,6 @@
 #include "kernel.hh"
 #include "k-apic.hh"
+#include "k-devices.hh"
 #include "k-vmiter.hh"
 
 // kernel.cc
@@ -84,9 +85,6 @@ void proc::exception(regstate* regs) {
     // Show the current cursor location.
     console_show_cursor(cursorpos);
 
-    // If Control-C was typed, exit the virtual machine.
-    check_keyboard();
-
 
     // Actually handle the exception.
     switch (regs->reg_intno) {
@@ -122,6 +120,10 @@ void proc::exception(regstate* regs) {
         this->yield();
         break;
     }
+
+    case INT_IRQ + IRQ_KEYBOARD:
+        keyboardstate::get().handle_interrupt();
+        break;
 
     default:
         panic("Unexpected exception %d!\n", regs->reg_intno);
