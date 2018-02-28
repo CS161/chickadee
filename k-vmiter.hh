@@ -16,11 +16,13 @@ class vmiter {
     inline vmiter(const proc* p, uintptr_t va = 0);
 
     inline uintptr_t va() const;      // current virtual address
+    inline uintptr_t last_va() const; // one past last va with same perm/pa
     inline bool low() const;          // is va low?
     inline uint64_t pa() const;       // current physical address
     template <typename T = void*>
     inline T ka() const;              // kernel version of pa()
     inline uint64_t perm() const;     // current permissions
+    inline bool perm(uint64_t p) const; // are all permissions `p` enabled?
     inline bool present() const;      // is va present?
     inline bool writable() const;     // is va writable?
     inline bool user() const;         // is va user-accessible (unprivileged)?
@@ -32,6 +34,10 @@ class vmiter {
     // move to next page-aligned va, skipping large empty regions
     // Never skips present pages.
     void next();
+
+    // move to next page-aligned va with different perm/pa (i.e., `last_va()`)
+    // Like next(), but also skips present pages.
+    void step();
 
     // map current va to `pa` with permissions `perm`
     // Current va must be page-aligned. Calls knewpage() to allocate
@@ -72,7 +78,7 @@ class ptiter {
     inline ptiter(const proc* p, uintptr_t va = 0);
 
     inline uintptr_t va() const;            // current virtual address
-    inline uintptr_t end_va() const;        // one past last va covered by ptp
+    inline uintptr_t last_va() const;       // one past last va covered by ptp
     inline bool active() const;             // does va exist?
     inline bool low() const;                // is va low?
     inline int level() const;               // current level (0-2)
@@ -103,6 +109,9 @@ inline vmiter::vmiter(const proc* p, uintptr_t va)
 inline uintptr_t vmiter::va() const {
     return va_;
 }
+inline uintptr_t vmiter::last_va() const {
+    return (va_ | pageoffmask(level_)) + 1;
+}
 inline bool vmiter::low() const {
     return va_ <= VA_LOWMAX;
 }
@@ -129,14 +138,17 @@ inline uint64_t vmiter::perm() const {
         return 0;
     }
 }
+inline bool vmiter::perm(uint64_t p) const {
+    return (*pep_ & perm_ & p) == p;
+}
 inline bool vmiter::present() const {
     return (*pep_ & PTE_P) != 0;
 }
 inline bool vmiter::writable() const {
-    return (*pep_ & perm_ & (PTE_P | PTE_W)) == (PTE_P | PTE_W);
+    return perm(PTE_P | PTE_W);
 }
 inline bool vmiter::user() const {
-    return (*pep_ & perm_ & (PTE_P | PTE_U)) == (PTE_P | PTE_U);
+    return perm(PTE_P | PTE_U);
 }
 inline vmiter& vmiter::find(uintptr_t va) {
     real_find(va);
@@ -147,6 +159,9 @@ inline vmiter& vmiter::operator+=(intptr_t delta) {
 }
 inline vmiter& vmiter::operator-=(intptr_t delta) {
     return find(va_ - delta);
+}
+inline void vmiter::step() {
+    real_find(last_va());
 }
 
 inline ptiter::ptiter(x86_64_pagetable* pt, uintptr_t va)
@@ -159,7 +174,7 @@ inline ptiter::ptiter(const proc* p, uintptr_t va)
 inline uintptr_t ptiter::va() const {
     return va_ & ~pageoffmask(level_);
 }
-inline uintptr_t ptiter::end_va() const {
+inline uintptr_t ptiter::last_va() const {
     return (va_ | pageoffmask(level_)) + 1;
 }
 inline bool ptiter::active() const {

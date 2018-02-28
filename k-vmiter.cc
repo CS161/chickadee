@@ -38,7 +38,7 @@ int vmiter::map(uintptr_t pa, int perm) {
     } else {
         assert(!(pa & PTE_P));
     }
-    assert((perm & (PTE_P | PTE_W | PTE_U)) == (perm_ & (PTE_P | PTE_W | PTE_U)));
+    assert(!(perm & ~perm_ & (PTE_P | PTE_W | PTE_U)));
 
     while (level_ > 0 && perm) {
         assert(!(*pep_ & PTE_P));
