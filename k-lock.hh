@@ -43,22 +43,36 @@ struct irqstate {
 
 struct spinlock {
     irqstate lock() {
-        irqstate s = irqstate::get();
+        irqstate irqs = irqstate::get();
         cli();
         lock_noirq();
         adjust_this_cpu_spinlock_depth(1);
-        return s;
+        return irqs;
     }
-    void unlock(irqstate& x) {
+    bool trylock(irqstate& irqs) {
+        irqs = irqstate::get();
+        cli();
+        bool r = trylock_noirq();
+        if (r) {
+            adjust_this_cpu_spinlock_depth(1);
+        } else {
+            irqs.clear();
+        }
+        return r;
+    }
+    void unlock(irqstate& irqs) {
         adjust_this_cpu_spinlock_depth(-1);
         unlock_noirq();
-        x.restore();
+        irqs.restore();
     }
 
     void lock_noirq() {
         while (f_.test_and_set()) {
             pause();
         }
+    }
+    bool trylock_noirq() {
+        return !f_.test_and_set();
     }
     void unlock_noirq() {
         f_.clear();
