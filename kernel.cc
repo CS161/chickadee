@@ -193,7 +193,7 @@ uintptr_t proc::syscall(regstate* regs) {
     default:
         // no such system call
         log_printf("%d: no such system call %u\n", pid_, regs->reg_rax);
-        return -1;
+        return E_NOSYS;
 
     }
 }
