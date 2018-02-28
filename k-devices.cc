@@ -203,7 +203,7 @@ void keyboardstate::maybe_echo(int ch) {
                 --cursorpos;
             }
         } else {
-            console_printf("%c", ch);
+            console_printf(0x0300, "%c", ch);
         }
         consolestate::get().lock_.unlock_noirq();
     }
