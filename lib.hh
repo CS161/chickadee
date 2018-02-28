@@ -131,6 +131,12 @@ inline constexpr T roundup_pow2(T x) {
 #define E_PERM          -1         // Operation not permitted
 #define E_SRCH          -3         // No such process
 
+#define E_MINERROR      -100
+
+inline bool is_error(uintptr_t r) {
+    return r >= static_cast<uintptr_t>(E_MINERROR);
+}
+
 
 // System call constants
 
