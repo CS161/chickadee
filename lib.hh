@@ -129,13 +129,22 @@ inline constexpr T roundup_pow2(T x) {
 // System call error return values
 
 #define E_AGAIN         -11        // Try again
+#define E_BADF          -9         // Bad file number
 #define E_CHILD         -10        // No child processes
+#define E_FAULT         -14        // Bad address
 #define E_INTR          -4         // Interrupted system call
 #define E_INVAL         -22        // Invalid argument
+#define E_IO            -5         // I/O error
+#define E_MFILE         -24        // Too many open files
+#define E_NFILE         -23        // File table overflow
+#define E_NOEXEC        -8         // Exec format error
 #define E_NOMEM         -12        // Out of memory
 #define E_NOSYS         -38        // Invalid system call number
+#define E_NXIO          -6         // No such device or address
 #define E_PERM          -1         // Operation not permitted
+#define E_PIPE          -32        // Broken pipe
 #define E_SRCH          -3         // No such process
+#define E_2BIG          -7         // Argument list too long
 
 #define E_MINERROR      -100
 
