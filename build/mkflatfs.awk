@@ -5,6 +5,7 @@ BEGIN {
     for (i = 1; i <= NF; ++i) {
         name = $i;
         gsub(/^obj\//, "", name);
+        gsub(/^p-/, "", name);
         prefix = "_binary_" $i;
         gsub(/[^a-zA-Z0-9_]/, "_", prefix);
         print "extern const unsigned char ", prefix, "_start[];";

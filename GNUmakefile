@@ -72,7 +72,7 @@ ifneq ($(filter run-%,$(MAKECMDGOALS)),)
 ifeq ($(words $(MAKECMDGOALS)),1)
 RUNCMD_LASTWORD := $(lastword $(subst -, ,$(MAKECMDGOALS)))
 ifneq ($(filter obj/p-$(RUNCMD_LASTWORD),$(FLATFS_CONTENTS)),)
-CPPFLAGS += -DCHICKADEE_FIRST_PROCESS='"p-$(RUNCMD_LASTWORD)"'
+CPPFLAGS += -DCHICKADEE_FIRST_PROCESS='"$(RUNCMD_LASTWORD)"'
 DEFAULTIMAGE = $(IMAGE)
 $(OBJDIR)/kernel.ko: always
 endif

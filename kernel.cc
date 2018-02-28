@@ -28,7 +28,7 @@ void kernel_start(const char* command) {
     }
 
     auto irqs = ptable_lock.lock();
-    process_setup(1, "p-allocator");
+    process_setup(1, "allocator");
     ptable_lock.unlock(irqs);
 
     // Switch to the first process
