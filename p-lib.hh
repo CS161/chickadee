@@ -25,14 +25,34 @@ inline uintptr_t syscall0(int syscallno) {
 
 inline uintptr_t syscall0(int syscallno, uintptr_t arg0) {
     register uintptr_t rax asm("rax") = syscallno;
-    register uintptr_t rdi asm("rdi") = arg0;
     asm volatile ("syscall"
-                  : "+a" (rax), "+D" (rdi)
+                  : "+a" (rax), "+D" (arg0)
                   :
                   : "cc", "rcx", "rdx", "rsi",
                     "r8", "r9", "r10", "r11");
     return rax;
 }
+
+inline uintptr_t syscall0(int syscallno, uintptr_t arg0,
+                          uintptr_t arg1) {
+    register uintptr_t rax asm("rax") = syscallno;
+    asm volatile ("syscall"
+                  : "+a" (rax), "+D" (arg0), "+S" (arg1)
+                  :
+                  : "cc", "rcx", "rdx", "r8", "r9", "r10", "r11");
+    return rax;
+}
+
+inline uintptr_t syscall0(int syscallno, uintptr_t arg0,
+                          uintptr_t arg1, uintptr_t arg2) {
+    register uintptr_t rax asm("rax") = syscallno;
+    asm volatile ("syscall"
+                  : "+a" (rax), "+D" (arg0), "+S" (arg1), "+d" (arg2)
+                  :
+                  : "cc", "rcx", "r8", "r9", "r10", "r11");
+    return rax;
+}
+
 
 // sys_getpid
 //    Return current process ID.
@@ -103,6 +123,51 @@ static inline pid_t sys_waitpid(pid_t pid,
                                 int* status = nullptr,
                                 int options = 0) {
     return E_NOSYS;
+}
+
+// sys_read(fd, buf, sz)
+//    Read bytes from `fd` into `buf`. Read at most `sz` bytes. Return
+//    the number of bytes read, which is 0 at EOF.
+inline ssize_t sys_read(int fd, char* buf, size_t sz) {
+    return syscall0(SYSCALL_READ, fd, reinterpret_cast<uintptr_t>(buf), sz);
+}
+
+// sys_write(fd, buf, sz)
+//    Write bytes to `fd` from `buf`. Write at most `sz` bytes. Return
+//    the number of bytes written.
+inline ssize_t sys_write(int fd, const char* buf, size_t sz) {
+    return syscall0(SYSCALL_WRITE, fd, reinterpret_cast<uintptr_t>(buf), sz);
+}
+
+// sys_dup2(oldfd, newfd)
+//    Make `newfd` a reference to the same file structure as `oldfd`.
+inline int sys_dup2(int oldfd, int newfd) {
+    return syscall0(SYSCALL_DUP2, oldfd, newfd);
+}
+
+// sys_close(fd)
+//    Close `fd`.
+inline int sys_close(int fd) {
+    return syscall0(SYSCALL_CLOSE);
+}
+
+// sys_pipe(pfd)
+//    Create a pipe.
+inline int sys_pipe(int pfd[2]) {
+    uintptr_t r = syscall0(SYSCALL_PIPE);
+    if (!is_error(r)) {
+        pfd[0] = r;
+        pfd[1] = r >> 32;
+        r = 0;
+    }
+    return r;
+}
+
+// sys_execv(program_name, argv)
+inline int sys_execv(const char* program_name, char* const argv[]) {
+    return syscall0(SYSCALL_EXECV,
+                    reinterpret_cast<uintptr_t>(program_name),
+                    reinterpret_cast<uintptr_t>(argv));
 }
 
 // sys_panic(msg)

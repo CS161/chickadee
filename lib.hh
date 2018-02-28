@@ -118,6 +118,12 @@ inline constexpr T roundup_pow2(T x) {
 #define SYSCALL_FORK            6
 #define SYSCALL_EXIT            7
 #define SYSCALL_KDISPLAY        100
+#define SYSCALL_READ            101
+#define SYSCALL_WRITE           102
+#define SYSCALL_CLOSE           103
+#define SYSCALL_DUP2            104
+#define SYSCALL_PIPE            105
+#define SYSCALL_EXECV           106
 
 
 // System call error return values
