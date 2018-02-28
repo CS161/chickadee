@@ -148,7 +148,7 @@ inline int sys_dup2(int oldfd, int newfd) {
 // sys_close(fd)
 //    Close `fd`.
 inline int sys_close(int fd) {
-    return syscall0(SYSCALL_CLOSE);
+    return syscall0(SYSCALL_CLOSE, fd);
 }
 
 // sys_pipe(pfd)
