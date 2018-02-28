@@ -1,4 +1,5 @@
 #include "kernel.hh"
+#include "k-apic.hh"
 
 cpustate cpus[NCPU];
 int ncpu;
@@ -34,6 +35,24 @@ void cpustate::init() {
 
     // now initialize the CPU hardware
     init_cpu_hardware();
+}
+
+
+// cpustate::enable_irq(irqno)
+//    Enable external interrupt `irqno`, delivering it to
+//    this CPU.
+void cpustate::enable_irq(int irqno) {
+    assert(irqno >= IRQ_TIMER && irqno <= IRQ_SPURIOUS);
+    auto& ioapic = ioapicstate::get();
+    ioapic.enable_irq(irqno, INT_IRQ + irqno, lapic_id_);
+}
+
+// cpustate::disable_irq(irqno)
+//    Disable external interrupt `irqno`.
+void cpustate::disable_irq(int irqno) {
+    assert(irqno >= IRQ_TIMER && irqno <= IRQ_SPURIOUS);
+    auto& ioapic = ioapicstate::get();
+    ioapic.disable_irq(irqno);
 }
 
 

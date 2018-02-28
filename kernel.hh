@@ -1,5 +1,5 @@
-#ifndef CHICKADEE_KERNEL_H
-#define CHICKADEE_KERNEL_H
+#ifndef CHICKADEE_KERNEL_HH
+#define CHICKADEE_KERNEL_HH
 #include "x86-64.h"
 #include "lib.hh"
 #include "k-list.hh"
@@ -13,7 +13,7 @@ struct proc;
 struct yieldstate;
 
 
-// kernel.h
+// kernel.hh
 //
 //    Functions, constants, and definitions for the kernel.
 
@@ -103,6 +103,9 @@ struct __attribute__((aligned(4096))) cpustate {
 
     void enqueue(proc* p);
     void schedule(proc* yielding_from) __attribute__((noreturn));
+
+    void enable_irq(int irqno);
+    void disable_irq(int irqno);
 
  private:
     void init_cpu_hardware();
