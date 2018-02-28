@@ -167,7 +167,7 @@ uintptr_t proc::syscall(regstate* regs) {
 
     case SYSCALL_PAGE_ALLOC: {
         uintptr_t addr = regs->reg_rdi;
-        if (addr >= 0x800000000000 || addr & 0xFFF) {
+        if (addr >= VA_LOWEND || addr & 0xFFF) {
             return -1;
         }
         x86_64_page* pg = kallocpage();
