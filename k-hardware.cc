@@ -243,12 +243,12 @@ void __attribute__((noreturn)) fail() {
 //    Use console_printf() to print a failure message and then wait for
 //    control-C. Also write the failure message to the log.
 
-bool panicing;
+bool panicking;
 
 void panic(const char* format, ...) {
     va_list val;
     va_start(val, format);
-    panicing = true;
+    panicking = true;
 
     if (format) {
         // Print panic message to both the screen and the log

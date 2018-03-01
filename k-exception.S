@@ -126,7 +126,7 @@ exception_entry:
         pushq %rcx
         pushq %rax
 
-1:      testb $1, panicing             // loop if panicing
+1:      testb $1, panicking            // loop if panicking
         jne 1b
 
         // call `proc::exception(regstate*)`
@@ -206,7 +206,7 @@ syscall_entry:
         subq $8, %rsp                  // %rcx clobbered by `syscall`
         pushq %rax
 
-1:      testb $1, panicing             // loop if panicing
+1:      testb $1, panicking            // loop if panicking
         jne 1b
 
         movq %gs:(8), %rdi
@@ -271,7 +271,7 @@ _ZN4proc14yield_noreturnEv:
 // proc::resume()
 .globl _ZN4proc6resumeEv
 _ZN4proc6resumeEv:
-1:      testb $1, panicing             // loop if panicing
+1:      testb $1, panicking            // loop if panicking
         jne 1b
 
         // do we have yieldstate? (is `this->yields_ != nullptr`?)
