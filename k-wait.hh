@@ -32,6 +32,7 @@ struct wait_queue {
     mutable spinlock lock_;
 
     // you might want to provide some convenience methods here
+    inline void wake_all();
 };
 
 
@@ -108,6 +109,16 @@ inline void waiter::block_until(wait_queue& wq, F predicate,
         irqs = lock.lock();
     }
     clear();
+}
+
+// wait_queue::wake_all()
+//    Lock the wait queue, then clear it by waking all waiters.
+inline void wait_queue::wake_all() {
+    auto irqs = lock_.lock();
+    while (auto w = q_.pop_front()) {
+        w->wake();
+    }
+    lock_.unlock(irqs);
 }
 
 #endif

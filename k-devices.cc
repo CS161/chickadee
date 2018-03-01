@@ -185,11 +185,7 @@ done:
     lapicstate::get().ack();
 
     if (wake) {
-        irqs = wq_.lock_.lock();
-        while (auto w = wq_.q_.pop_front()) {
-            w->wake();
-        }
-        wq_.lock_.unlock(irqs);
+        wq_.wake_all();
     }
 }
 
