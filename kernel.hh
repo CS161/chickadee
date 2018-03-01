@@ -291,6 +291,28 @@ void kdelete(T* obj) {
     }
 }
 
+// operator new, operator delete
+//    Expressions like `new T(...)` and `delete x` work, and call
+//    kalloc/kfree.
+inline void* operator new(size_t sz) noexcept {
+    return kalloc(sz);
+}
+inline void* operator new[](size_t sz) noexcept {
+    return kalloc(sz);
+}
+inline void operator delete(void* ptr) noexcept {
+    kfree(ptr);
+}
+inline void operator delete(void* ptr, size_t) noexcept {
+    kfree(ptr);
+}
+inline void operator delete[](void* ptr) noexcept {
+    kfree(ptr);
+}
+inline void operator delete[](void* ptr, size_t) noexcept {
+    kfree(ptr);
+}
+
 // init_kalloc
 //    Initialize stuff needed by `kalloc`. Called from `init_hardware`,
 //    after `physical_ranges` is initialized.

@@ -297,7 +297,6 @@ extern "C" {
 //    Return 0 if the static variables guarded by `*guard` are already
 //    initialized. Otherwise lock `*guard` and return 1. The compiler
 //    will initialize the statics, then call `__cxa_guard_release`.
-
 int __cxa_guard_acquire(std::atomic<char>* guard) {
     if (guard->load(std::memory_order_relaxed) == 2) {
         return 0;
@@ -318,9 +317,20 @@ int __cxa_guard_acquire(std::atomic<char>* guard) {
 // __cxa_guard_release(guard)
 //    Mark `guard` to indicate that the static variables it guards are
 //    initialized.
-
 void __cxa_guard_release(std::atomic<char>* guard) {
     guard->store(2);
+}
+
+// __cxa_pure_virtual()
+//    Used as a placeholder for pure virtual functions.
+void __cxa_pure_virtual() {
+    panic("pure virtual function called in kernel!\n");
+}
+
+// __dso_handle, __cxa_atexit
+//    Used to destroy global objects at "program exit". We don't bother.
+void* __dso_handle;
+void __cxa_atexit(...) {
 }
 
 }
