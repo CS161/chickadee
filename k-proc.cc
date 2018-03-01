@@ -19,7 +19,17 @@ proc::proc()
 //    Allocate and return a new `proc`. Calls the constructor.
 
 proc* kalloc_proc() {
-    return knew<proc>();
+    void* ptr;
+    if constexpr (sizeof(proc) <= PAGESIZE) {
+        ptr = kallocpage();
+    } else {
+        ptr = kalloc(sizeof(proc));
+    }
+    if (ptr) {
+        return new (ptr) proc;
+    } else {
+        return nullptr;
+    }
 }
 
 
