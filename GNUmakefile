@@ -55,6 +55,7 @@ PROCESS_OBJS = $(PROCESS_LIB_OBJS) \
 	$(OBJDIR)/p-cat.o \
 	$(OBJDIR)/p-testeintr.o \
 	$(OBJDIR)/p-testmsleep.o \
+	$(OBJDIR)/p-testpipe.o \
 	$(OBJDIR)/p-testppid.o \
 	$(OBJDIR)/p-testrwaddr.o \
 	$(OBJDIR)/p-testvfs.o \
@@ -66,6 +67,7 @@ FLATFS_CONTENTS = obj/p-allocator \
 	obj/p-cat \
 	obj/p-testeintr \
 	obj/p-testmsleep \
+	obj/p-testpipe \
 	obj/p-testppid \
 	obj/p-testrwaddr \
 	obj/p-testvfs \
