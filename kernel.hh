@@ -374,6 +374,14 @@ inline cpustate* this_cpu() {
     return result;
 }
 
+// current
+//    Return a pointer to the current `struct proc`.
+inline proc* current() {
+    proc* result;
+    asm volatile ("movq %%gs:(8), %0" : "=r" (result));
+    return result;
+}
+
 // adjust_this_cpu_spinlock_depth(delta)
 //    Adjust this CPU's spinlock_depth_ by `delta`. Does *not* require
 //    disabled interrupts.
