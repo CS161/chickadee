@@ -20,7 +20,7 @@ proc::proc()
 
 proc* kalloc_proc() {
     void* ptr;
-    if constexpr (sizeof(proc) <= PAGESIZE) {
+    if (sizeof(proc) <= PAGESIZE) {
         ptr = kallocpage();
     } else {
         ptr = kalloc(sizeof(proc));
