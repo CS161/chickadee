@@ -38,8 +38,9 @@ CCOMMONFLAGS := -m64 -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -mno-sse3 \
 CCOMMONFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 
 ASFLAGS := $(CCOMMONFLAGS)
-CFLAGS := $(CFLAGS) $(CCOMMONFLAGS) -gdwarf -std=gnu11
-CXXFLAGS := $(CXXFLAGS) $(CCOMMONFLAGS) -fno-exceptions -gdwarf -std=gnu++1z
+CFLAGS := $(CFLAGS) $(CCOMMONFLAGS) -std=gnu11 -gdwarf
+CXXFLAGS := $(CXXFLAGS) $(CCOMMONFLAGS) -std=gnu++1z \
+	-fno-exceptions -fno-rtti -gdwarf
 DEPCFLAGS = -MD -MF $(DEPSDIR)/$*.d -MP
 
 # Linker flags
