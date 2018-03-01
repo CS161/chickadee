@@ -1,6 +1,7 @@
 #ifndef CHICKADEE_LIB_HH
 #define CHICKADEE_LIB_HH
 #include "types.h"
+#include <new>              // for placement new
 #include <type_traits>
 
 // lib.hh
@@ -31,7 +32,9 @@ int rand(int min, int max);
 
 
 // Return the offset of `member` relative to the beginning of a struct type
+#ifndef offsetof
 #define offsetof(type, member)  __builtin_offsetof(type, member)
+#endif
 
 // Return the number of elements in an array
 #define arraysize(array)        (sizeof(array) / sizeof(array[0]))

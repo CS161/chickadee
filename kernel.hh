@@ -269,6 +269,28 @@ void* kalloc(size_t sz);
 //    `kalloc_pagetable`. Does nothing if `ptr == nullptr`.
 void kfree(void* ptr);
 
+// knew<T>()
+//    Return a pointer to a newly-allocated object of type `T`. Calls
+//    the new object's constructor. Returns `nullptr` on failure.
+template <typename T>
+inline T* knew() {
+    if (void* mem = kalloc(sizeof(T))) {
+        return new (mem) T;
+    } else {
+        return nullptr;
+    }
+}
+
+// kdelete(ptr)
+//    Free an object allocated by `knew`. Calls the object's destructor.
+template <typename T>
+void kdelete(T* obj) {
+    if (obj) {
+        obj->~T();
+        kfree(obj);
+    }
+}
+
 // init_kalloc
 //    Initialize stuff needed by `kalloc`. Called from `init_hardware`,
 //    after `physical_ranges` is initialized.
