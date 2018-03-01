@@ -42,6 +42,10 @@ struct irqstate {
 };
 
 struct spinlock {
+    spinlock() {
+        f_.clear();
+    }
+
     irqstate lock() {
         irqstate irqs = irqstate::get();
         cli();
