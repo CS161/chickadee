@@ -292,12 +292,12 @@ void kdelete(T* obj) {
 }
 
 // operator new, operator delete
-//    Expressions like `new T(...)` and `delete x` work, and call
-//    kalloc/kfree.
-inline void* operator new(size_t sz) noexcept {
+//    Expressions like `new (std::nothrow) T(...)` and `delete x` work,
+//    and call kalloc/kfree.
+inline void* operator new(size_t sz, const std::nothrow_t&) noexcept {
     return kalloc(sz);
 }
-inline void* operator new[](size_t sz) noexcept {
+inline void* operator new[](size_t sz, const std::nothrow_t&) noexcept {
     return kalloc(sz);
 }
 inline void operator delete(void* ptr) noexcept {

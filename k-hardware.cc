@@ -290,6 +290,10 @@ void assert_fail(const char* file, int line, const char* msg) {
 
 // C++ ABI functions
 
+namespace std {
+const nothrow_t nothrow;
+}
+
 extern "C" {
 // The __cxa_guard functions control the initialization of static variables.
 
