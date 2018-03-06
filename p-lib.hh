@@ -156,7 +156,7 @@ inline int sys_close(int fd) {
 //    contain at least one of `OP_READ` and `OP_WRITE`.
 inline int sys_open(const char* path, int flags) {
     return syscall0(SYSCALL_OPEN, reinterpret_cast<uintptr_t>(path),
-                    strlen(path), flags);
+                    flags);
 }
 
 // sys_pipe(pfd)
@@ -172,10 +172,14 @@ inline int sys_pipe(int pfd[2]) {
 }
 
 // sys_execv(program_name, argv)
-inline int sys_execv(const char* program_name, char* const argv[]) {
+inline int sys_execv(const char* program_name, const char* const argv[]) {
+    size_t n = 0;
+    while (argv[n] != nullptr) {
+        ++n;
+    }
     return syscall0(SYSCALL_EXECV,
                     reinterpret_cast<uintptr_t>(program_name),
-                    reinterpret_cast<uintptr_t>(argv));
+                    reinterpret_cast<uintptr_t>(argv), n);
 }
 
 // sys_panic(msg)
