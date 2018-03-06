@@ -130,6 +130,20 @@ int rand(int min, int max) {
 }
 
 
+// declare printfmt specializations (g++-6 requires)
+
+constexpr char printfmt<bool>::spec[];
+constexpr char printfmt<char>::spec[];
+constexpr char printfmt<signed char>::spec[];
+constexpr char printfmt<unsigned char>::spec[];
+constexpr char printfmt<short>::spec[];
+constexpr char printfmt<unsigned short>::spec[];
+constexpr char printfmt<int>::spec[];
+constexpr char printfmt<unsigned>::spec[];
+constexpr char printfmt<long>::spec[];
+constexpr char printfmt<unsigned long>::spec[];
+
+
 // console_vprintf, console_printf
 //    Print a message onto the console, starting at the given cursor position.
 

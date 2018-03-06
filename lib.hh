@@ -60,6 +60,8 @@ template <> struct printfmt<long>           { static constexpr char spec[] = "ld
 template <> struct printfmt<unsigned long>  { static constexpr char spec[] = "lu"; };
 template <typename T> struct printfmt<T*>   { static constexpr char spec[] = "p"; };
 
+template <typename T> constexpr char printfmt<T*>::spec[];
+
 
 // Min, max, and rounding operations
 
