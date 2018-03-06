@@ -70,7 +70,7 @@ void process_main() {
                     if (nextch != '|'
                         && nextch != '&'
                         && child > 0) {
-                        int r, status;
+                        int r, status = -1;
                         while ((r = sys_waitpid(child, &status)) == E_AGAIN) {
                         }
                         assert(r == child);
