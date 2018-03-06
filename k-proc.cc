@@ -112,21 +112,35 @@ int proc::load(const char* binary_name) {
     }
 
     // validate the binary
-    assert(fs->len_ >= sizeof(elf_header));
+    if (fs->len_ < sizeof(elf_header)) {
+        return E_NOEXEC;
+    }
     const elf_header* eh = reinterpret_cast<const elf_header*>(fs->data_);
-    assert(eh->e_magic == ELF_MAGIC);
-    assert(eh->e_phentsize == sizeof(elf_program));
-    assert(eh->e_shentsize == sizeof(elf_section));
+    if (eh->e_magic != ELF_MAGIC
+        || eh->e_phentsize != sizeof(elf_program)
+        || eh->e_shentsize != sizeof(elf_section)
+        || eh->e_phoff > fs->len_
+        || eh->e_phnum == 0
+        || (fs->len_ - eh->e_phoff) / eh->e_phnum < eh->e_phentsize) {
+        return E_NOEXEC;
+    }
 
     // load each loadable program segment into memory
     const elf_program* ph = reinterpret_cast<const elf_program*>
         (fs->data_ + eh->e_phoff);
     for (int i = 0; i < eh->e_phnum; ++i) {
-        if (ph[i].p_type == ELF_PTYPE_LOAD) {
-            int r = load_segment(&ph[i], fs->data_ + ph[i].p_offset);
-            if (r < 0) {
-                return r;
-            }
+        if (ph[i].p_type != ELF_PTYPE_LOAD) {
+            continue;
+        }
+        if (ph[i].p_offset > fs->len_
+            || fs->len_ - ph[i].p_offset < ph[i].p_filesz
+            || ph[i].p_va > VA_LOWEND
+            || VA_LOWEND - ph[i].p_va < ph[i].p_memsz) {
+            return E_NOEXEC;
+        }
+        int r = load_segment(&ph[i], fs->data_ + ph[i].p_offset);
+        if (r < 0) {
+            return r;
         }
     }
 

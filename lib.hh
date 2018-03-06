@@ -165,6 +165,7 @@ inline bool isspace(unsigned char ch) {
 #define E_PERM          -1         // Operation not permitted
 #define E_PIPE          -32        // Broken pipe
 #define E_SRCH          -3         // No such process
+#define E_TXTBSY        -26        // Text file busy
 #define E_2BIG          -7         // Argument list too long
 
 #define E_MINERROR      -100
