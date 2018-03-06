@@ -3,14 +3,15 @@
 
 class memusage {
   public:
+    // tracks physical addresses in the range [0, maxpa)
     static constexpr uintptr_t maxpa = 1024 * PAGESIZE;
+    // shows physical addresses in the range [0, max_view_pa)
+    static constexpr uintptr_t max_view_pa = 512 * PAGESIZE;
+    // shows virtual addresses in the range [0, max_view_va)
+    static constexpr uintptr_t max_view_va = 768 * PAGESIZE;
 
     memusage()
         : v_(nullptr) {
-    }
-    // tracks physical addresses in the range [0, `limit()`)
-    static constexpr uintptr_t limit() {
-        return maxpa;
     }
 
     // Flag bits for memory types:
@@ -40,7 +41,7 @@ class memusage {
     unsigned* v_;
 
     // add `flags` to the page containing `pa`
-    // This is safe to call even if `pa >= limit()`.
+    // This is safe to call even if `pa >= maxpa`.
     void mark(uintptr_t pa, unsigned flags) {
         if (pa < maxpa) {
             v_[pa / PAGESIZE] |= flags;
@@ -163,7 +164,9 @@ static void console_memviewer_virtual(memusage& mu, proc* vmp) {
     console_printf(CPOS(10, 26), 0x0F00,
                    "VIRTUAL ADDRESS SPACE FOR %d\n", vmp->pid_);
 
-    for (vmiter it(vmp); it.va() < MEMSIZE_VIRTUAL; it += PAGESIZE) {
+    for (vmiter it(vmp);
+         it.va() < memusage::max_view_va;
+         it += PAGESIZE) {
         unsigned long pn = it.va() / PAGESIZE;
         if (pn % 64 == 0) {
             console_printf(CPOS(11 + pn / 64, 3), 0x0F00,
@@ -194,7 +197,7 @@ void console_memviewer(proc* vmp) {
                    "PHYSICAL MEMORY                  @%lu\n",
                    ticks);
 
-    for (int pn = 0; pn * PAGESIZE < MEMSIZE_PHYSICAL; ++pn) {
+    for (int pn = 0; pn * PAGESIZE < memusage::max_view_pa; ++pn) {
         if (pn % 64 == 0) {
             console_printf(CPOS(1 + pn/64, 3), 0x0F00, "0x%06X", pn << 12);
         }
