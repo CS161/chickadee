@@ -54,6 +54,7 @@ PROCESS_OBJS = $(PROCESS_LIB_OBJS) \
 	$(OBJDIR)/p-allocexit.o \
 	$(OBJDIR)/p-cat.o \
 	$(OBJDIR)/p-echo.o \
+	$(OBJDIR)/p-execallocexit.o \
 	$(OBJDIR)/p-exececho.o \
 	$(OBJDIR)/p-false.o \
 	$(OBJDIR)/p-sh.o \
@@ -74,6 +75,7 @@ INITFS_CONTENTS = $(shell find initfs -type f -not -name '\#*\#' -not -name '*~'
 	obj/p-allocexit \
 	obj/p-cat \
 	obj/p-echo \
+	obj/p-execallocexit \
 	obj/p-exececho \
 	obj/p-false \
 	obj/p-sh \
