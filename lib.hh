@@ -186,6 +186,8 @@ inline bool is_error(uintptr_t r) {
 // sys_open() flags
 #define OF_READ                 1
 #define OF_WRITE                2
+#define OF_CREATE               4
+#define OF_TRUNC                8
 
 
 // Console printing
