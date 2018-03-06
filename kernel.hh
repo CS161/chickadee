@@ -373,16 +373,6 @@ void log_vprintf(const char* format, va_list val) __attribute__((noinline));
 void log_backtrace(const char* prefix = "");
 
 
-// error_printf, error_vprintf
-//    Print debugging messages to the console and to the host's
-//    `log.txt` file via `log_printf`.
-int error_printf(int cpos, int color, const char* format, ...)
-    __attribute__((noinline));
-void error_printf(int color, const char* format, ...) __attribute__((noinline));
-void error_printf(const char* format, ...) __attribute__((noinline));
-int error_vprintf(int cpos, int color, const char* format, va_list val)
-    __attribute__((noinline));
-
 // `panicking == true` iff some CPU has panicked
 extern bool panicking;
 

@@ -40,18 +40,24 @@ int rand(int min, int max);
 #define arraysize(array)        (sizeof(array) / sizeof(array[0]))
 
 
-// Assertions
+// Type information
 
-// assert(x)
-//    If `x == 0`, print a message and fail.
-#define assert(x) \
-        do { if (!(x)) assert_fail(__FILE__, __LINE__, #x); } while (0)
-void assert_fail(const char* file, int line, const char* msg)
-    __attribute__((noinline, noreturn));
+// printfmt<T>
+//    `printfmt<T>::spec` defines a printf specifier for type T.
+//    E.g., `printfmt<int>::spec` is `"d"`.
 
-// panic(format, ...)
-//    Print the message determined by `format` and fail.
-void panic(const char* format, ...) __attribute__((noinline, noreturn));
+template <typename T> struct printfmt {};
+template <> struct printfmt<bool>           { static constexpr char spec[] = "d"; };
+template <> struct printfmt<char>           { static constexpr char spec[] = "c"; };
+template <> struct printfmt<signed char>    { static constexpr char spec[] = "d"; };
+template <> struct printfmt<unsigned char>  { static constexpr char spec[] = "u"; };
+template <> struct printfmt<short>          { static constexpr char spec[] = "d"; };
+template <> struct printfmt<unsigned short> { static constexpr char spec[] = "u"; };
+template <> struct printfmt<int>            { static constexpr char spec[] = "d"; };
+template <> struct printfmt<unsigned>       { static constexpr char spec[] = "u"; };
+template <> struct printfmt<long>           { static constexpr char spec[] = "d"; };
+template <> struct printfmt<unsigned long>  { static constexpr char spec[] = "u"; };
+template <typename T> struct printfmt<T*>   { static constexpr char spec[] = "p"; };
 
 
 // Min, max, and rounding operations
@@ -224,5 +230,106 @@ struct printer {
 };
 
 void printer_vprintf(printer* p, int color, const char* format, va_list val);
+
+
+// error_printf(cursor, color, format, ...)
+//    Like `console_printf`, but `color` defaults to `COLOR_ERROR`, and
+//    in the kernel, the message is also printed to the log.
+int error_printf(int cpos, int color, const char* format, ...)
+    __attribute__((noinline, cold));
+int error_vprintf(int cpos, int color, const char* format, va_list val)
+    __attribute__((noinline, cold));
+void error_printf(int color, const char* format, ...)
+    __attribute__((noinline, cold));
+void error_printf(const char* format, ...)
+    __attribute__((noinline, cold));
+
+
+// Assertions
+
+// assert(x)
+//    If `x == 0`, print a message and fail.
+#define assert(x)           do {                                        \
+        if (!(x)) {                                                     \
+            assert_fail(__FILE__, __LINE__, #x);                        \
+        }                                                               \
+    } while (0)
+void __attribute__((noinline, noreturn, cold))
+assert_fail(const char* file, int line, const char* msg);
+
+// assert_eq(x, y)
+//    Like `assert(x == y)`, but on failure prints the values of `x` and `y`.
+#define assert_eq(x, y)     do {                                        \
+        auto __x = (x); auto __y = (y);                                 \
+        using __t = std::common_type<typeof(__x), typeof(__y)>::type;   \
+        if (__x != __y) {                                               \
+            assert_eq_fail<__t>(__FILE__, __LINE__, #x " == " #y, __x, __y); \
+        }                                                               \
+    } while (0)
+template <typename T>
+void __attribute__((noinline, noreturn, cold))
+assert_eq_fail(const char* file, int line, const char* msg, T x, T y) {
+    char fmt[32];
+    snprintf(fmt, sizeof(fmt), "%%s:%%d: %%%s != %%%s\n",
+             printfmt<T>::spec, printfmt<T>::spec);
+    error_printf(CPOS(22, 0), COLOR_ERROR, fmt, file, line, x, y);
+    assert_fail(file, line, msg);
+}
+
+// assert_ne(x, y)
+//    Like `assert(x != y)`, but on failure prints the values of `x` and `y`.
+#define assert_ne(x, y)     do {                                        \
+        auto __x = (x); auto __y = (y);                                 \
+        using __t = std::common_type<typeof(__x), typeof(__y)>::type;   \
+        if (__x == __y) {                                               \
+            assert_ne_fail<__t>(__FILE__, __LINE__, #x " != " #y, __x, __y); \
+        }                                                               \
+    } while (0)
+template <typename T>
+void __attribute__((noinline, noreturn, cold))
+assert_ne_fail(const char* file, int line, const char* msg, T x, T y) {
+    char fmt[32];
+    snprintf(fmt, sizeof(fmt), "%%s:%%d: %%%s == %%%s\n",
+             printfmt<T>::spec, printfmt<T>::spec);
+    error_printf(CPOS(22, 0), COLOR_ERROR, fmt, file, line, x, y);
+    assert_fail(file, line, msg);
+}
+
+// assert_gt(x, y)
+//    Like `assert(x > y)`, but on failure prints the values of `x` and `y`.
+#define assert_gt(x, y)     do {                                        \
+        auto __x = (x); auto __y = (y);                                 \
+        using __t = std::common_type<typeof(__x), typeof(__y)>::type;   \
+        if (__x <= __y) {                                               \
+            assert_gt_fail<__t>(__FILE__, __LINE__, #x " > " #y, __x, __y); \
+        }                                                               \
+    } while (0)
+template <typename T>
+void __attribute__((noinline, noreturn, cold))
+assert_gt_fail(const char* file, int line, const char* msg, T x, T y) {
+    char fmt[32];
+    snprintf(fmt, sizeof(fmt), "%%s:%%d: %%%s <= %%%s\n",
+             printfmt<T>::spec, printfmt<T>::spec);
+    error_printf(CPOS(22, 0), COLOR_ERROR, fmt, file, line, x, y);
+    assert_fail(file, line, msg);
+}
+
+// assert_memeq(x, y, sz)
+//    If `memcmp(x, y, sz) != 0`, print a message and fail.
+#define assert_memeq(x, y, sz)    do {                                  \
+        auto __x = (x); auto __y = (y); size_t __sz = (sz);             \
+        if (memcmp(__x, __y, __sz) != 0) {                              \
+            assert_memeq_fail(__FILE__, __LINE__, "memcmp(" #x ", " #y ", " #sz ") == 0", __x, __y, __sz); \
+        }                                                               \
+    } while (0)
+void __attribute__((noinline, noreturn, cold))
+assert_memeq_fail(const char* file, int line, const char* msg,
+                  const char* x, const char* y, size_t sz);
+
+
+// panic(format, ...)
+//    Print the message determined by `format` and fail.
+void __attribute__((noinline, noreturn, cold))
+panic(const char* format, ...);
 
 #endif /* !CHICKADEE_LIB_H */

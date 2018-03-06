@@ -192,7 +192,7 @@ void log_backtrace(const char* prefix) {
 }
 
 
-// error_printf, error_vprintf
+// error_vprintf
 //    Print debugging messages to the console and to the host's
 //    `log.txt` file via `log_printf`.
 
@@ -202,28 +202,6 @@ int error_vprintf(int cpos, int color, const char* format, va_list val) {
     log_vprintf(format, val2);
     va_end(val2);
     return console_vprintf(cpos, color, format, val);
-}
-
-int error_printf(int cpos, int color, const char* format, ...) {
-    va_list val;
-    va_start(val, format);
-    cpos = error_vprintf(cpos, color, format, val);
-    va_end(val);
-    return cpos;
-}
-
-void error_printf(int color, const char* format, ...) {
-    va_list val;
-    va_start(val, format);
-    error_vprintf(-1, color, format, val);
-    va_end(val);
-}
-
-void error_printf(const char* format, ...) {
-    va_list val;
-    va_start(val, format);
-    error_vprintf(-1, COLOR_ERROR, format, val);
-    va_end(val);
 }
 
 
@@ -267,8 +245,8 @@ void panic(const char* format, ...) {
 }
 
 void assert_fail(const char* file, int line, const char* msg) {
-    cursorpos = 23 * CONSOLE_COLUMNS;
-    error_printf("%s:%d: assertion '%s' failed\n", file, line, msg);
+    cursorpos = CPOS(23, 0);
+    error_printf("%s:%d: kernel assertion '%s' failed\n", file, line, msg);
 
     uintptr_t rsp = read_rsp(), rbp = read_rbp();
     uintptr_t stack_top = ROUNDUP(rsp, PAGESIZE);

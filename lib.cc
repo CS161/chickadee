@@ -300,9 +300,11 @@ void printer_vprintf(printer* p, int color, const char* format, va_list val) {
         }
 
         int zeros;
-        if ((flags & FLAG_NUMERIC) && precision >= 0) {
+        if ((flags & FLAG_NUMERIC)
+            && precision >= 0) {
             zeros = precision > datalen ? precision - datalen : 0;
-        } else if ((flags & FLAG_NUMERIC) && (flags & FLAG_ZERO)
+        } else if ((flags & FLAG_NUMERIC)
+                   && (flags & FLAG_ZERO)
                    && !(flags & FLAG_LEFTJUSTIFY)
                    && datalen + (int) strlen(prefix) < width) {
             zeros = width - datalen - strlen(prefix);
@@ -438,6 +440,31 @@ int snprintf(char* s, size_t size, const char* format, ...) {
 }
 
 
+// k-hardware.cc/p-lib.cc must supply error_vprintf
+
+int error_printf(int cpos, int color, const char* format, ...) {
+    va_list val;
+    va_start(val, format);
+    cpos = error_vprintf(cpos, color, format, val);
+    va_end(val);
+    return cpos;
+}
+
+void error_printf(int color, const char* format, ...) {
+    va_list val;
+    va_start(val, format);
+    error_vprintf(-1, color, format, val);
+    va_end(val);
+}
+
+void error_printf(const char* format, ...) {
+    va_list val;
+    va_start(val, format);
+    error_vprintf(-1, COLOR_ERROR, format, val);
+    va_end(val);
+}
+
+
 // console_clear
 //    Erases the console and moves the cursor to the upper left (CPOS(0, 0)).
 
@@ -446,6 +473,25 @@ void console_clear() {
         console[i] = ' ' | 0x0700;
     }
     cursorpos = 0;
+}
+
+
+void assert_memeq_fail(const char* file, int line, const char* msg,
+                       const char* x, const char* y, size_t sz) {
+    size_t pos = 0;
+    while (pos < sz && x[pos] == y[pos]) {
+        ++pos;
+    }
+    size_t spos = pos <= 10 ? 0 : pos - 10;
+    size_t epos = pos + 10 < sz ? pos + 10 : sz;
+    const char* ellipsis1 = spos > 0 ? "..." : "";
+    const char* ellipsis2 = epos < sz ? "..." : "";
+    error_printf(CPOS(22, 0), COLOR_ERROR,
+                 "%s:%d: \"%s%.*s%s\" != \"%s%.*s%s\" @%zu\n",
+                 file, line,
+                 ellipsis1, int(epos - spos), x + spos, ellipsis2,
+                 ellipsis1, int(epos - spos), y + spos, ellipsis2, pos);
+    assert_fail(file, line, msg);
 }
 
 

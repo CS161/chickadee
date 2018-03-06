@@ -40,9 +40,13 @@ void panic(const char* format, ...) {
     sys_panic(NULL);
 }
 
+int error_vprintf(int cpos, int color, const char* format, va_list val) {
+    return console_vprintf(cpos, color, format, val);
+}
+
 void assert_fail(const char* file, int line, const char* msg) {
-    (void) console_printf(CPOS(23, 0), 0xC000,
-                          "PANIC: %s:%d: assertion '%s' failed\n",
-                          file, line, msg);
+    error_printf(CPOS(23, 0), COLOR_ERROR,
+                 "%s:%d: user assertion '%s' failed\n",
+                 file, line, msg);
     sys_panic(NULL);
 }
