@@ -23,6 +23,7 @@ int strcmp(const char* a, const char* b);
 char* strchr(const char* s, int c);
 int snprintf(char* s, size_t size, const char* format, ...);
 int vsnprintf(char* s, size_t size, const char* format, va_list val);
+inline bool isspace(unsigned char c);
 }
 
 #define RAND_MAX 0x7FFFFFFF
@@ -114,6 +115,13 @@ template <typename T>
 inline constexpr T roundup_pow2(T x) {
     static_assert(std::is_unsigned<T>::value, "T must be unsigned");
     return x ? T(1) << msb(x - 1) : 0;
+}
+
+
+// Character traits
+
+inline bool isspace(unsigned char ch) {
+    return (ch >= '\t' && ch <= '\r') || ch == ' ';
 }
 
 
