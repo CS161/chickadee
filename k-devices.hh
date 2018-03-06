@@ -102,7 +102,7 @@ inline memfile::memfile(const char* name, unsigned char* first,
     len_ = capacity_ = datalen;
 }
 inline bool memfile::empty() const {
-    return data_ == nullptr;
+    return name_[0] == 0;
 }
 inline bool memfile::is_kernel_data() const {
     extern unsigned char _kernel_start[], _kernel_end[];
