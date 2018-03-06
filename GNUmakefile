@@ -62,7 +62,8 @@ PROCESS_OBJS = $(PROCESS_LIB_OBJS) \
 	$(OBJDIR)/p-testwaitpid.o \
 	$(OBJDIR)/p-testzombie.o
 
-FLATFS_CONTENTS = obj/p-allocator \
+INITFS_CONTENTS = $(shell find initfs -type f -not -name '\#*\#' -not -name '*~' 2>/dev/null) \
+	obj/p-allocator \
 	obj/p-allocexit \
 	obj/p-cat \
 	obj/p-testeintr \
@@ -74,12 +75,16 @@ FLATFS_CONTENTS = obj/p-allocator \
 	obj/p-testwaitpid \
 	obj/p-testzombie
 
+ifneq ($(strip $(INITFS_CONTENTS)),$(DEP_INITFS_CONTENTS))
+INITFS_BUILDSTAMP := $(shell echo "DEP_INITFS_CONTENTS:=$(INITFS_CONTENTS)" > $(DEPSDIR)/_initfs.d; echo always)
+endif
+
 
 # Define `CHICKADEE_FIRST_PROCESS` if appropriate
 ifneq ($(filter run-%,$(MAKECMDGOALS)),)
 ifeq ($(words $(MAKECMDGOALS)),1)
 RUNCMD_LASTWORD := $(lastword $(subst -, ,$(MAKECMDGOALS)))
-ifneq ($(filter obj/p-$(RUNCMD_LASTWORD),$(FLATFS_CONTENTS)),)
+ifneq ($(filter obj/p-$(RUNCMD_LASTWORD),$(INITFS_CONTENTS)),)
 CPPFLAGS += -DCHICKADEE_FIRST_PROCESS='"$(RUNCMD_LASTWORD)"'
 DEFAULTIMAGE = $(IMAGE)
 $(OBJDIR)/kernel.ko: always
@@ -113,17 +118,17 @@ $(OBJDIR)/k-asm.h: kernel.hh build/mkkernelasm.awk $(BUILDSTAMPS)
 	$(call cxxcompile,-dM -E kernel.hh | awk -f build/mkkernelasm.awk | sort > $@,CREATE $@)
 	@if test ! -s $@; then echo '* Error creating $@!' 1>&2; exit 1; fi
 
-$(OBJDIR)/k-flatfs.c: \
-	build/mkflatfs.awk $(FLATFS_CONTENTS) $(BUILDSTAMPS) GNUmakefile
-	$(call run,echo $(FLATFS_CONTENTS) | awk -f build/mkflatfs.awk >,CREATE,$@)
+$(OBJDIR)/k-initfs.cc: \
+	build/mkinitfs.awk $(INITFS_CONTENTS) $(INITFS_BUILDSTAMP) $(BUILDSTAMPS) GNUmakefile
+	$(call run,echo $(INITFS_CONTENTS) | awk -f build/mkinitfs.awk >,CREATE,$@)
 
-$(OBJDIR)/k-proc.ko: $(OBJDIR)/k-flatfs.c
+$(OBJDIR)/k-devices.ko: $(OBJDIR)/k-initfs.cc
 
 
 # How to make binaries and disk images
 
-$(OBJDIR)/kernel.full: $(KERNEL_OBJS) $(FLATFS_CONTENTS) kernel.ld
-	$(call link,-T kernel.ld -o $@ $(KERNEL_OBJS) -b binary $(FLATFS_CONTENTS),LINK)
+$(OBJDIR)/kernel.full: $(KERNEL_OBJS) $(INITFS_CONTENTS) kernel.ld
+	$(call link,-T kernel.ld -o $@ $(KERNEL_OBJS) -b binary $(INITFS_CONTENTS),LINK)
 	@if $(OBJDUMP) -p $@ | grep off | grep -iv 'off[ 0-9a-fx]*000 ' >/dev/null 2>&1; then echo "* Warning: Some sections of kernel object file are not page-aligned." 1>&2; fi
 
 $(OBJDIR)/p-%.full: $(OBJDIR)/p-%.o $(PROCESS_LIB_OBJS) process.ld

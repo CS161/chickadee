@@ -65,4 +65,54 @@ struct consolestate {
     consolestate() = default;
 };
 
+
+struct memfile {
+    static constexpr unsigned namesize = 64;
+    char name_[namesize];                // name of file
+    unsigned char* data_;                // file data (nullptr if empty)
+    size_t len_;                         // length of file data
+    size_t capacity_;                    // # bytes available in `data_`
+
+    inline memfile();
+    inline memfile(const char* name, unsigned char* first,
+                   unsigned char* last);
+    inline bool empty() const;           // test if empty
+    inline bool is_kernel_data() const;  // test if in kernel data segment
+
+
+    // memfile::initfs[] is the init file system built in to the kernel.
+    static constexpr unsigned initfs_size = 64;
+    static memfile initfs[initfs_size];
+    static inline memfile* initfs_lookup(const char* name);
+    static memfile* initfs_lookup(const char* name, size_t namelen);
+};
+
+
+inline memfile::memfile()
+    : name_(""), data_(nullptr), len_(0), capacity_(0) {
+}
+inline memfile::memfile(const char* name, unsigned char* first,
+                        unsigned char* last)
+    : data_(first) {
+    size_t namelen = strlen(name);
+    ssize_t datalen = reinterpret_cast<uintptr_t>(last)
+        - reinterpret_cast<uintptr_t>(first);
+    assert(namelen < namesize && datalen >= 0);
+    strcpy(name_, name);
+    len_ = capacity_ = datalen;
+}
+inline bool memfile::empty() const {
+    return data_ == nullptr;
+}
+inline bool memfile::is_kernel_data() const {
+    extern unsigned char _kernel_start[], _kernel_end[];
+    uintptr_t data = reinterpret_cast<uintptr_t>(data_);
+    return data >= reinterpret_cast<uintptr_t>(_kernel_start)
+        && data < reinterpret_cast<uintptr_t>(_kernel_end);
+}
+
+inline memfile* memfile::initfs_lookup(const char* name) {
+    return initfs_lookup(name, strlen(name));
+}
+
 #endif

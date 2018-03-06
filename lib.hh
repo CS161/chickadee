@@ -146,6 +146,7 @@ inline constexpr T roundup_pow2(T x) {
 #define E_IO            -5         // I/O error
 #define E_MFILE         -24        // Too many open files
 #define E_NFILE         -23        // File table overflow
+#define E_NOENT         -2         // No such file or directory
 #define E_NOEXEC        -8         // Exec format error
 #define E_NOMEM         -12        // Out of memory
 #define E_NOSYS         -38        // Invalid system call number

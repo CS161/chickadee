@@ -1,6 +1,7 @@
 #include "elf.h"
 #include "kernel.hh"
 #include "k-vmiter.hh"
+#include "k-devices.hh"
 
 proc* ptable[NPROC];            // array of process descriptor pointers
 spinlock ptable_lock;           // protects `ptable`
@@ -98,46 +99,31 @@ void proc::init_kernel(pid_t pid, void (*f)(proc*)) {
 
 #define SECTORSIZE 512
 
-struct flatfs_file {
-    const char* name;
-    const unsigned char* first;
-    const unsigned char* last;
-};
-
-// define the `flatfs_files` array
-#include "obj/k-flatfs.c"
-
-
 // proc::load(binary_name)
 //    Load the code corresponding to program `binary_name` into this process
 //    and set `regs_->reg_rip` to its entry point. Calls `kallocpage()`.
 //    Returns 0 on success and negative on failure (e.g. out-of-memory).
 
 int proc::load(const char* binary_name) {
-    // find `flatfs_file` for `binary_name`
-    const flatfs_file* fs = flatfs_files;
-    size_t nfiles = sizeof(flatfs_files) / sizeof(flatfs_files[0]);
-    const flatfs_file* end_fs = fs + nfiles;
-    while (fs < end_fs && strcmp(binary_name, fs->name) != 0) {
-        ++fs;
-    }
-    if (fs == end_fs) {
-        return -1;
+    // find `memfile` for `binary_name`
+    auto fs = memfile::initfs_lookup(binary_name);
+    if (!fs) {
+        return E_NOENT;
     }
 
     // validate the binary
-    assert(size_t(fs->last - fs->first) >= sizeof(elf_header));
-    const elf_header* eh = reinterpret_cast<const elf_header*>(fs->first);
+    assert(fs->len_ >= sizeof(elf_header));
+    const elf_header* eh = reinterpret_cast<const elf_header*>(fs->data_);
     assert(eh->e_magic == ELF_MAGIC);
     assert(eh->e_phentsize == sizeof(elf_program));
     assert(eh->e_shentsize == sizeof(elf_section));
 
     // load each loadable program segment into memory
     const elf_program* ph = reinterpret_cast<const elf_program*>
-        (fs->first + eh->e_phoff);
+        (fs->data_ + eh->e_phoff);
     for (int i = 0; i < eh->e_phnum; ++i) {
         if (ph[i].p_type == ELF_PTYPE_LOAD) {
-            int r = load_segment(&ph[i], fs->first + ph[i].p_offset);
+            int r = load_segment(&ph[i], fs->data_ + ph[i].p_offset);
             if (r < 0) {
                 return r;
             }
@@ -168,7 +154,7 @@ int proc::load_segment(const elf_program* ph, const uint8_t* data) {
          it += PAGESIZE) {
         x86_64_page* pg = kallocpage();
         if (!pg || it.map(ka2pa(pg)) < 0) {
-            return -1;
+            return E_NOMEM;
         }
         assert(it.pa() == ka2pa(pg));
     }

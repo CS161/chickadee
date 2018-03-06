@@ -228,3 +228,19 @@ void console_show_cursor(int cpos) {
     outb(0x3D4, 15);
     outb(0x3D5, cpos % 256);
 }
+
+
+// memfile functions and initial contents
+
+#include "obj/k-initfs.cc"
+
+memfile* memfile::initfs_lookup(const char* name, size_t namelen) {
+    for (memfile* f = initfs; f != initfs + initfs_size; ++f) {
+        if (!f->empty()
+            && memcmp(f->name_, name, namelen) == 0
+            && f->name_[namelen] == 0) {
+            return f;
+        }
+    }
+    return nullptr;
+}
