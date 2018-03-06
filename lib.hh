@@ -55,8 +55,8 @@ template <> struct printfmt<short>          { static constexpr char spec[] = "d"
 template <> struct printfmt<unsigned short> { static constexpr char spec[] = "u"; };
 template <> struct printfmt<int>            { static constexpr char spec[] = "d"; };
 template <> struct printfmt<unsigned>       { static constexpr char spec[] = "u"; };
-template <> struct printfmt<long>           { static constexpr char spec[] = "d"; };
-template <> struct printfmt<unsigned long>  { static constexpr char spec[] = "u"; };
+template <> struct printfmt<long>           { static constexpr char spec[] = "ld"; };
+template <> struct printfmt<unsigned long>  { static constexpr char spec[] = "lu"; };
 template <typename T> struct printfmt<T*>   { static constexpr char spec[] = "p"; };
 
 
