@@ -19,6 +19,12 @@ SECTIONS {
         *(.text .stub .text.* .gnu.linkonce.t.*)
     } :text
     PROVIDE(etext = .);    /* Define the `etext` symbol at this location */
+
+    /* support several signatures for `process_main` */
+    process_main = (DEFINED(process_main) ? process_main
+        : DEFINED(_Z12process_mainiPPc) ? _Z12process_mainiPPc
+        : _Z12process_mainv);
+
     .rodata : {
         *(.rodata .rodata.* .gnu.linkonce.r.*)
         *(.data.rel.ro.local* .gnu.linkonce.d.rel.ro.local.*)

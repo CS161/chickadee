@@ -195,9 +195,4 @@ static inline pid_t __attribute__((noreturn)) sys_panic(const char* msg) {
 //    into that variable. The initial color is based on the current process ID.
 void app_printf(int colorid, const char* format, ...);
 
-
-extern "C" {
-void process_main(void);
-}
-
 #endif
