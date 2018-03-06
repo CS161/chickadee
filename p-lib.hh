@@ -171,15 +171,33 @@ inline int sys_pipe(int pfd[2]) {
     return r;
 }
 
-// sys_execv(program_name, argv)
-inline int sys_execv(const char* program_name, const char* const argv[]) {
-    size_t n = 0;
-    while (argv[n] != nullptr) {
-        ++n;
-    }
+// sys_execv(program_name, argv, argc)
+//    Replace this process image with a new image running `program_name`
+//    with `argc` arguments, stored in argument array `argv`. Returns
+//    only on failure.
+inline int sys_execv(const char* program_name, const char* const* argv,
+                     size_t argc) {
     return syscall0(SYSCALL_EXECV,
                     reinterpret_cast<uintptr_t>(program_name),
-                    reinterpret_cast<uintptr_t>(argv), n);
+                    reinterpret_cast<uintptr_t>(argv), argc);
+}
+
+// sys_execv(program_name, argv)
+//    Replace this process image with a new image running `program_name`
+//    with arguments `argv`. `argv` is a null-terminated array. Returns
+//    only on failure.
+inline int sys_execv(const char* program_name, const char* const* argv) {
+    size_t argc = 0;
+    while (argv && argv[argc] != nullptr) {
+        ++argc;
+    }
+    return sys_execv(program_name, argv, argc);
+}
+
+// sys_unlink(pathname)
+//    Remove the file named `pathname`.
+inline int sys_unlink(const char* pathname) {
+    return syscall0(SYSCALL_UNLINK, reinterpret_cast<uintptr_t>(pathname));
 }
 
 // sys_panic(msg)

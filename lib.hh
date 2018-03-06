@@ -142,6 +142,7 @@ inline bool isspace(unsigned char ch) {
 #define SYSCALL_PIPE            105
 #define SYSCALL_EXECV           106
 #define SYSCALL_OPEN            107
+#define SYSCALL_UNLINK          108
 
 
 // System call error return values
