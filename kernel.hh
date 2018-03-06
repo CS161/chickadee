@@ -280,6 +280,14 @@ inline T* knew() {
         return nullptr;
     }
 }
+template <typename T, typename... Args>
+inline T* knew(Args&&... args) {
+    if (void* mem = kalloc(sizeof(T))) {
+        return new (mem) T(std::forward<Args>(args)...);
+    } else {
+        return nullptr;
+    }
+}
 
 // kdelete(ptr)
 //    Free an object allocated by `knew`. Calls the object's destructor.
@@ -352,14 +360,6 @@ void kernel_start(const char* command);
 //    and 80 * 25.
 void console_show_cursor(int cpos);
 
-
-// program_load(p, programnumber)
-//    Load the code corresponding to program `programnumber` into the process
-//    `p` and set `p->p_reg.reg_eip` to its entry point. Calls
-//    `assign_physical_page` as required. Returns 0 on success and
-//    -1 on failure (e.g. out-of-memory). `allocator` is passed to
-//    `vm_map`.
-int program_load(proc* p, int programnumber);
 
 // log_printf, log_vprintf
 //    Print debugging messages to the host's `log.txt` file. We run QEMU
