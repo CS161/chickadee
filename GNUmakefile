@@ -158,18 +158,20 @@ run-%: run-qemu-%
 run-qemu-%: run-$(QEMUDISPLAY)-%
 	@:
 run-graphic-%: $(DEFAULTIMAGE) check-qemu
-	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) $(QEMUIMG),QEMU $<)
+	@echo '* Run `gdb -x build/chickadee.gdb` to connect gdb to qemu.' 1>&2
+	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -gdb tcp::12949 $(QEMUIMG),QEMU $<)
 run-console-%: $(DEFAULTIMAGE) check-qemu
-	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -curses $(QEMUIMG),QEMU $<)
+	@echo '* Run `gdb -x build/chickadee.gdb` to connect gdb to qemu.' 1>&2
+	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -curses -gdb tcp::12949 $(QEMUIMG),QEMU $<)
 run-monitor-%: $(DEFAULTIMAGE) check-qemu
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -monitor stdio $(QEMUIMG),QEMU $<)
 run-gdb-%: run-gdb-$(QEMUDISPLAY)-%
 	@:
 run-gdb-graphic-%: $(DEFAULTIMAGE) check-qemu
-	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -gdb tcp::1234 $(QEMUIMG) &,QEMU $<)
+	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -gdb tcp::12949 $(QEMUIMG) &,QEMU $<)
 	$(call run,sleep 0.5; gdb -x build/chickadee.gdb,GDB)
 run-gdb-console-%: $(DEFAULTIMAGE) check-qemu
-	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -curses -gdb tcp::1234 $(QEMUIMG),QEMU $<)
+	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -curses -gdb tcp::12949 $(QEMUIMG),QEMU $<)
 
 run: run-qemu-$(basename $(IMAGE))
 run-qemu: run-qemu-$(basename $(IMAGE))
@@ -179,8 +181,6 @@ run-monitor: run-monitor-$(basename $(IMAGE))
 run-gdb: run-gdb-$(basename $(IMAGE))
 run-gdb-graphic: run-gdb-graphic-$(basename $(IMAGE))
 run-gdb-console: run-gdb-console-$(basename $(IMAGE))
-run-graphic-gdb: run-gdb-graphic-$(basename $(IMAGE))
-run-console-gdb: run-gdb-console-$(basename $(IMAGE))
 
 
 # Kill all my qemus
