@@ -133,6 +133,7 @@ inline constexpr T roundup_pow2(T x) {
 #define SYSCALL_DUP2            104
 #define SYSCALL_PIPE            105
 #define SYSCALL_EXECV           106
+#define SYSCALL_OPEN            107
 
 
 // System call error return values
@@ -141,6 +142,7 @@ inline constexpr T roundup_pow2(T x) {
 #define E_BADF          -9         // Bad file number
 #define E_CHILD         -10        // No child processes
 #define E_FAULT         -14        // Bad address
+#define E_FBIG          -27        // File too large
 #define E_INTR          -4         // Interrupted system call
 #define E_INVAL         -22        // Invalid argument
 #define E_IO            -5         // I/O error
@@ -149,6 +151,7 @@ inline constexpr T roundup_pow2(T x) {
 #define E_NOENT         -2         // No such file or directory
 #define E_NOEXEC        -8         // Exec format error
 #define E_NOMEM         -12        // Out of memory
+#define E_NOSPC         -28        // No space left on device
 #define E_NOSYS         -38        // Invalid system call number
 #define E_NXIO          -6         // No such device or address
 #define E_PERM          -1         // Operation not permitted
@@ -171,6 +174,10 @@ inline bool is_error(uintptr_t r) {
 
 // sys_waitpid() options
 #define W_NOHANG                1
+
+// sys_open() flags
+#define OF_READ                 1
+#define OF_WRITE                2
 
 
 // Console printing
