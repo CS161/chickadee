@@ -2,7 +2,8 @@
 #define ANDAND  1
 #define OROR    2
 
-static pid_t create_child(char** words, char nextch, int* pipein);
+static pid_t create_child(char** words, char nextch,
+                          char** redir, int* pipein);
 
 void process_main() {
     static char buf[4096];      // static so stack size is small
@@ -26,6 +27,8 @@ void process_main() {
 
         int pipein = 0;
         int skip_status = -1;
+        char* redir[] = { nullptr, nullptr, nullptr };
+        int redir_status = -1;
 
         while (s != end || word != words) {
             // read a word
@@ -37,7 +40,9 @@ void process_main() {
                    && !isspace((unsigned char) *s)
                    && *s != ';'
                    && *s != '&'
-                   && *s != '|') {
+                   && *s != '|'
+                   && *s != '<'
+                   && *s != '>') {
                 ++s;
             }
             char nextch = *s;
@@ -55,18 +60,34 @@ void process_main() {
 
             // add to word list
             if (*wordstart != 0) {
-                *word = wordstart;
-                ++word;
-                assert(word < words + arraysize(words));
+                if (redir_status != -1) {
+                    redir[redir_status] = wordstart;
+                    redir_status = -1;
+                } else {
+                    *word = wordstart;
+                    ++word;
+                    assert(word < words + arraysize(words));
+                }
             } else {
+                if (word == words
+                    && redir_status == -1
+                    && pipein == 0) {
+                    break;
+                }
                 assert(word != words);
+                assert(redir_status == -1);
             }
 
             // maybe execute
-            if (!isspace((unsigned char) nextch)) {
+            if (nextch == '<') {
+                redir_status = 0;
+            } else if (nextch == '>') {
+                redir_status = 1;
+            } else if (!isspace((unsigned char) nextch)) {
                 *word = nullptr;
                 if (skip_status < 0) {
-                    pid_t child = create_child(words, nextch, &pipein);
+                    pid_t child = create_child(words, nextch,
+                                               redir, &pipein);
                     if (nextch != '|'
                         && nextch != '&'
                         && child > 0) {
@@ -79,6 +100,7 @@ void process_main() {
                             skip_status = status != 0;
                         }
                     }
+                    redir[0] = redir[1] = redir[2] = nullptr;
                 } else {
                     if ((skip_status == 0 && nextch == ANDAND)
                         || (skip_status != 0 && nextch == OROR)) {
@@ -96,7 +118,29 @@ void process_main() {
     sys_exit(0);
 }
 
-static pid_t create_child(char** words, char nextch, int* pipein) {
+static void child_redirect(int fd, char* pathname) {
+    int flags;
+    if (fd == 0) {
+        flags = OF_READ;
+    } else {
+        flags = OF_WRITE | OF_CREATE | OF_TRUNC;
+    }
+    int r = sys_open(pathname, flags);
+    if (r < 0) {
+        char buf[120];
+        int n = snprintf(buf, sizeof(buf), "%s: error %d\n",
+                         pathname, r);
+        sys_write(2, buf, n);
+        sys_exit(1);
+    }
+    if (r != fd) {
+        sys_dup2(r, fd);
+        sys_close(r);
+    }
+}
+
+static pid_t create_child(char** words, char nextch,
+                          char** redir, int* pipein) {
     int pfd[2] = {0, 0};
     if (nextch == '|') {
         int r = sys_pipe(pfd);
@@ -108,6 +152,11 @@ static pid_t create_child(char** words, char nextch, int* pipein) {
         if (*pipein != 0) {
             sys_dup2(*pipein, 0);
             sys_close(*pipein);
+        }
+        for (int fd = 0; fd != 3; ++fd) {
+            if (redir[fd] != nullptr) {
+                child_redirect(fd, redir[fd]);
+            }
         }
         if (nextch == '|') {
             sys_close(pfd[0]);
