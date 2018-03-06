@@ -7,6 +7,8 @@ uint8_t* heap_top;
 uint8_t* stack_bottom;
 
 void process_main(void) {
+    sys_kdisplay(KDISPLAY_MEMVIEWER);
+
     // Fork three new copies. (But ignore failures.)
     (void) sys_fork();
     (void) sys_fork();
