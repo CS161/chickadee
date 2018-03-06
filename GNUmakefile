@@ -53,6 +53,10 @@ PROCESS_OBJS = $(PROCESS_LIB_OBJS) \
 	$(OBJDIR)/p-allocator.o \
 	$(OBJDIR)/p-allocexit.o \
 	$(OBJDIR)/p-cat.o \
+	$(OBJDIR)/p-echo.o \
+	$(OBJDIR)/p-exececho.o \
+	$(OBJDIR)/p-false.o \
+	$(OBJDIR)/p-sh.o \
 	$(OBJDIR)/p-testeintr.o \
 	$(OBJDIR)/p-testmemfs.o \
 	$(OBJDIR)/p-testmsleep.o \
@@ -61,12 +65,18 @@ PROCESS_OBJS = $(PROCESS_LIB_OBJS) \
 	$(OBJDIR)/p-testrwaddr.o \
 	$(OBJDIR)/p-testvfs.o \
 	$(OBJDIR)/p-testwaitpid.o \
-	$(OBJDIR)/p-testzombie.o
+	$(OBJDIR)/p-testzombie.o \
+	$(OBJDIR)/p-true.o \
+	$(OBJDIR)/p-wc.o
 
 INITFS_CONTENTS = $(shell find initfs -type f -not -name '\#*\#' -not -name '*~' 2>/dev/null) \
 	obj/p-allocator \
 	obj/p-allocexit \
 	obj/p-cat \
+	obj/p-echo \
+	obj/p-exececho \
+	obj/p-false \
+	obj/p-sh \
 	obj/p-testeintr \
 	obj/p-testmemfs \
 	obj/p-testmsleep \
@@ -75,7 +85,9 @@ INITFS_CONTENTS = $(shell find initfs -type f -not -name '\#*\#' -not -name '*~'
 	obj/p-testrwaddr \
 	obj/p-testvfs \
 	obj/p-testwaitpid \
-	obj/p-testzombie
+	obj/p-testzombie \
+	obj/p-true \
+	obj/p-wc
 
 ifneq ($(strip $(INITFS_CONTENTS)),$(DEP_INITFS_CONTENTS))
 INITFS_BUILDSTAMP := $(shell echo "DEP_INITFS_CONTENTS:=$(INITFS_CONTENTS)" > $(DEPSDIR)/_initfs.d; echo always)

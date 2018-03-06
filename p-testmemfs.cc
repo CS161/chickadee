@@ -67,6 +67,46 @@ void process_main() {
     assert_memeq(buf, "polite, a ", 10);
 
 
+    n = sys_read(f3, buf, sizeof(buf));
+    assert_eq(n, 79);
+    assert_memeq(buf, "cheerful cry,\n", 14);
+    assert_memeq(buf + 72, "throat\n", 7);
+
+    n = sys_read(f3, buf, sizeof(buf));
+    assert_eq(n, 0);
+
+    n = sys_read(f3, buf, sizeof(buf));
+    assert_eq(n, 0);
+
+
+    r = sys_close(f2);
+    assert_eq(r, 0);
+
+    r = sys_close(f3);
+    assert_eq(r, 0);
+
+
+    r = sys_open(nullptr, OF_READ);
+    assert_eq(r, E_FAULT);
+
+    extern char end[];
+    char* page = ROUNDUP((char*) end, PAGESIZE) + PAGESIZE;
+    r = sys_page_alloc(page);
+    assert_eq(r, 0);
+
+    strcpy(page, "emerson.txt");
+    f = sys_open(page, OF_READ);
+    assert(f > 2);
+
+    n = sys_read(f, buf, 4);
+    assert_eq(n, 4);
+    assert_memeq(buf, "When", 4);
+
+    memcpy(page + PAGESIZE - 11, "emerson.txt", 11);
+    f2 = sys_open(page + PAGESIZE - 11, OF_READ);
+    assert_eq(f2, E_FAULT);
+
+
     console_printf("testmemfs succeeded.\n");
     sys_exit(0);
 }
