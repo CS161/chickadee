@@ -163,7 +163,7 @@ inline int sys_close(int fd) {
 
 // sys_open(path, flags)
 //    Open a new file descriptor for pathname `path`. `flags` should
-//    contain at least one of `OP_READ` and `OP_WRITE`.
+//    contain at least one of `OF_READ` and `OF_WRITE`.
 inline int sys_open(const char* path, int flags) {
     return syscall0(SYSCALL_OPEN, reinterpret_cast<uintptr_t>(path),
                     flags);
