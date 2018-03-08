@@ -40,7 +40,7 @@ CCOMMONFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 
 ASFLAGS := $(CCOMMONFLAGS)
 CFLAGS := $(CFLAGS) $(CCOMMONFLAGS) -std=gnu11 -gdwarf
 CXXFLAGS := $(CXXFLAGS) $(CCOMMONFLAGS) -std=gnu++1z \
-	-fno-exceptions -fno-rtti -gdwarf
+	-fno-exceptions -fno-rtti -gdwarf -ffunction-sections
 DEPCFLAGS = -MD -MF $(DEPSDIR)/$*.d -MP
 
 # Linker flags
