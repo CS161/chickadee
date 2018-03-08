@@ -96,6 +96,75 @@ char* strchr(const char* s, int c) {
     }
 }
 
+unsigned long strtoul(const char* s, char** endptr, int base) {
+    while (isspace(*s)) {
+        ++s;
+    }
+    bool negative = *s == '-';
+    s += negative || *s == '+';
+    if (base == 0) {
+        if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
+            base = 16;
+            s += 2;
+        } else if (s[0] == '0') {
+            base = 8;
+        } else {
+            base = 10;
+        }
+    } else if (base == 16 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
+        s += 2;
+    }
+    unsigned long x = 0;
+    bool overflow = false;
+    while (1) {
+        unsigned digit;
+        if (*s >= '0' && *s < '0' + base) {
+            digit = *s - '0';
+        } else if (base > 10 && *s >= 'a' && *s < 'a' + base - 10) {
+            digit = *s - 'a' + 10;
+        } else if (base > 10 && *s >= 'A' && *s < 'A' + base - 10) {
+            digit = *s - 'A' + 10;
+        } else {
+            break;
+        }
+        if (x > (-1UL - digit) / base) {
+            overflow = true;
+        } else {
+            x = x * base + digit;
+        }
+        ++s;
+    }
+    if (endptr) {
+        *endptr = const_cast<char*>(s);
+    }
+    if (overflow) {
+        x = -1UL;
+    }
+    if (negative) {
+        x = -x;
+    }
+    return x;
+}
+
+long strtol(const char* s, char** endptr, int base) {
+    while (isspace(*s)) {
+        ++s;
+    }
+    bool negative = *s == '-';
+    if (negative) {
+        ++s;
+    }
+    unsigned long u = strtoul(s, endptr, base);
+    unsigned long bound = (1UL << (8 * sizeof(unsigned long) - 1)) - !negative;
+    if (u > bound) {
+        u = bound;
+    }
+    if (negative) {
+        u = -u;
+    }
+    return long(u);
+}
+
 } // extern "C"
 
 
