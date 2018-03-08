@@ -19,11 +19,12 @@
 //   transfers here. This code reads in the kernel image and calls the
 //   kernel.
 //
-//   The main kernel is stored as an ELF executable image starting in the
-//   disk's sector 1.
+//   The main kernel is stored as a contiguous ELF executable image
+//   starting in the disk's sector KERNEL_START_SECTOR.
 
-#define SECTORSIZE      512
-#define ELFHDR          ((elf_header*) 0x3000) // scratch space
+#define SECTORSIZE          512
+#define ELFHDR              ((elf_header*) 0x3000) // scratch space
+#define KERNEL_START_SECTOR 128
 
 extern "C" {
 void boot(void) __attribute__((noreturn));
@@ -38,7 +39,8 @@ static void boot_readseg(uintptr_t dst, uint32_t src_sect,
 void boot(void) {
     // read 1st page off disk (should include programs as well as header)
     // and check validity
-    boot_readseg((uintptr_t) ELFHDR, 1, PAGESIZE, PAGESIZE);
+    boot_readseg((uintptr_t) ELFHDR, KERNEL_START_SECTOR,
+                 PAGESIZE, PAGESIZE);
     while (ELFHDR->e_magic != ELF_MAGIC) {
         /* do nothing */
     }
@@ -47,7 +49,8 @@ void boot(void) {
     elf_program* ph = (elf_program*) ((uint8_t*) ELFHDR + ELFHDR->e_phoff);
     elf_program* eph = ph + ELFHDR->e_phnum;
     for (; ph < eph; ++ph) {
-        boot_readseg(ph->p_va, ph->p_offset / SECTORSIZE + 1,
+        boot_readseg(ph->p_va,
+                     KERNEL_START_SECTOR + ph->p_offset / SECTORSIZE,
                      ph->p_filesz, ph->p_memsz);
     }
 

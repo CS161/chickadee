@@ -161,11 +161,12 @@ $(OBJDIR)/bootsector: $(BOOT_OBJS) boot.ld
 	$(call run,$(NM) -n $@.full >$@.sym)
 	$(call run,$(OBJCOPY) -S -O binary -j .text $@.full $@)
 
-$(OBJDIR)/mkbootdisk: build/mkbootdisk.c $(BUILDSTAMPS)
-	$(call run,$(HOSTCC) -I. -o $(OBJDIR)/mkbootdisk,HOSTCOMPILE,build/mkbootdisk.c)
+$(OBJDIR)/mkchickadeefs: build/mkchickadeefs.cc $(BUILDSTAMPS)
+	$(call run,$(HOSTCXX) $(DEPCFLAGS_AT) -I. -o $(OBJDIR)/mkchickadeefs,HOSTCOMPILE,build/mkchickadeefs.cc)
 
-chickadeeos.img: $(OBJDIR)/mkbootdisk $(OBJDIR)/bootsector $(OBJDIR)/kernel
-	$(call run,$(OBJDIR)/mkbootdisk $(OBJDIR)/bootsector $(OBJDIR)/kernel > $@,CREATE $@)
+# If you change the `-f` argument, also change `boot.cc:KERNEL_START_SECTOR`
+chickadeeos.img: $(OBJDIR)/mkchickadeefs $(OBJDIR)/bootsector $(OBJDIR)/kernel
+	$(call run,$(OBJDIR)/mkchickadeefs -b 32768 -f 16 -s $(OBJDIR)/bootsector $(OBJDIR)/kernel > $@,CREATE $@)
 
 
 DEFAULTIMAGE ?= %.img

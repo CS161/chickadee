@@ -23,6 +23,7 @@ STRIP   = $(CCPREFIX)strip
 
 # Native commands
 HOSTCC  = cc
+HOSTCXX = c++
 TAR     = tar
 PERL    = perl
 
@@ -42,6 +43,7 @@ CFLAGS := $(CFLAGS) $(CCOMMONFLAGS) -std=gnu11 -gdwarf
 CXXFLAGS := $(CXXFLAGS) $(CCOMMONFLAGS) -std=gnu++1z \
 	-fno-exceptions -fno-rtti -gdwarf -ffunction-sections
 DEPCFLAGS = -MD -MF $(DEPSDIR)/$*.d -MP
+DEPCFLAGS_AT = -MD -MF $(DEPSDIR)/$(@F).d -MP
 
 # Linker flags
 LDFLAGS := $(LDFLAGS) -Os --gc-sections -z max-page-size=0x1000 -static -nostdlib -nostartfiles
