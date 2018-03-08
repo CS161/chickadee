@@ -223,11 +223,12 @@ static void parse_uint32(const char* arg, uint32_t* val, int opt) {
 
 int main(int argc, char** argv) {
     uint32_t first_datab = 0;
+    uint32_t journal_nblocks = 0;
     const char* bootsector = nullptr;
     const char* outfile = nullptr;
 
     int opt;
-    while ((opt = getopt(argc, argv, "b:i:f:s:o:")) != -1) {
+    while ((opt = getopt(argc, argv, "b:i:w:j:f:s:o:")) != -1) {
         switch (opt) {
         case 'b':
             parse_uint32(optarg, &sb.nblocks, 'b');
@@ -237,6 +238,9 @@ int main(int argc, char** argv) {
             break;
         case 'w':
             parse_uint32(optarg, &sb.nswap, 'w');
+            break;
+        case 'j':
+            parse_uint32(optarg, &journal_nblocks, 'j');
             break;
         case 'f':
             parse_uint32(optarg, &first_datab, 'f');
@@ -330,7 +334,7 @@ int main(int argc, char** argv) {
 
     // starting point
     freeb = sb.data_bn;
-    freeinode = 2;
+    freeinode = 3;
 
     // read files
     bool is_first = !!first_datab;
@@ -368,6 +372,19 @@ int main(int argc, char** argv) {
     }
     add_inode(1, chickadeefs::type_directory, sz, 1, first_block,
               "root directory");
+
+    // add journal
+    if (journal_nblocks) {
+        unsigned char* journal = new unsigned char[journal_nblocks * blocksize];
+        memset(journal, 0, journal_nblocks * blocksize);
+        first_block = freeb;
+        for (size_t sz = 0; sz < journal_nblocks * blocksize; sz += blocksize) {
+            advance_blockno("journal");
+            blocks[freeb - 1] = journal + sz;
+        }
+        add_inode(2, chickadeefs::type_journal, sz, 1, first_block,
+                  "journal");
+    }
 
     // mark free blocks
     memset(blocks[sb.fbb_bn], 0xFF, sb.nblocks / 8);

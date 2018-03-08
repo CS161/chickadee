@@ -21,6 +21,7 @@ struct chickadeefs {
 
     static constexpr uint32_t type_regular = 1;
     static constexpr uint32_t type_directory = 2;
+    static constexpr uint32_t type_journal = 1000;
 
     struct superblock {
         uint64_t magic;
