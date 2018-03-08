@@ -244,3 +244,94 @@ memfile* memfile::initfs_lookup(const char* name, size_t namelen) {
     }
     return nullptr;
 }
+
+
+// ide functions
+
+idestate idestate::ide;
+
+idestate::idestate()
+    : status_(nullptr), read_buf_(nullptr) {
+}
+
+bool idestate::await_disk() {
+    int r;
+    do {
+        r = inb(reg_status);
+    } while ((r & (status_busy | status_ready)) != status_ready);
+    return (r & (status_disk_fault | status_error)) == 0;
+}
+
+inline void idestate::sector_command(int command, size_t sector,
+                                     size_t nsectors) {
+    assert(sector < 0x10000000 && nsectors > 0 && nsectors <= 256);
+    await_disk();
+    outb(reg_irq_enable, 0);
+    outb(reg_sector_count, nsectors & 0xFF);
+    outb(reg_sector_number, sector & 0xFF);
+    outb(reg_cylinder_low, (sector >> 8) & 0xFF);
+    outb(reg_cylinder_high, (sector >> 16) & 0xFF);
+    outb(reg_sdh, sdh_drive0 | (sector >> 24));
+    outb(reg_command, command);
+}
+
+int idestate::read(void* buf, size_t sector, size_t nsectors) {
+    // obtain lock, block until ready for command
+    proc* p = current();
+    auto irqs = lock_.lock();
+    waiter(p).block_until(wq_, [&] () {
+            return !status_;
+        }, lock_, irqs);
+
+    // send command, record buffer and status storage
+    sector_command(nsectors > 1 ? cmd_read_multiple : cmd_read,
+                   sector, nsectors);
+    int r = E_AGAIN;
+    status_ = &r;
+    read_buf_ = buf;
+    read_nwords_ = nsectors * sectorsize / 4;
+    lock_.unlock(irqs);
+
+    // wait for response
+    waiter(p).block_until(wq_, [&] () { return r != E_AGAIN; });
+    return r;
+}
+
+int idestate::write(const void* buf, size_t sector, size_t nsectors) {
+    // obtain lock, block until ready for command
+    proc* p = current();
+    auto irqs = lock_.lock();
+    waiter(p).block_until(wq_, [&] () {
+            return !status_;
+        }, lock_, irqs);
+
+    // send command, record status storage
+    sector_command(nsectors > 1 ? cmd_write_multiple : cmd_write,
+                   sector, nsectors);
+    outsl(reg_data, buf, nsectors * sectorsize / 4);
+    int r = E_AGAIN;
+    status_ = &r;
+    lock_.unlock(irqs);
+
+    // wait for response
+    waiter(p).block_until(wq_, [&] () { return r != E_AGAIN; });
+    return r;
+}
+
+void idestate::handle_interrupt() {
+    // obtain lock, read data
+    auto irqs = lock_.lock();
+    bool ok = await_disk();
+    if (ok && read_buf_) {
+        insl(reg_data, read_buf_, read_nwords_);
+    }
+    int* status = status_;
+    read_buf_ = nullptr;
+    status_ = nullptr;
+    lock_.unlock(irqs);
+
+    // update status storage, wake waiters
+    lapicstate::get().ack();
+    *status = ok ? 0 : E_IO;
+    wq_.wake_all();
+}

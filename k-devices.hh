@@ -9,6 +9,8 @@
 void console_show_cursor(int cpos);
 
 
+// keyboardstate: keyboard buffer and keyboard interrupts
+
 #define KEY_UP          0xC0
 #define KEY_RIGHT       0xC1
 #define KEY_DOWN        0xC2
@@ -53,6 +55,8 @@ struct keyboardstate {
 };
 
 
+// consolestate: lock for console access
+
 struct consolestate {
     spinlock lock_;
 
@@ -65,6 +69,8 @@ struct consolestate {
     consolestate() = default;
 };
 
+
+// memfile: in-memory file system of contiguous files
 
 struct memfile {
     static constexpr unsigned namesize = 64;
@@ -85,6 +91,68 @@ struct memfile {
     static memfile initfs[initfs_size];
     static inline memfile* initfs_lookup(const char* name);
     static memfile* initfs_lookup(const char* name, size_t namelen);
+};
+
+
+// idestate: IDE (ATA/ATAPI) disk access
+
+struct idestate {
+    spinlock lock_;
+    wait_queue wq_;
+    int* status_;           // pointer to store status
+    void* read_buf_;        // if read, destination for read data
+    size_t read_nwords_;    // if read, # words to read
+    // drive is available for new command iff `status_ == nullptr`
+
+    // registers
+    enum {
+        reg_data = 0x1F0,
+        reg_sector_count = 0x1F2,
+        reg_sector_number = 0x1F3,
+        reg_cylinder_low = 0x1F4,
+        reg_cylinder_high = 0x1F5,
+        reg_sdh = 0x1F6,
+        reg_command = 0x1F7,
+        reg_status = 0x1F7,
+        reg_irq_enable = 0x3F6
+    };
+
+    // reg_sdh flags
+    enum {
+        sdh_drive0 = 0xE0, sdh_drive1 = 0xF0
+    };
+
+    // reg_status flags
+    enum {
+        status_busy = 0x80, status_ready = 0x40,
+        status_disk_fault = 0x20, status_error = 0x01
+    };
+
+    // commands
+    enum {
+        cmd_read = 0x20, cmd_read_multiple = 0xC4,
+        cmd_write = 0x30, cmd_write_multiple = 0xC5
+    };
+
+    static constexpr size_t sectorsize = 512;
+
+    static idestate& get() {
+        return ide;
+    }
+
+    // read `nsectors` sectors into `buf`, starting at `sector`; blocks
+    int read(void* buf, size_t sector, size_t nsectors);
+    // write `nsectors` sectors from `buf`, starting at `sector`; blocks
+    int write(const void* buf, size_t sector, size_t nsectors);
+    // interrupt handler
+    void handle_interrupt();
+
+    bool await_disk();
+    inline void sector_command(int command, size_t sector, size_t nsectors);
+
+ private:
+    static idestate ide;
+    idestate();
 };
 
 
