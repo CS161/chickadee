@@ -12,6 +12,7 @@ void process_main() {
     sys_kdisplay(KDISPLAY_NONE);
 
     while (1) {
+        // print prompt, read line
         ssize_t n = sys_write(1, "sh$ ", 4);
         assert(n == 4);
 
@@ -32,7 +33,8 @@ void process_main() {
 
         while (s != end || word != words) {
             // read a word
-            while (isspace((unsigned char) *s)) {
+            while (isspace((unsigned char) *s)
+                   && *s != '\n') {
                 ++s;
             }
             char* wordstart = s;
