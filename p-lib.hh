@@ -53,6 +53,14 @@ inline uintptr_t syscall0(int syscallno, uintptr_t arg0,
     return rax;
 }
 
+inline void clobber_memory(void* ptr) {
+    asm volatile ("" : "+m" (*(char (*)[]) ptr));
+}
+
+inline void access_memory(const void* ptr) {
+    asm volatile ("" : : "m" (*(const char (*)[]) ptr));
+}
+
 
 // sys_getpid
 //    Return current process ID.
@@ -129,6 +137,7 @@ static inline pid_t sys_waitpid(pid_t pid,
 //    Read bytes from `fd` into `buf`. Read at most `sz` bytes. Return
 //    the number of bytes read, which is 0 at EOF.
 inline ssize_t sys_read(int fd, char* buf, size_t sz) {
+    clobber_memory(buf);
     return syscall0(SYSCALL_READ, fd, reinterpret_cast<uintptr_t>(buf), sz);
 }
 
@@ -136,6 +145,7 @@ inline ssize_t sys_read(int fd, char* buf, size_t sz) {
 //    Write bytes to `fd` from `buf`. Write at most `sz` bytes. Return
 //    the number of bytes written.
 inline ssize_t sys_write(int fd, const char* buf, size_t sz) {
+    access_memory(buf);
     return syscall0(SYSCALL_WRITE, fd, reinterpret_cast<uintptr_t>(buf), sz);
 }
 

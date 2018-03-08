@@ -239,10 +239,10 @@ static inline uint8_t inb(int port) {
 }
 
 static inline void insb(int port, void* addr, int cnt) {
-    asm volatile("cld\n\trepne\n\tinsb"
-                 : "=D" (addr), "=c" (cnt)
-                 : "d" (port), "0" (addr), "1" (cnt)
-                 : "memory", "cc");
+    asm volatile("cld\n\trep\n\tinsb"
+                 : "+D" (addr), "+c" (cnt), "=m" (*(char (*)[cnt]) addr)
+                 : "d" (port)
+                 : "cc");
 }
 
 static inline uint16_t inw(int port) {
@@ -252,10 +252,11 @@ static inline uint16_t inw(int port) {
 }
 
 static inline void insw(int port, void* addr, int cnt) {
-    asm volatile("cld\n\trepne\n\tinsw"
-                 : "=D" (addr), "=c" (cnt)
-                 : "d" (port), "0" (addr), "1" (cnt)
-                 : "memory", "cc");
+    asm volatile("cld\n\trep\n\tinsw"
+                 : "+D" (addr), "+c" (cnt),
+                   "=m" (*(unsigned short (*)[cnt]) addr)
+                 : "d" (port)
+                 : "cc");
 }
 
 static inline uint32_t inl(int port) {
@@ -265,10 +266,11 @@ static inline uint32_t inl(int port) {
 }
 
 static inline void insl(int port, void* addr, int cnt) {
-    asm volatile("cld\n\trepne\n\tinsl"
-                 : "=D" (addr), "=c" (cnt)
-                 : "d" (port), "0" (addr), "1" (cnt)
-                 : "memory", "cc");
+    asm volatile("cld\n\trep\n\tinsl"
+                 : "+D" (addr), "+c" (cnt),
+                   "=m" (*(unsigned (*)[cnt]) addr)
+                 : "d" (port)
+                 : "cc");
 }
 
 static inline void outb(int port, uint8_t data) {
@@ -277,8 +279,8 @@ static inline void outb(int port, uint8_t data) {
 
 static inline void outsb(int port, const void* addr, int cnt) {
     asm volatile("cld\n\trepne\n\toutsb"
-                 : "=S" (addr), "=c" (cnt)
-                 : "d" (port), "0" (addr), "1" (cnt)
+                 : "+S" (addr), "+c" (cnt)
+                 : "d" (port), "m" (*(const char (*)[cnt]) addr)
                  : "cc");
 }
 
@@ -287,16 +289,16 @@ static inline void outw(int port, uint16_t data) {
 }
 
 static inline void outsw(int port, const void* addr, int cnt) {
-    asm volatile("cld\n\trepne\n\toutsw"
-                 : "=S" (addr), "=c" (cnt)
-                 : "d" (port), "0" (addr), "1" (cnt)
+    asm volatile("cld\n\trep\n\toutsw"
+                 : "+S" (addr), "+c" (cnt)
+                 : "d" (port), "m" (*(const unsigned short (*)[cnt]) addr)
                  : "cc");
 }
 
 static inline void outsl(int port, const void* addr, int cnt) {
-    asm volatile("cld\n\trepne\n\toutsl"
-                 : "=S" (addr), "=c" (cnt)
-                 : "d" (port), "0" (addr), "1" (cnt)
+    asm volatile("cld\n\trep\n\toutsl"
+                 : "+S" (addr), "+c" (cnt)
+                 : "d" (port), "m" (*(const unsigned (*)[cnt]) addr)
                  : "cc");
 }
 
