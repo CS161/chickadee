@@ -162,7 +162,7 @@ $(OBJDIR)/bootsector: $(BOOT_OBJS) boot.ld
 	$(call run,$(OBJCOPY) -S -O binary -j .text $@.full $@)
 
 $(OBJDIR)/mkchickadeefs: build/mkchickadeefs.cc $(BUILDSTAMPS)
-	$(call run,$(HOSTCXX) $(DEPCFLAGS_AT) -I. -o $(OBJDIR)/mkchickadeefs,HOSTCOMPILE,build/mkchickadeefs.cc)
+	$(call run,$(HOSTCXX) $(CPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS_AT) -o $(OBJDIR)/mkchickadeefs,HOSTCOMPILE,build/mkchickadeefs.cc)
 
 # If you change the `-f` argument, also change `boot.cc:KERNEL_START_SECTOR`
 chickadeeos.img: $(OBJDIR)/mkchickadeefs $(OBJDIR)/bootsector $(OBJDIR)/kernel

@@ -26,6 +26,8 @@ HOSTCC  = cc
 HOSTCXX = c++
 TAR     = tar
 PERL    = perl
+HOSTCFLAGS := $(CFLAGS) -std=gnu11
+HOSTCXXFLAGS := $(CXXFLAGS) -std=gnu++1z
 
 # Compiler flags
 # -Os is required for the boot loader to fit within 512 bytes;
