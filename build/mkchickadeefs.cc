@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include "elf.h"
 #include "chickadeefs.hh"
+#include "cbyteswap.hh"
 #include <unistd.h>
 #include <stdio.h>
 #include <string.h>
@@ -13,17 +14,8 @@
 #include <errno.h>
 #include <assert.h>
 #include <vector>
-#ifdef __APPLE__
-# include <libkern/OSByteOrder.h>
-# define htole16(x) OSSwapHostToLittleInt16((x))
-# define htole32(x) OSSwapHostToLittleInt32((x))
-# define htole64(x) OSSwapHostToLittleInt64((x))
-# define le16toh(x) OSSwapLittleToHostInt16((x))
-# define le32toh(x) OSSwapLittleToHostInt32((x))
-# define le64toh(x) OSSwapLittleToHostInt64((x))
-#else
-# include <endian.h>
-#endif
+#include <random>
+#include <algorithm>
 #if defined(_MSDOS) || defined(_WIN32)
 # include <fcntl.h>
 # include <io.h>
@@ -38,19 +30,6 @@ static unsigned char** blocks;
 static unsigned freeb;
 static unsigned freeinode;
 static std::vector<chickadeefs::dirent> root;
-
-inline uint32_t to_le(uint32_t x) {
-    return htole32(x);
-}
-inline uint64_t to_le(uint64_t x) {
-    return htole64(x);
-}
-inline uint32_t from_le(uint32_t x) {
-    return le32toh(x);
-}
-inline uint64_t from_le(uint64_t x) {
-    return le64toh(x);
-}
 
 
 inline void mark_free(blocknum_t bnum) {
@@ -94,11 +73,17 @@ static void add_boot_sector(const char* path) {
 }
 
 static void advance_blockno(const char* purpose) {
-    if (freeb >= sb.nblocks) {
+    if (freeb >= sb.journal_bn) {
         fprintf(stderr, "%s: out of space on output disk\n", purpose);
         exit(1);
     }
     ++freeb;
+}
+
+static chickadeefs::inode* get_inode(chickadeefs::inum_t inum) {
+    assert(inum < sb.ninodes);
+    return reinterpret_cast<chickadeefs::inode*>
+        (&blocks[sb.inode_bn][inum * inodesize]);
 }
 
 static chickadeefs::inum_t
@@ -117,8 +102,7 @@ add_inode(chickadeefs::inum_t inum,
         ++freeinode;
     }
 
-    chickadeefs::inode* ino = reinterpret_cast<chickadeefs::inode*>
-        (&blocks[0][sb.inode_bn * blocksize + inum * inodesize]);
+    chickadeefs::inode* ino = get_inode(inum);
     ino->type = to_le(type);
     ino->size = to_le(sz);
     ino->nlink = to_le(nlink);
@@ -201,11 +185,13 @@ static void add_file(const char* path, const char* name,
     }
     chickadeefs::dirent de;
     memset(&de, 0, sizeof(de));
-    de.ino = to_le(ino);
+    de.inum = to_le(ino);
     strcpy(de.name, name);
     root.push_back(std::move(de));
 }
 
+
+static void shuffle_blocks(bool preserve_inode2);
 
 static void parse_uint32(const char* arg, uint32_t* val, int opt) {
     unsigned long n;
@@ -226,9 +212,10 @@ int main(int argc, char** argv) {
     uint32_t journal_nblocks = 0;
     const char* bootsector = nullptr;
     const char* outfile = nullptr;
+    bool randomize = false;
 
     int opt;
-    while ((opt = getopt(argc, argv, "b:i:w:j:f:s:o:")) != -1) {
+    while ((opt = getopt(argc, argv, "b:i:w:j:f:rs:o:")) != -1) {
         switch (opt) {
         case 'b':
             parse_uint32(optarg, &sb.nblocks, 'b');
@@ -244,6 +231,9 @@ int main(int argc, char** argv) {
             break;
         case 'f':
             parse_uint32(optarg, &first_datab, 'f');
+            break;
+        case 'r':
+            randomize = true;
             break;
         case 's':
             if (bootsector) {
@@ -289,9 +279,9 @@ int main(int argc, char** argv) {
     size_t ninodeb = (sb.ninodes * inodesize + blocksize - 1) / blocksize;
     sb.data_bn = sb.inode_bn + ninodeb;
 
-    if (sb.data_bn > sb.nblocks) {
+    if (sb.data_bn + journal_nblocks > sb.nblocks) {
         fprintf(stderr, "too few blocks, need at least %zu\n",
-                size_t(sb.data_bn));
+                size_t(sb.data_bn + journal_nblocks));
         exit(1);
     }
     if (first_datab && first_datab != sb.data_bn) {
@@ -299,6 +289,7 @@ int main(int argc, char** argv) {
                 size_t(first_datab), size_t(sb.data_bn));
         exit(1);
     }
+    sb.journal_bn = sb.nblocks - journal_nblocks;
 
     // initialize blocks
     blocks = new unsigned char*[sb.nblocks];
@@ -329,12 +320,13 @@ int main(int argc, char** argv) {
         sb2.fbb_bn = to_le(sb.fbb_bn);
         sb2.inode_bn = to_le(sb.inode_bn);
         sb2.data_bn = to_le(sb.data_bn);
-        memcpy(&blocks[0][512], &sb2, sizeof(sb2));
+        sb2.journal_bn = to_le(sb.journal_bn);
+        memcpy(&blocks[0][chickadeefs::superblock_offset], &sb2, sizeof(sb2));
     }
 
     // starting point
     freeb = sb.data_bn;
-    freeinode = 3;
+    freeinode = 2;
 
     // read files
     bool is_first = !!first_datab;
@@ -373,27 +365,22 @@ int main(int argc, char** argv) {
     add_inode(1, chickadeefs::type_directory, sz, 1, first_block,
               "root directory");
 
-    // add journal
-    if (journal_nblocks) {
-        unsigned char* journal = new unsigned char[journal_nblocks * blocksize];
-        memset(journal, 0, journal_nblocks * blocksize);
-        first_block = freeb;
-        for (size_t sz = 0; sz < journal_nblocks * blocksize; sz += blocksize) {
-            advance_blockno("journal");
-            blocks[freeb - 1] = journal + sz;
-        }
-        add_inode(2, chickadeefs::type_journal, sz, 1, first_block,
-                  "journal");
-    }
-
     // mark free blocks
     memset(blocks[sb.fbb_bn], 0xFF, sb.nblocks / 8);
     memset(blocks[sb.fbb_bn], 0, freeb / 8);
-    for (blocknum_t b = freeb; b % 8; ++b) {
+    for (blocknum_t b = (freeb / 8) * 8; b != freeb; ++b) {
+        mark_allocated(b);
+    }
+    for (blocknum_t b = (sb.nblocks / 8) * 8; b != sb.nblocks; ++b) {
         mark_free(b);
     }
-    for (blocknum_t b = sb.nblocks; b % 8; ++b) {
-        mark_free(b);
+    for (blocknum_t b = sb.journal_bn; b != sb.nblocks; ++b) {
+        mark_allocated(b);
+    }
+
+    // randomize if requested
+    if (randomize) {
+        shuffle_blocks(first_datab != 0);
     }
 
     // write output
@@ -407,26 +394,122 @@ int main(int argc, char** argv) {
     } else if (!outfile) {
         outfile = "-";
     }
-    for (blocknum_t b = 0; b != freeb; ++b) {
-        size_t n = fwrite(blocks[b], 1, blocksize, f);
-        if (n != blocksize) {
-            fprintf(stderr, "%s: %s\n", outfile, strerror(errno));
-            exit(1);
+
+    unsigned char zero[blocksize];
+    memset(zero, 0, blocksize);
+
+    blocknum_t last_block = sb.nblocks;
+    while (last_block > 0 && !blocks[last_block - 1]) {
+        --last_block;
+    }
+
+    size_t min_blocksize = (1U << 19) / blocksize;
+    for (blocknum_t b = 0; b < last_block || b < min_blocksize; ++b) {
+        unsigned char* data = zero;
+        if (b < sb.nblocks && blocks[b]) {
+            data = blocks[b];
+        }
+        if (b >= min_blocksize && data == zero) {
+            fseek(f, blocksize, SEEK_CUR);
+        } else {
+            size_t n = fwrite(data, 1, blocksize, f);
+            if (n != blocksize) {
+                fprintf(stderr, "%s: %s\n", outfile, strerror(errno));
+                exit(1);
+            }
         }
     }
-    for (blocknum_t b = freeb; b * blocksize < (1U << 19); ++b) {
-        char zero[blocksize];
-        memset(zero, 0, blocksize);
-        size_t n = fwrite(zero, 1, blocksize, f);
-        if (n != blocksize) {
-            fprintf(stderr, "%s: %s\n", outfile, strerror(errno));
-            exit(1);
-        }
-    }
+
     if (fclose(f) != 0) {
         fprintf(stderr, "%s: %s\n", outfile, strerror(errno));
         exit(1);
     } else {
         exit(0);
     }
+}
+
+
+static void shuffle_indirect(unsigned char* data, blocknum_t* perm) {
+    blocknum_t* indir = reinterpret_cast<blocknum_t*>(data);
+    for (int i = 0; i != chickadeefs::nindirect; ++i) {
+        indir[i] = to_le(perm[from_le(indir[i])]);
+    }
+}
+
+static void shuffle_indirect2(unsigned char* data, blocknum_t* perm) {
+    blocknum_t* indir2 = reinterpret_cast<blocknum_t*>(data);
+    for (int i = 0; i != chickadeefs::nindirect; ++i) {
+        shuffle_indirect(blocks[from_le(indir2[i])], perm);
+        indir2[i] = to_le(perm[from_le(indir2[i])]);
+    }
+}
+
+static void shuffle_inode(chickadeefs::inode* in, blocknum_t* perm) {
+    for (size_t i = 0; i != chickadeefs::ndirect; ++i) {
+        in->direct[i] = to_le(perm[from_le(in->direct[i])]);
+    }
+    if (from_le(in->indirect)) {
+        shuffle_indirect(blocks[from_le(in->indirect)], perm);
+        in->indirect = to_le(perm[from_le(in->indirect)]);
+    }
+    if (from_le(in->indirect2)) {
+        shuffle_indirect2(blocks[from_le(in->indirect2)], perm);
+        in->indirect2 = to_le(perm[from_le(in->indirect2)]);
+    }
+}
+
+static void shuffle_blocks(bool preserve_inode2) {
+    std::vector<blocknum_t> perm;
+    std::vector<blocknum_t> shufflein;
+    std::vector<blocknum_t> shuffleout;
+
+    size_t data_bn = sb.data_bn;
+    if (preserve_inode2) {
+        chickadeefs::inode* in = get_inode(2);
+        if (from_le(in->size) != 0) {
+            assert(from_le(in->direct[0]) == data_bn);
+            data_bn += (from_le(in->size) + blocksize - 1) / blocksize;
+        }
+    }
+
+    for (blocknum_t b = 0; b != sb.nblocks; ++b) {
+        perm.push_back(b);
+        if (b >= data_bn && b < sb.journal_bn && b < freeb + 128) {
+            shufflein.push_back(b);
+            shuffleout.push_back(b);
+        }
+    }
+
+    // shuffle it
+    std::shuffle(shuffleout.begin(), shuffleout.end(),
+                 std::default_random_engine());
+    for (size_t i = 0; i != shufflein.size(); ++i) {
+        perm[shufflein[i]] = shuffleout[i];
+    }
+
+    // shuffle inodes
+    for (size_t i = 1; i != freeinode; ++i) {
+        shuffle_inode(get_inode(i), perm.data());
+    }
+
+    // shuffle blocks
+    unsigned char** new_blocks = new unsigned char*[sb.nblocks];
+    for (blocknum_t b = 0; b != sb.nblocks; ++b) {
+        new_blocks[perm[b]] = blocks[b];
+    }
+    delete[] blocks;
+    blocks = new_blocks;
+
+    // shuffle fbb
+    unsigned char* ofbb = blocks[sb.fbb_bn];
+    unsigned char* fbb = new unsigned char[(sb.inode_bn - sb.fbb_bn) * blocksize];
+    memset(fbb, 0, (sb.inode_bn - sb.fbb_bn) * blocksize);
+    for (blocknum_t b = 0; b != sb.nblocks; ++b) {
+        if (ofbb[b / 8] & (1 << (b % 8))) {
+            blocknum_t xb = perm[b];
+            fbb[xb / 8] |= 1 << (xb % 8);
+        }
+    }
+    memcpy(ofbb, fbb, (sb.inode_bn - sb.fbb_bn) * blocksize);
+    delete[] fbb;
 }

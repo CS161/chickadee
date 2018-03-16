@@ -16,12 +16,12 @@ struct chickadeefs {
         + nindirect * nindirect * blocksize;
     static constexpr size_t maxsize = maxindirect2size;
     static constexpr size_t maxnamelen = 123;
+    static constexpr size_t superblock_offset = 512;
 
     static constexpr uint64_t magic = 0xFBBFBB003EE9BEEFUL;
 
     static constexpr uint32_t type_regular = 1;
     static constexpr uint32_t type_directory = 2;
-    static constexpr uint32_t type_journal = 1000;
 
     struct superblock {
         uint64_t magic;
@@ -32,6 +32,7 @@ struct chickadeefs {
         blocknum_t fbb_bn;
         blocknum_t inode_bn;
         blocknum_t data_bn;
+        blocknum_t journal_bn;
     };
 
     struct inode {
@@ -45,8 +46,31 @@ struct chickadeefs {
     };
 
     struct dirent {
-        inum_t ino;
+        inum_t inum;
         char name[maxnamelen + 1];
+    };
+
+
+    static constexpr size_t njstart_bn = nindirect - 2;
+    static constexpr size_t njbn = nindirect - 5;
+
+    static constexpr uint64_t journalmagic = 0xFBBFBB009EEBCEEDUL;
+
+    struct journalheader {
+        uint64_t magic;
+        blocknum_t jstart_bn[njstart_bn];
+    };
+
+    struct jentheader {
+        uint64_t magic;
+        uint32_t tid;
+        uint32_t nblocks;
+        uint32_t committed;
+        blocknum_t jbn[njbn];
+    };
+
+    struct jenttrailer {
+        uint32_t completed;
     };
 };
 
