@@ -30,7 +30,8 @@ endif
 #
 # `$(NCPU)` controls the number of CPUs QEMU should use. It defaults to 2.
 NCPU = 2
-QEMUOPT = -net none -parallel file:log.txt -smp $(NCPU)
+QEMULOG ?= file:log.txt
+QEMUOPT = -net none -parallel $(QEMULOG) -smp $(NCPU)
 ifneq ($(D),)
 QEMUOPT += -d int,cpu_reset -no-reboot
 endif
@@ -102,7 +103,6 @@ ifeq ($(words $(MAKECMDGOALS)),1)
 RUNCMD_LASTWORD := $(lastword $(subst -, ,$(MAKECMDGOALS)))
 ifneq ($(filter obj/p-$(RUNCMD_LASTWORD),$(INITFS_CONTENTS)),)
 CPPFLAGS += -DCHICKADEE_FIRST_PROCESS='"$(RUNCMD_LASTWORD)"'
-DEFAULTIMAGE = $(IMAGE)
 $(OBJDIR)/kernel.ko: always
 endif
 endif
@@ -168,40 +168,45 @@ $(OBJDIR)/chickadeefsck: build/chickadeefsck.cc $(BUILDSTAMPS)
 	$(call run,$(HOSTCXX) $(CPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS_AT) -o $@,HOSTCOMPILE,$<)
 
 # If you change the `-f` argument, also change `boot.cc:KERNEL_START_SECTOR`
-chickadeeos.img: $(OBJDIR)/mkchickadeefs $(OBJDIR)/bootsector $(OBJDIR)/kernel
-	$(call run,$(OBJDIR)/mkchickadeefs -b 32768 -f 16 -s $(OBJDIR)/bootsector $(OBJDIR)/kernel > $@,CREATE $@)
+chickadeeboot.img: $(OBJDIR)/mkchickadeefs $(OBJDIR)/bootsector $(OBJDIR)/kernel
+	$(call run,$(OBJDIR)/mkchickadeefs -b 4096 -f 16 -s $(OBJDIR)/bootsector $(OBJDIR)/kernel > $@,CREATE $@)
 
+chickadeefs.img: $(OBJDIR)/mkchickadeefs $(OBJDIR)/bootsector $(OBJDIR)/kernel
+	$(call run,$(OBJDIR)/mkchickadeefs -b 32768 -f 16 -s $(OBJDIR)/bootsector $(OBJDIR)/kernel $(INITFS_CONTENTS) > $@,CREATE $@)
 
-DEFAULTIMAGE ?= %.img
-run-%: run-qemu-%
+QEMUIMAGEFILES = chickadeeboot.img chickadeefs.img
+QEMUIMG = -M q35 \
+        -device piix4-ide,bus=pcie.0,id=piix4-ide \
+	-drive file=chickadeeboot.img,if=none,format=raw,id=bootdisk \
+	-device ide-drive,drive=bootdisk,bus=piix4-ide.0 \
+	-drive file=chickadeefs.img,if=none,format=raw,id=maindisk \
+	-device ide-drive,drive=maindisk,bus=ide.0
+
+run-%: run-$(QEMUDISPLAY)
 	@:
-run-qemu-%: run-$(QEMUDISPLAY)-%
-	@:
-run-graphic-%: $(DEFAULTIMAGE) check-qemu
+run-graphic-%: $(QEMUIMAGEFILES) check-qemu
 	@echo '* Run `gdb -x build/chickadee.gdb` to connect gdb to qemu.' 1>&2
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -gdb tcp::12949 $(QEMUIMG),QEMU $<)
-run-console-%: $(DEFAULTIMAGE) check-qemu
+run-console-%: $(QEMUIMAGEFILES) check-qemu
 	@echo '* Run `gdb -x build/chickadee.gdb` to connect gdb to qemu.' 1>&2
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -curses -gdb tcp::12949 $(QEMUIMG),QEMU $<)
-run-monitor-%: $(DEFAULTIMAGE) check-qemu
+run-monitor-%: $(QEMUIMAGEFILES) check-qemu
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -monitor stdio $(QEMUIMG),QEMU $<)
 run-gdb-%: run-gdb-$(QEMUDISPLAY)-%
 	@:
-run-gdb-graphic-%: $(DEFAULTIMAGE) check-qemu
+run-gdb-graphic-%: $(QEMUIMAGEFILES) check-qemu
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -gdb tcp::12949 $(QEMUIMG) &,QEMU $<)
 	$(call run,sleep 0.5; gdb -x build/chickadee.gdb,GDB)
-run-gdb-console-%: $(DEFAULTIMAGE) check-qemu
+run-gdb-console-%: $(QEMUIMAGEFILES) check-qemu
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -curses -gdb tcp::12949 $(QEMUIMG),QEMU $<)
 
-run: run-qemu-$(basename $(IMAGE))
-run-qemu: run-qemu-$(basename $(IMAGE))
-run-graphic: run-graphic-$(basename $(IMAGE))
-run-console: run-console-$(basename $(IMAGE))
-run-monitor: run-monitor-$(basename $(IMAGE))
-run-gdb: run-gdb-$(basename $(IMAGE))
-run-gdb-graphic: run-gdb-graphic-$(basename $(IMAGE))
-run-gdb-console: run-gdb-console-$(basename $(IMAGE))
-
+run: run-anything
+run-graphic: run-graphic-anything
+run-console: run-console-anything
+run-monitor: run-monitor-anything
+run-gdb: run-gdb-anything
+run-gdb-graphic: run-gdb-graphic-anything
+run-gdb-console: run-gdb-console-anything
 
 # Kill all my qemus
 kill:

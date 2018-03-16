@@ -91,8 +91,6 @@ $(QEMU_PRELOAD_LIBRARY): build/qemu-nograb.c
 
 QEMU_PRELOAD = $(shell if test -r $(QEMU_PRELOAD_LIBRARY); then echo LD_PRELOAD=$(QEMU_PRELOAD_LIBRARY); fi)
 
-QEMUIMG = -drive file=$<,if=ide,format=raw
-
 
 # Run the emulator
 
@@ -129,10 +127,10 @@ always:
 
 # These targets don't correspond to files
 .PHONY: all always clean realclean distclean \
-	run run-qemu run-graphic run-console run-gdb \
-	run-gdb-graphic run-gdb-console run-graphic-gdb run-console-gdb \
+	run run-graphic run-console run-monitor \
+	run-gdb run-gdb-graphic run-gdb-console \
 	check-qemu kill \
-	run-% run-qemu-% run-graphic-% run-console-% \
+	run-% run-graphic-% run-console-% run-monitor-% \
 	run-gdb-% run-gdb-graphic-% run-gdb-console-%
 
 # Eliminate default suffix rules
