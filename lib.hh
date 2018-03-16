@@ -20,6 +20,7 @@ size_t strlen(const char* s);
 size_t strnlen(const char* s, size_t maxlen);
 char* strcpy(char* dst, const char* src);
 int strcmp(const char* a, const char* b);
+int strncmp(const char* a, const char* b, size_t maxlen);
 char* strchr(const char* s, int c);
 long strtol(const char* s, char** endptr = nullptr, int base = 0);
 unsigned long strtoul(const char* s, char** endptr = nullptr, int base = 0);
