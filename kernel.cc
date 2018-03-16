@@ -126,7 +126,11 @@ void proc::exception(regstate* regs) {
         break;
 
     default:
-        panic("Unexpected exception %d!\n", regs->reg_intno);
+        if (sata_disk && regs->reg_intno == INT_IRQ + sata_disk->irq_) {
+            sata_disk->handle_interrupt();
+        } else {
+            panic("Unexpected exception %d!\n", regs->reg_intno);
+        }
         break;                  /* will not be reached */
 
     }

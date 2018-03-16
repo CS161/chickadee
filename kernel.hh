@@ -344,6 +344,9 @@ void init_hardware();
 unsigned machine_ncpu();
 unsigned machine_pci_irq(int pci_addr, int intr_pin);
 
+struct ahcistate;
+extern ahcistate* sata_disk;
+
 
 // kernel page table (used for virtual memory)
 extern x86_64_pagetable early_pagetable[2];

@@ -1,6 +1,9 @@
 #include "kernel.hh"
 #include "lib.hh"
 #include "k-apic.hh"
+#include "k-devices.hh"
+
+ahcistate* sata_disk;
 
 // k-hardware.c
 //
@@ -45,6 +48,12 @@ void init_hardware() {
 
     // enable interrupts
     cpus[0].enable_irq(IRQ_KEYBOARD);
+
+    // initialize SATA drive
+    /* sata_disk = ahcistate::find(); */
+    if (sata_disk && sata_disk->irq_ > 0) {
+        cpus[ncpu - 1].enable_irq(sata_disk->irq_);
+    }
 }
 
 
