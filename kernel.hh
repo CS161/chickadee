@@ -213,6 +213,16 @@ inline uint64_t ka2pa(T* ptr) {
     return ka2pa(reinterpret_cast<uint64_t>(ptr));
 }
 
+inline uint64_t kptr2pa(uint64_t kptr) {
+    assert(kptr >= HIGHMEM_BASE);
+    return kptr - (kptr >= KTEXT_BASE ? KTEXT_BASE : HIGHMEM_BASE);
+}
+
+template <typename T>
+inline uint64_t kptr2pa(T* ptr) {
+    return kptr2pa(reinterpret_cast<uint64_t>(ptr));
+}
+
 template <typename T>
 inline bool is_kptr(T* ptr) {
     uintptr_t va = reinterpret_cast<uint64_t>(ptr);
@@ -232,17 +242,14 @@ template <>
 inline uint16_t read_unaligned<uint16_t>(const uint8_t* ptr) {
     return ptr[0] | (ptr[1] << 8);
 }
-
 template <>
 inline int16_t read_unaligned<int16_t>(const uint8_t* ptr) {
     return ptr[0] | (ptr[1] << 8);
 }
-
 template <>
 inline uint32_t read_unaligned<uint32_t>(const uint8_t* ptr) {
     return ptr[0] | (ptr[1] << 8) | (ptr[2] << 16) | (ptr[3] << 24);
 }
-
 template <>
 inline int32_t read_unaligned<int32_t>(const uint8_t* ptr) {
     return ptr[0] | (ptr[1] << 8) | (ptr[2] << 16) | (ptr[3] << 24);
