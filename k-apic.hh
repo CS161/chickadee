@@ -1,11 +1,10 @@
-#ifndef CHICKADEE_APIC_HH
-#define CHICKADEE_APIC_HH
+#ifndef CHICKADEE_K_APIC_HH
+#define CHICKADEE_K_APIC_HH
 #include "kernel.hh"
 
 #define MSR_IA32_APIC_BASE 0x1B
 
-class lapicstate {
-  public:
+struct lapicstate {
     // APIC register IDs
     enum {
         reg_id = 0x02,

@@ -1,11 +1,14 @@
 #include "kernel.hh"
 #include "k-apic.hh"
 #include "k-devices.hh"
+#include "k-pci.hh"
 #include "k-vmiter.hh"
 
 // k-hardware.cc
 //
 //    Functions for interacting with x86 hardware.
+
+pcistate pcistate::state;
 
 
 // kalloc_pagetable
@@ -43,64 +46,52 @@ void set_pagetable(x86_64_pagetable* pagetable) {
 }
 
 
-// pci_make_configaddr(bus, slot, func)
-//    Construct a PCI configuration space address from parts.
-
-static int pci_make_configaddr(int bus, int slot, int func) {
-    return (bus << 16) | (slot << 11) | (func << 8);
-}
-
-
-// pci_config_readl(bus, slot, func, offset)
-//    Read a 32-bit word in PCI configuration space.
-
-#define PCI_HOST_BRIDGE_CONFIG_ADDR 0xCF8
-#define PCI_HOST_BRIDGE_CONFIG_DATA 0xCFC
-
-static uint32_t pci_config_readl(int configaddr, int offset) {
-    outl(PCI_HOST_BRIDGE_CONFIG_ADDR, 0x80000000 | configaddr | offset);
-    return inl(PCI_HOST_BRIDGE_CONFIG_DATA);
-}
-
-
-// pci_find_device
-//    Search for a PCI device matching `vendor` and `device`. Return
-//    the config base address or -1 if no device was found.
-
-static int pci_find_device(int vendor, int device) {
-    for (int bus = 0; bus != 256; ++bus) {
-        for (int slot = 0; slot != 32; ++slot) {
-            for (int func = 0; func != 8; ++func) {
-                int configaddr = pci_make_configaddr(bus, slot, func);
-                uint32_t vendor_device = pci_config_readl(configaddr, 0);
-                if (vendor_device == (uint32_t) (vendor | (device << 16))) {
-                    return configaddr;
-                } else if (vendor_device == (uint32_t) -1 && func == 0) {
-                    break;
-                }
-            }
+// pcistate::next(addr)
+//    Return the next valid PCI function after `addr`, or -1 if there
+//    is none.
+int pcistate::next(int addr) const {
+    uint32_t x = readl(addr + config_lthb);
+    while (1) {
+        if (addr_func(addr) == 0
+            && (x == uint32_t(-1) || !(x & 0x800000))) {
+            addr += make_addr(0, 1, 0);
+        } else {
+            addr += make_addr(0, 0, 1);
+        }
+        if (addr >= addr_end) {
+            return -1;
+        }
+        x = readl(addr + config_lthb);
+        if (x != uint32_t(-1)) {
+            return addr;
         }
     }
-    return -1;
+}
+
+void pcistate::enable(int addr) {
+    // enable I/O (0x01), memory (0x02), and bus master (0x04)
+    writew(addr + config_command, 0x0007);
 }
 
 
 // poweroff
 //    Turn off the virtual machine. This requires finding a PCI device
-//    that speaks ACPI; QEMU emulates a PIIX4 Power Management Controller.
-
-#define PCI_VENDOR_ID_INTEL     0x8086
-#define PCI_DEVICE_ID_PIIX4     0x7113
+//    that speaks ACPI.
 
 void poweroff() {
-    int configaddr = pci_find_device(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_PIIX4);
-    if (configaddr >= 0) {
+    auto& pci = pcistate::get();
+    int addr = pci.find([&] (int a) {
+            uint32_t vd = pci.readl(a + pci.config_vendor);
+            return vd == 0x71138086U /* PIIX4 Power Management Controller */
+                || vd == 0x29188086U /* ICH9 LPC Interface Controller */;
+        });
+    if (addr >= 0) {
         // Read I/O base register from controller's PCI configuration space.
-        int pm_io_base = pci_config_readl(configaddr, 0x40) & 0xFFC0;
+        int pm_io_base = pci.readl(addr + 0x40) & 0xFFC0;
         // Write `suspend enable` to the power management control register.
         outw(pm_io_base + 4, 0x2000);
     }
-    // No PIIX4; spin.
+    // No known ACPI controller; spin.
     console_printf(CPOS(24, 0), 0xC000, "Cannot power off!\n");
     while (1) {
     }

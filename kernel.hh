@@ -162,7 +162,7 @@ extern memrangeset<16> physical_ranges;
 
 
 // Hardware interrupt numbers
-#define INT_IRQ                 32
+#define INT_IRQ                 32U
 #define IRQ_TIMER               0
 #define IRQ_KEYBOARD            1
 #define IRQ_IDE                 14
@@ -339,6 +339,10 @@ void test_kalloc();
 
 // initialize hardware and CPUs
 void init_hardware();
+
+// query machine configuration
+unsigned machine_ncpu();
+unsigned machine_pci_irq(int pci_addr, int intr_pin);
 
 
 // kernel page table (used for virtual memory)
