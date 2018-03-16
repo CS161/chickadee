@@ -17,7 +17,7 @@ void process_main() {
 
     // each process sleeps for `100 * order[my_idx]` milliseconds
     int r = sys_msleep(100 * order[my_idx]);
-    assert(r == 0);
+    assert_eq(r, 0);
 
     // then prints its position
     console_printf("%d [pid %d]\n", order[my_idx], sys_getpid());

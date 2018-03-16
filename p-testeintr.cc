@@ -22,7 +22,7 @@ void process_main() {
     make_children(children);
     for (size_t i = 0; i != arraysize(order); ++i) {
         int r = sys_msleep(1000);
-        assert(r == E_INTR);
+        assert_eq(r, E_INTR);
 
         int status = 0;
         pid_t ch = sys_waitpid(0, &status, W_NOHANG);
@@ -36,10 +36,10 @@ void process_main() {
         children[idx] = 0;
 
         console_printf("%d @%lu: exit status %d\n", ch, idx, status);
-        assert(order[idx] == status);
+        assert_eq(order[idx], status);
     }
-    assert(sys_waitpid(0) == E_CHILD);
-    assert(sys_msleep(1000) == 0);
+    assert_eq(sys_waitpid(0), E_CHILD);
+    assert_eq(sys_msleep(1000), 0);
 
 
     console_printf("testeintr succeeded.\n");

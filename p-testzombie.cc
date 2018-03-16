@@ -20,7 +20,7 @@ void process_main() {
         }
 
         pid_t waited = sys_waitpid(child);
-        assert(waited == child);
+        assert_eq(waited, child);
         console_printf("zombies hopefully being reaped\n");
         sys_msleep(200);
     }
