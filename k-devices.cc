@@ -336,38 +336,27 @@ int ahcistate::read(size_t sector, void* buf, size_t nsectors) {
     assert(nsectors <= nslots_);
     assert((pa ^ (pa + nsectors * sectorsize - 1)) < (64U << 10));
 
-    // obtain lock, block until ready for command
+    // obtain lock
     proc* p = current();
     auto irqs = lock_.lock();
+
+    // block until ready for command
     waiter(p).block_until(wq_, [&] () {
-            return nslots_available_ >= nsectors;
+            return !slots_outstanding_mask_;
         }, lock_, irqs);
 
     // send command, record buffer and status storage
-    int r[32];
-    for (unsigned s = 0; s < nsectors; ++s) {
-        for (unsigned slot = 0; slot < 32; ++slot) {
-            if (!(slots_outstanding_mask_ & (1U << slot))) {
-                clear(slot);
-                push_buffer(slot, (unsigned char*)buf + s*sectorsize, sectorsize);
-                issue_ncq(slot, cmd_read_fpdma_queued, sector + s);
-                r[s] = E_AGAIN;
-                slot_status_[slot] = &r[s];
-                break;
-            }
-        }
-    }
+    int r = E_AGAIN;
+    clear(0);
+    push_buffer(0, buf, nsectors * sectorsize);
+    issue_ncq(slot, cmd_read_fpdma_queued, sector + s);
+    slot_status_[0] = &r;
 
     lock_.unlock(irqs);
 
     // wait for response
     waiter(p).block_until(wq_, [&] () {
-            for (unsigned s = 0; s < nsectors; ++s) {
-                if (r[s] == E_AGAIN) {
-                    return false;
-                }
-            }
-            return true;
+            return r != E_AGAIN;
         });
     return 0;
 }
@@ -417,7 +406,7 @@ void ahcistate::handle_error_interrupt() {
     }
     pr_->serror = ~0U;
     pr_->command |= pcmd_start;
-    // XXX should `READ LOG EXT` to debug error
+    // XXX must `READ LOG EXT` to clear error
     panic("SATA disk error");
 }
 
