@@ -349,7 +349,7 @@ int ahcistate::read(size_t sector, void* buf, size_t nsectors) {
     int r = E_AGAIN;
     clear(0);
     push_buffer(0, buf, nsectors * sectorsize);
-    issue_ncq(slot, cmd_read_fpdma_queued, sector + s);
+    issue_ncq(0, cmd_read_fpdma_queued, sector);
     slot_status_[0] = &r;
 
     lock_.unlock(irqs);

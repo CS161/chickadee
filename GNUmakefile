@@ -1,5 +1,5 @@
-IMAGE = chickadeeos.img
-all: $(IMAGE)
+QEMUIMAGEFILES = chickadeeboot.img chickadeefs.img
+all: $(QEMUIMAGEFILES)
 
 # Place local configuration options, such as `CC=clang`, in
 # `config.mk` so you don't have to list them every time.
@@ -174,7 +174,6 @@ chickadeeboot.img: $(OBJDIR)/mkchickadeefs $(OBJDIR)/bootsector $(OBJDIR)/kernel
 chickadeefs.img: $(OBJDIR)/mkchickadeefs $(OBJDIR)/bootsector $(OBJDIR)/kernel
 	$(call run,$(OBJDIR)/mkchickadeefs -b 32768 -f 16 -s $(OBJDIR)/bootsector $(OBJDIR)/kernel $(INITFS_CONTENTS) > $@,CREATE $@)
 
-QEMUIMAGEFILES = chickadeeboot.img chickadeefs.img
 QEMUIMG = -M q35 \
         -device piix4-ide,bus=pcie.0,id=piix4-ide \
 	-drive file=chickadeeboot.img,if=none,format=raw,id=bootdisk \
