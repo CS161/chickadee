@@ -1,5 +1,6 @@
 #include "kernel.hh"
 #include "k-apic.hh"
+#include "k-chkfs.hh"
 #include "k-devices.hh"
 #include "k-vmiter.hh"
 
@@ -252,6 +253,20 @@ uintptr_t proc::syscall(regstate* regs) {
 
         csl.lock_.unlock(irqs);
         return n;
+    }
+
+    case SYSCALL_READDISKFILE: {
+        const char* filename = reinterpret_cast<const char*>(regs->reg_rdi);
+        unsigned char* buf = reinterpret_cast<unsigned char*>(regs->reg_rsi);
+        uintptr_t sz = regs->reg_rdx;
+        uintptr_t off = regs->reg_r10;
+        log_printf("size in is %zu\n", sz);
+
+        if (!sata_disk) {
+            return E_IO;
+        }
+
+        return chickadeefs_read_file_data(filename, buf, sz, off);
     }
 
     default:

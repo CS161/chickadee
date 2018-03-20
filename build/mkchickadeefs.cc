@@ -513,3 +513,7 @@ static void shuffle_blocks(bool preserve_inode2) {
     memcpy(ofbb, fbb, (sb.inode_bn - sb.fbb_bn) * blocksize);
     delete[] fbb;
 }
+
+
+static_assert(sizeof(chickadeefs::inode) == chickadeefs::inodesize,
+              "inodesize valid");

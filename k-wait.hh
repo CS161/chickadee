@@ -11,6 +11,7 @@ struct waiter {
 
     inline waiter(proc* p);
     inline ~waiter();
+    NO_COPY_OR_ASSIGN(waiter);
     inline void prepare(wait_queue& wq);
     inline void prepare(wait_queue* wq);
     inline void block();

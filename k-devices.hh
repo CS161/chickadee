@@ -229,7 +229,7 @@ struct ahcistate {
     void acknowledge(int slot, int status = 0);
     void await_basic(int slot);
 
-    int read(size_t sector, void* buf, size_t sz);
+    int read(size_t sector, void* buf, size_t nsectors);
     void handle_interrupt();
     void handle_error_interrupt();
 };

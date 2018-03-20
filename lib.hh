@@ -130,6 +130,14 @@ inline bool isspace(unsigned char ch) {
 }
 
 
+// Checksums
+
+uint32_t crc32c(uint32_t crc, const void* buf, size_t sz);
+inline uint32_t crc32c(const void* buf, size_t sz) {
+    return crc32c(0, buf, sz);
+}
+
+
 // System call numbers: an application calls `int NUM` to call a system call
 
 #define SYSCALL_GETPID          1
@@ -148,6 +156,7 @@ inline bool isspace(unsigned char ch) {
 #define SYSCALL_EXECV           106
 #define SYSCALL_OPEN            107
 #define SYSCALL_UNLINK          108
+#define SYSCALL_READDISKFILE    109
 
 
 // System call error return values

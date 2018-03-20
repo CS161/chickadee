@@ -370,15 +370,71 @@ void inodeinfo::visit_indirect2(blocknum_t b, size_t idx, size_t sz) {
 }
 
 
+struct ujournalreplayer : public chickadeefs::journalreplayer {
+    unsigned char* disk_;
+
+
+    ujournalreplayer(unsigned char* disk);
+
+    void error(unsigned bi, const char* text) override;
+    void write_block(unsigned bn, unsigned char* buf) override;
+    void write_replay_complete() override;
+};
+
+ujournalreplayer::ujournalreplayer(unsigned char* disk) {
+    disk_ = disk;
+}
+
+void ujournalreplayer::error(unsigned bi, const char* text) {
+    eprintf("journal block %u/%u: %s\n", bi, sb.nblocks - sb.journal_bn,
+            text);
+}
+
+void ujournalreplayer::write_block(unsigned bn, unsigned char* buf) {
+    memcpy(disk_ + bn * blocksize, buf, blocksize);
+}
+
+void ujournalreplayer::write_replay_complete() {
+    memset(disk_ + sb.journal_bn * blocksize, 0,
+           (sb.nblocks - sb.journal_bn) * blocksize);
+    msync(disk_, blocksize * sb.journal_bn, MS_ASYNC);
+}
+
+
+static void replay_journal() {
+    // copy journal
+    size_t jsz = (sb.nblocks - sb.journal_bn) * blocksize;
+    unsigned char* jcopy = new unsigned char[jsz];
+    memcpy(jcopy, data + sb.nblocks * blocksize, jsz);
+
+    // replay it
+    ujournalreplayer ujr(data);
+    if (ujr.analyze(jcopy, sb.nblocks - sb.journal_bn)) {
+        ujr.run();
+    }
+}
+
+
+static void usage() {
+    fprintf(stderr, "Usage: chickadeefsck [-V] [-r] [IMAGE]\n");
+    exit(1);
+}
+
 int main(int argc, char** argv) {
-    if (argc > 1 && strcmp(argv[1], "-V") == 0) {
-        verbose = true;
-        argc--;
-        argv++;
+    bool replay = false;
+    for (; argc > 1 && argv[1][0] == '-'; --argc, ++argv) {
+        if (strcmp(argv[1], "-V") == 0) {
+            verbose = true;
+        } else if (strcmp(argv[1], "-r") == 0) {
+            replay = true;
+        } else if (strcmp(argv[1], "-") == 0) {
+            break;
+        } else {
+            usage();
+        }
     }
     if (argc != 1 && argc != 2) {
-        fprintf(stderr, "Usage: chickadeefsck [-V] [IMAGE]\n");
-        exit(1);
+        usage();
     }
 
     // open and read disk image
@@ -401,9 +457,14 @@ int main(int argc, char** argv) {
     data = reinterpret_cast<unsigned char*>(MAP_FAILED);
     if (S_ISREG(s.st_mode) && size > 0) {
         data = reinterpret_cast<unsigned char*>
-            (mmap(nullptr, size, PROT_READ, MAP_SHARED, fd, 0));
+            (mmap(nullptr, size, PROT_READ | PROT_WRITE,
+                  replay ? MAP_SHARED : MAP_PRIVATE, fd, 0));
     }
     if (data == reinterpret_cast<unsigned char*>(MAP_FAILED)) {
+        if (replay) {
+            fprintf(stderr, "can't modify file to replay journal\n");
+            exit(1);
+        }
         size = 0;
         size_t capacity = 16384;
         data = new unsigned char[capacity];
@@ -492,7 +553,7 @@ int main(int argc, char** argv) {
 
     // check journal
     if (sb.journal_bn < sb.nblocks) {
-        // XXX replay_journal();
+        replay_journal();
     }
 
     // mark blocks

@@ -1,5 +1,17 @@
 #ifndef CHICKADEE_CBYTESWAP_HH
 #define CHICKADEE_CBYTESWAP_HH
+#if defined(CHICKADEE_KERNEL) || defined(CHICKADEE_PROCESS)
+
+template <typename T>
+inline T to_le(T x) {
+    return x;
+}
+template <typename T>
+inline T from_le(T x) {
+    return x;
+}
+
+#else
 #include <sys/types.h>
 #ifdef __APPLE__
 # include <libkern/OSByteOrder.h>
@@ -13,11 +25,17 @@
 # include <endian.h>
 #endif
 
+inline uint16_t to_le(uint16_t x) {
+    return htole16(x);
+}
 inline uint32_t to_le(uint32_t x) {
     return htole32(x);
 }
 inline uint64_t to_le(uint64_t x) {
     return htole64(x);
+}
+inline uint16_t from_le(uint16_t x) {
+    return le16toh(x);
 }
 inline uint32_t from_le(uint32_t x) {
     return le32toh(x);
@@ -26,4 +44,5 @@ inline uint64_t from_le(uint64_t x) {
     return le64toh(x);
 }
 
+#endif
 #endif

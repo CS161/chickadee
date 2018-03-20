@@ -53,6 +53,19 @@ inline uintptr_t syscall0(int syscallno, uintptr_t arg0,
     return rax;
 }
 
+inline uintptr_t syscall0(int syscallno, uintptr_t arg0,
+                          uintptr_t arg1, uintptr_t arg2,
+                          uintptr_t arg3) {
+    register uintptr_t rax asm("rax") = syscallno;
+    register uintptr_t r10 asm("r10") = arg3;
+    asm volatile ("syscall"
+                  : "+a" (rax), "+D" (arg0), "+S" (arg1), "+d" (arg2),
+                    "+r" (r10)
+                  :
+                  : "cc", "rcx", "r8", "r9", "r11");
+    return rax;
+}
+
 inline void clobber_memory(void* ptr) {
     asm volatile ("" : "+m" (*(char (*)[]) ptr));
 }
@@ -208,6 +221,18 @@ inline int sys_execv(const char* program_name, const char* const* argv) {
 //    Remove the file named `pathname`.
 inline int sys_unlink(const char* pathname) {
     return syscall0(SYSCALL_UNLINK, reinterpret_cast<uintptr_t>(pathname));
+}
+
+// sys_readdiskfile(filename, buf, sz, off)
+//    Read bytes from disk file `filename` into `buf`. Read at most `sz`
+//    bytes starting at file offset `off`. Return the number of bytes
+//    read, which is 0 at EOF.
+inline ssize_t sys_readdiskfile(const char* filename,
+                                char* buf, size_t sz, size_t off) {
+    clobber_memory(buf);
+    return syscall0(SYSCALL_READDISKFILE,
+                    reinterpret_cast<uintptr_t>(filename),
+                    reinterpret_cast<uintptr_t>(buf), sz, off);
 }
 
 // sys_panic(msg)
