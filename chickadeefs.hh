@@ -9,7 +9,7 @@ typedef uint32_t inum_t;
 
 static constexpr size_t blocksize = 4096;
 static constexpr size_t bitsperblock = blocksize * 8;
-static constexpr size_t ndirect = 10;
+static constexpr size_t ndirect = 9;
 static constexpr size_t maxdirectsize = ndirect * blocksize;
 static constexpr size_t nindirect = blocksize / sizeof(blocknum_t);
 static constexpr size_t inodesize = 64;
@@ -44,6 +44,7 @@ struct inode {
     uint32_t size;
     uint32_t nlink;
     std::atomic<uint32_t> mlock;
+    std::atomic<uint32_t> mref;
     blocknum_t direct[ndirect];
     blocknum_t indirect;
     blocknum_t indirect2;
