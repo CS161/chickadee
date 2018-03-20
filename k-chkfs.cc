@@ -95,7 +95,7 @@ void bufcache::put_block(void* buf) {
 static void clean_inode_block(void* buf) {
     auto is = reinterpret_cast<chickadeefs::inode*>(buf);
     for (unsigned i = 0; i != chickadeefs::inodesperblock; ++i) {
-        is[i].mlock = 0;
+        is[i].mlock = is[i].mref = 0;
     }
 }
 
