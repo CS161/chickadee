@@ -18,6 +18,16 @@ void process_main(int argc, char** argv) {
     sys_kdisplay(KDISPLAY_NONE);
     static char buf[4096];
 
+    // read `kernel` `testpipe` `kernel` `testpipe` `sh` by default
+    if (argc == 0) {
+        static const char* const default_argv[] = {
+            "wcdiskfile", "kernel", "testpipe", "kernel", "testpipe",
+            "sh", nullptr
+        };
+        argc = 6;
+        argv = const_cast<char**>(default_argv);
+    }
+
     int mode = -1;
     int argno = 1;
     if (argno < argc) {
