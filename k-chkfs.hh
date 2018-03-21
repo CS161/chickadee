@@ -4,12 +4,15 @@
 #include "chickadeefs.hh"
 #include "k-lock.hh"
 
+// buffer cache entry
+
 struct bufentry {
-    spinlock lock_;
-    unsigned ref_;
-    chickadeefs::blocknum_t bn_;
-    unsigned flags_;
-    void* buf_;
+    spinlock lock_;                  // protects modification to `flags_`
+                                     // and initial setting of `buf_`
+    unsigned ref_;                   // refcount: protects entry
+    chickadeefs::blocknum_t bn_;     // disk block number
+    unsigned flags_;                 // flags
+    void* buf_;                      // memory buffer used for entry
 
     enum {
         f_loaded = 1, f_loading = 2, f_dirty = 4
@@ -23,8 +26,7 @@ struct bufentry {
 struct bufcache {
     static constexpr size_t ne = 10;
 
-    spinlock lock_;
-    size_t n_;
+    spinlock lock_;                  // protects all entries' bn_ and ref_
     bufentry e_[ne];
 
 

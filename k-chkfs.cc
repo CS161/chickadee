@@ -3,9 +3,16 @@
 
 bufcache bufcache::bc;
 
-bufcache::bufcache()
-    : n_(0) {
+bufcache::bufcache() {
 }
+
+
+// bufcache::get_disk_block(bn, cleaner)
+//    Read disk block `bn` into the buffer cache, obtain a reference to it,
+//    and return a pointer to its data. The function may block. If this
+//    function reads the disk block from disk, and `cleaner != nullptr`,
+//    then `cleaner` is called on the block data. Returns `nullptr` if
+//    there's no room for the block.
 
 void* bufcache::get_disk_block(chickadeefs::blocknum_t bn,
                                clean_block_function cleaner) {
@@ -33,11 +40,14 @@ void* bufcache::get_disk_block(chickadeefs::blocknum_t bn,
         e_[i].buf_ = nullptr;
     }
 
+    // mark reference
     ++e_[i].ref_;
 
+    // switch lock to entry lock
     e_[i].lock_.lock_noirq();
     lock_.unlock_noirq();
 
+    // load block, or wait for concurrent reader to load it
     while (!(e_[i].flags_ & bufentry::f_loaded)) {
         if (!(e_[i].flags_ & bufentry::f_loading)) {
             void* x = kalloc(chickadeefs::blocksize);
@@ -64,10 +74,15 @@ void* bufcache::get_disk_block(chickadeefs::blocknum_t bn,
         }
     }
 
+    // return memory
     auto buf = e_[i].buf_;
     e_[i].lock_.unlock(irqs);
     return buf;
 }
+
+
+// bufcache::put_block(buf)
+//    Decrement the reference count for buffer cache block `buf`.
 
 void bufcache::put_block(void* buf) {
     if (!buf) {
@@ -75,6 +90,8 @@ void bufcache::put_block(void* buf) {
     }
 
     auto irqs = lock_.lock();
+
+    // find block
     size_t i;
     for (i = 0; i != ne; ++i) {
         if (e_[i].ref_ != 0 && e_[i].buf_ == buf) {
@@ -82,15 +99,22 @@ void bufcache::put_block(void* buf) {
         }
     }
     assert(i != ne);
+
+    // drop reference
     --e_[i].ref_;
     if (e_[i].ref_ == 0) {
         kfree(e_[i].buf_);
         e_[i].clear();
     }
+
     lock_.unlock(irqs);
 }
 
 
+
+// clean_inode_block(buf)
+//    This function is called when loading an inode block into the
+//    buffer cache. It clears values that are only used in memory.
 
 static void clean_inode_block(void* buf) {
     auto is = reinterpret_cast<chickadeefs::inode*>(buf);
@@ -98,6 +122,15 @@ static void clean_inode_block(void* buf) {
         is[i].mlock = is[i].mref = 0;
     }
 }
+
+
+// inode lock functions
+//    The inode lock protects the inode's size and data references.
+//    It is a read/write lock; multiple readers can hold the lock
+//    simultaneously.
+//    IMPORTANT INVARIANT: If a kernel task has an inode lock, it
+//    must also hold a reference to the disk page containing that
+//    inode.
 
 namespace chickadeefs {
 
@@ -120,6 +153,7 @@ inline void inode::unlock_read() {
     assert(v != 0 && v != uint32_t(-1));
     while (!mlock.compare_exchange_weak(v, v - 1,
                                         std::memory_order_release)) {
+        pause();
     }
 }
 
@@ -139,6 +173,13 @@ inline void inode::unlock_write() {
 
 }
 
+
+// chickadeefs_get_inode_contents(in, bi, n_valid_bytes)
+//    Read the `bi`th data block in inode `in` and return a pointer to
+//    its contents, using the buffer cache. The caller must later call
+//    `bc.put_block()` using the result. `*n_valid_bytes` is set to
+//    the number of bytes in the returned block that contain valid file
+//    data.
 
 void* chickadeefs_get_inode_contents(chickadeefs::inum_t in, unsigned bi,
                                      size_t* n_valid_bytes) {
@@ -220,6 +261,12 @@ void* chickadeefs_get_inode_contents(chickadeefs::inum_t in, unsigned bi,
     return data;
 }
 
+
+// chickadeefs_read_file_data(filename, buf, sz, off)
+//    Read up to `sz` bytes, from the file named `filename` in the
+//    disk's root directory, into `buf`, starting at file offset `off`.
+//    Returns the number of bytes read.
+
 size_t chickadeefs_read_file_data(const char* filename,
                                   void* buf, size_t sz, size_t off) {
     auto& bc = bufcache::get();
@@ -247,7 +294,7 @@ size_t chickadeefs_read_file_data(const char* filename,
 
     size_t nread = 0;
     while (sz > 0) {
-        // read inode contents block
+        // read inode contents
         size_t bsz;
         void* data = chickadeefs_get_inode_contents
             (in, off / chickadeefs::blocksize, &bsz);
