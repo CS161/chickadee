@@ -102,8 +102,8 @@ void proc::init_kernel(pid_t pid, void (*f)(proc*)) {
 namespace {
 struct memfile_loader : public proc::loader {
     memfile* mf_;
-    virtual ssize_t get_page(uint8_t** pg, size_t off);
-    virtual void put_page(uint8_t* pg);
+    ssize_t get_page(uint8_t** pg, size_t off) override;
+    void put_page(uint8_t* pg) override;
 };
 
 // loader::get_page(pg, off)
@@ -140,8 +140,13 @@ void memfile_loader::put_page(uint8_t* pg) {
 
 int proc::load(const char* binary_name) {
     memfile_loader ml;
+    ml.pagetable_ = pagetable_;
     ml.mf_ = memfile::initfs_lookup(binary_name);
-    return load(ml);
+    int r = load(ml);
+    if (r >= 0) {
+        regs_->reg_rip = ml.entry_rip_;
+    }
+    return r;
 }
 
 
@@ -184,7 +189,7 @@ int proc::load(loader& ld) {
     }
 
     // set the entry point from the ELF header
-    regs_->reg_rip = eh->e_entry;
+    ld.entry_rip_ = eh->e_entry;
     r = 0;
 
  exit:
@@ -212,7 +217,7 @@ int proc::load_segment(const elf_program& ph, loader& ld) {
     }
 
     // allocate memory
-    for (vmiter it(this, ROUNDDOWN(va, PAGESIZE));
+    for (vmiter it(ld.pagetable_, ROUNDDOWN(va, PAGESIZE));
          it.va() < end_mem;
          it += PAGESIZE) {
         x86_64_page* pg = kallocpage();
@@ -224,7 +229,9 @@ int proc::load_segment(const elf_program& ph, loader& ld) {
     // load binary data into allocated memory
     size_t off = ph.p_offset;
     size_t sz;
-    for (vmiter it(this, va); it.va() < end_file; it += sz, off += sz) {
+    for (vmiter it(ld.pagetable_, va);
+         it.va() < end_file;
+         it += sz, off += sz) {
         uint8_t* datapg;
         ssize_t r = ld.get_page(&datapg, ROUNDDOWN(off, PAGESIZE));
         size_t last_off = ROUNDDOWN(off, PAGESIZE) + r;
@@ -241,7 +248,7 @@ int proc::load_segment(const elf_program& ph, loader& ld) {
     }
 
     // set initialized memory to zero
-    for (vmiter it(this, end_file); it.va() < end_mem; it += sz) {
+    for (vmiter it(ld.pagetable_, end_file); it.va() < end_mem; it += sz) {
         sz = min(it.last_va(), end_mem) - it.va();
         memset(it.ka<uint8_t*>(), 0, sz);
     }

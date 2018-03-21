@@ -44,10 +44,12 @@ struct __attribute__((aligned(4096))) proc {
     void init_kernel(pid_t pid, void (*f)(proc*));
 
     struct loader {
+        x86_64_pagetable* pagetable_ = nullptr;
+        uintptr_t entry_rip_ = 0;
         virtual ssize_t get_page(uint8_t** pg, size_t off) = 0;
         virtual void put_page(uint8_t* pg) = 0;
     };
-    int load(loader& ld);
+    static int load(loader& ld);
     int load(const char* binary_name);
 
     void exception(regstate* reg);
@@ -63,7 +65,7 @@ struct __attribute__((aligned(4096))) proc {
     inline void unlock_pagetable_read(irqstate& irqs);
 
  private:
-    int load_segment(const elf_program& ph, loader& ld);
+    static int load_segment(const elf_program& ph, loader& ld);
 };
 
 #define NPROC 16
