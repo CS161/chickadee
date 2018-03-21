@@ -71,7 +71,8 @@ PROCESS_OBJS = $(PROCESS_LIB_OBJS) \
 	$(OBJDIR)/p-testwaitpid.o \
 	$(OBJDIR)/p-testzombie.o \
 	$(OBJDIR)/p-true.o \
-	$(OBJDIR)/p-wc.o
+	$(OBJDIR)/p-wc.o \
+	$(OBJDIR)/p-wcdiskfile.o
 
 INITFS_CONTENTS = $(shell find initfs -type f -not -name '\#*\#' -not -name '*~' 2>/dev/null) \
 	obj/p-allocator \
@@ -93,7 +94,8 @@ INITFS_CONTENTS = $(shell find initfs -type f -not -name '\#*\#' -not -name '*~'
 	obj/p-testwaitpid \
 	obj/p-testzombie \
 	obj/p-true \
-	obj/p-wc
+	obj/p-wc \
+	obj/p-wcdiskfile
 
 ifneq ($(strip $(INITFS_CONTENTS)),$(DEP_INITFS_CONTENTS))
 INITFS_BUILDSTAMP := $(shell echo "DEP_INITFS_CONTENTS:=$(INITFS_CONTENTS)" > $(DEPSDIR)/_initfs.d; echo always)
