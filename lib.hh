@@ -84,6 +84,15 @@ template <typename T> constexpr char printfmt<T*>::spec[];
         uint64_t __n = (uint64_t) (n);                          \
         (typeof(a)) (ROUNDDOWN((uint64_t) (a) + __n - 1, __n)); })
 
+template <typename T>
+inline constexpr T min(T a, T b) {
+    return a < b ? a : b;
+}
+template <typename T>
+inline constexpr T max(T a, T b) {
+    return b < a ? a : b;
+}
+
 // msb(x)
 //    Return index of most significant bit in `x`, plus one.
 //    Returns 0 if `x == 0`.
