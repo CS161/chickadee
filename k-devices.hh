@@ -219,7 +219,7 @@ struct ahcistate {
     wait_queue wq_;
     unsigned nslots_available_;        // # slots available for commands
     uint32_t slots_outstanding_mask_;  // 1 == that slot is used
-    int* slot_status_[32];             // ptrs to status storage, one per slot
+    volatile int* slot_status_[32];    // ptrs to status storage, one per slot
 
 
     ahcistate(int pci_addr, int sata_port, volatile regs* mr);
@@ -227,8 +227,9 @@ struct ahcistate {
     static ahcistate* find(int pci_addr = 0, int sata_port = 0);
 
     // high-level functions (they block)
-    int read(size_t sector, void* buf, size_t nsectors);
-    int write(size_t sector, const void* buf, size_t nsectors);
+    inline int read(void* buf, size_t sz, size_t off);
+    inline int write(const void* buf, size_t sz, size_t off);
+    int read_or_write(idecommand cmd, void* buf, size_t sz, size_t off);
 
     // interrupt handlers
     void handle_interrupt();
@@ -270,6 +271,15 @@ inline bool memfile::is_kernel_data() const {
 
 inline memfile* memfile::initfs_lookup(const char* name) {
     return initfs_lookup(name, strlen(name));
+}
+
+
+inline int ahcistate::read(void* buf, size_t sz, size_t off) {
+    return read_or_write(cmd_read_fpdma_queued, buf, sz, off);
+}
+inline int ahcistate::write(const void* buf, size_t sz, size_t off) {
+    return read_or_write(cmd_write_fpdma_queued, const_cast<void*>(buf),
+                         sz, off);
 }
 
 #endif

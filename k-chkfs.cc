@@ -58,8 +58,7 @@ void* bufcache::get_disk_block(chickadeefs::blocknum_t bn,
             e_[i].flags_ |= bufentry::f_loading;
             e_[i].lock_.unlock(irqs);
             sata_disk->read
-                (bn * (chickadeefs::blocksize / sata_disk->sectorsize),
-                 x, chickadeefs::blocksize / sata_disk->sectorsize);
+                (x, chickadeefs::blocksize, bn * chickadeefs::blocksize);
             irqs = e_[i].lock_.lock();
             e_[i].flags_ = (e_[i].flags_ & ~bufentry::f_loading)
                 | bufentry::f_loaded;

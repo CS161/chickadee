@@ -262,15 +262,20 @@ inline void ahcistate::clear(int slot) {
 // ahcistate::push_buffer(slot, buf, sz)
 //    Append a data buffer to the buffers relevant for the next command.
 inline void ahcistate::push_buffer(int slot, void* buf, size_t sz) {
+    // check requirements on address and size
+    uint64_t pa = kptr2pa(buf);
+    assert((pa & 1) == 0 && (sz & 1) == 0);       // word-aligned
+    assert(sz > 0 && sz <= (64U << 10));          // >0, <64KiB
+    assert(pa <= 0x100000000UL);                  // low physical memory
+    assert((pa ^ (pa + sz - 1)) < (64U << 10));   // within aligned 64KiB
+
+    // check slot availability
     assert(unsigned(slot) < unsigned(nslots_));
     assert(dma_.ch[slot].nbuf < arraysize(dma_.ct[slot].buf));
-    int nbuf = dma_.ch[slot].nbuf;
 
-    uint64_t pa = kptr2pa(buf);
-    assert((pa & 1) == 0 && (sz & 1) == 0 && sz > 0);
+    int nbuf = dma_.ch[slot].nbuf;
     dma_.ct[slot].buf[nbuf].pa = pa;
     dma_.ct[slot].buf[nbuf].maxbyte = sz - 1;
-
     dma_.ch[slot].nbuf = nbuf + 1;
     dma_.ch[slot].buf_byte_pos += sz;
 }
@@ -329,12 +334,17 @@ inline void ahcistate::acknowledge(int slot, int result) {
 
 // FUNCTIONS FOR READING AND WRITING BLOCKS
 
-int ahcistate::read(size_t sector, void* buf, size_t nsectors) {
-    uintptr_t pa = kptr2pa(buf);
-    assert(pa <= 0x100000000UL);
-    assert(nsectors > 0 && nsectors <= (64U << 10) / sectorsize);
-    assert(nsectors <= nslots_);
-    assert((pa ^ (pa + nsectors * sectorsize - 1)) < (64U << 10));
+// ahcistate::read_or_write(command, buf, sz, off)
+//    Issue an NCQ read or write command `command`. Read or write
+//    `sz` bytes of data to or from `buf`, starting at disk offset
+//    `off`. `sz` and `off` are measured in bytes, but must be
+//    sector-aligned (i.e., multiples of `ahcistate::sectorsize`).
+//    Can block. Returns 0 on success and an error code on failure.
+
+int ahcistate::read_or_write(idecommand command, void* buf, size_t sz,
+                             size_t off) {
+    // `sz` and `off` must be sector-aligned
+    assert(sz % sectorsize == 0 && off % sectorsize == 0);
 
     // obtain lock
     proc* p = current();
@@ -346,10 +356,10 @@ int ahcistate::read(size_t sector, void* buf, size_t nsectors) {
         }, lock_, irqs);
 
     // send command, record buffer and status storage
-    int r = E_AGAIN;
+    volatile int r = E_AGAIN;
     clear(0);
-    push_buffer(0, buf, nsectors * sectorsize);
-    issue_ncq(0, cmd_read_fpdma_queued, sector);
+    push_buffer(0, buf, sz);
+    issue_ncq(0, command, off / sectorsize);
     slot_status_[0] = &r;
 
     lock_.unlock(irqs);
@@ -358,39 +368,7 @@ int ahcistate::read(size_t sector, void* buf, size_t nsectors) {
     waiter(p).block_until(wq_, [&] () {
             return r != E_AGAIN;
         });
-    return 0;
-}
-
-int ahcistate::write(size_t sector, const void* buf, size_t nsectors) {
-    uintptr_t pa = kptr2pa(buf);
-    assert(pa <= 0x100000000UL);
-    assert(nsectors > 0 && nsectors <= (64U << 10) / sectorsize);
-    assert(nsectors <= nslots_);
-    assert((pa ^ (pa + nsectors * sectorsize - 1)) < (64U << 10));
-
-    // obtain lock
-    proc* p = current();
-    auto irqs = lock_.lock();
-
-    // block until ready for command
-    waiter(p).block_until(wq_, [&] () {
-            return !slots_outstanding_mask_;
-        }, lock_, irqs);
-
-    // send command, record buffer and status storage
-    int r = E_AGAIN;
-    clear(0);
-    push_buffer(0, const_cast<void*>(buf), nsectors * sectorsize);
-    issue_ncq(0, cmd_write_fpdma_queued, sector);
-    slot_status_[0] = &r;
-
-    lock_.unlock(irqs);
-
-    // wait for response
-    waiter(p).block_until(wq_, [&] () {
-            return r != E_AGAIN;
-        });
-    return 0;
+    return r;
 }
 
 
