@@ -133,7 +133,7 @@ static void clean_inode_block(void* buf) {
 
 namespace chickadeefs {
 
-inline void inode::lock_read() {
+void inode::lock_read() {
     uint32_t v = mlock.load(std::memory_order_relaxed);
     while (1) {
         if (v == uint32_t(-1)) {
@@ -147,7 +147,7 @@ inline void inode::lock_read() {
     }
 }
 
-inline void inode::unlock_read() {
+void inode::unlock_read() {
     uint32_t v = mlock.load(std::memory_order_relaxed);
     assert(v != 0 && v != uint32_t(-1));
     while (!mlock.compare_exchange_weak(v, v - 1,
@@ -156,7 +156,7 @@ inline void inode::unlock_read() {
     }
 }
 
-inline void inode::lock_write() {
+void inode::lock_write() {
     uint32_t v = 0;
     while (!mlock.compare_exchange_weak(v, uint32_t(-1),
                                         std::memory_order_acquire)) {
@@ -165,7 +165,7 @@ inline void inode::lock_write() {
     }
 }
 
-inline void inode::unlock_write() {
+void inode::unlock_write() {
     assert(mlock.load(std::memory_order_relaxed) == uint32_t(-1));
     mlock.store(0, std::memory_order_release);
 }
@@ -173,18 +173,20 @@ inline void inode::unlock_write() {
 }
 
 
-// chickadeefs_get_inode_contents(in, bi, n_valid_bytes)
-//    Read the `bi`th data block in inode `in` and return a pointer to
-//    its contents, using the buffer cache. The caller must later call
-//    `bc.put_block()` using the result. `*n_valid_bytes` is set to
-//    the number of bytes in the returned block that contain valid file
-//    data.
+// chickadeefs state
 
-void* chickadeefs_get_inode_contents(chickadeefs::inum_t in, unsigned bi,
-                                     size_t* n_valid_bytes) {
+chkfsstate chkfsstate::fs;
+
+chkfsstate::chkfsstate() {
+}
+
+
+// chkfsstate::get_inode(inum)
+//    Return inode number `inum`, or `nullptr` if there's no such inode.
+//    The returned pointer should eventually be passed to `put_inode`.
+chickadeefs::inode* chkfsstate::get_inode(inum_t inum) {
     auto& bc = bufcache::get();
 
-    // read superblock
     unsigned char* superblock_data = reinterpret_cast<unsigned char*>
         (bc.get_disk_block(0));
     assert(superblock_data);
@@ -194,25 +196,40 @@ void* chickadeefs_get_inode_contents(chickadeefs::inum_t in, unsigned bi,
     auto ninodes = sb->ninodes;
     bc.put_block(superblock_data);
 
-    // check inode number
-    if (in <= 0 || in >= sb->ninodes) {
-        if (n_valid_bytes) {
-            *n_valid_bytes = 0;
-        }
-        return nullptr;
+    chickadeefs::inode* ino = nullptr;
+    if (inum > 0 && inum < ninodes) {
+        ino = reinterpret_cast<inode*>
+            (bc.get_disk_block(inode_bn + inum / chickadeefs::inodesperblock));
     }
+    if (ino != nullptr) {
+        ino += inum % chickadeefs::inodesperblock;
+    }
+    return ino;
+}
 
-    // read inode block, obtain read lock on inode
-    auto inode_data = bc.get_disk_block
-        (inode_bn + in / chickadeefs::inodesperblock, clean_inode_block);
-    assert(inode_data);
-    auto ino = reinterpret_cast<chickadeefs::inode*>(inode_data)
-        + in % chickadeefs::inodesperblock;
-    ino->lock_read();
+
+// chkfsstate::put_inode(ino)
+//    Drop the reference to `ino`.
+void chkfsstate::put_inode(inode* ino) {
+    if (ino) {
+        bufcache::get().put_block(ROUNDDOWN(ino, PAGESIZE));
+    }
+}
+
+
+// chkfsstate::get_data_page(ino, off, n_valid_bytes)
+//    Return a pointer to the data page at offset `off` into inode `ino`.
+//    `off` must be a multiple of `chickadeefs::blocksize`.
+//    If `off` is out of range, returns `nullptr`. `*n_valid_bytes` is set
+//    to the number of valid bytes in the returned page.
+void* chkfsstate::get_data_page(inode* ino, size_t off, size_t* n_valid_bytes) {
+    assert(off % chickadeefs::blocksize == 0);
+    auto& bc = bufcache::get();
 
     // look up data block number
+    unsigned bi = off / chickadeefs::blocksize;
     chickadeefs::blocknum_t databn = 0;
-    if (bi * chickadeefs::blocksize >= ino->size) {
+    if (off >= ino->size) {
         // past end of file
     } else if (bi < chickadeefs::ndirect) {
         databn = ino->direct[bi];
@@ -245,37 +262,31 @@ void* chickadeefs_get_inode_contents(chickadeefs::inum_t in, unsigned bi,
 
     // set inode size
     if (n_valid_bytes) {
-        if (data && ino->size > (bi + 1) * chickadeefs::blocksize) {
+        if (data && ino->size > off + chickadeefs::blocksize) {
             *n_valid_bytes = chickadeefs::blocksize;
         } else if (data) {
-            *n_valid_bytes = ino->size - bi * chickadeefs::blocksize;
+            *n_valid_bytes = ino->size - off;
         } else {
             *n_valid_bytes = 0;
         }
     }
 
     // clean up
-    ino->unlock_read();
-    bc.put_block(inode_data);
     return data;
 }
 
 
-// chickadeefs_read_file_data(filename, buf, sz, off)
-//    Read up to `sz` bytes, from the file named `filename` in the
-//    disk's root directory, into `buf`, starting at file offset `off`.
-//    Returns the number of bytes read.
-
-size_t chickadeefs_read_file_data(const char* filename,
-                                  void* buf, size_t sz, size_t off) {
+// chkfsstate::lookup(dirino, filename)
+//    Look up `filename` in the directory inode `dirino`, returning the
+//    corresponding inode number (or 0 if not found).
+chickadeefs::inum_t chkfsstate::lookup(inode* dirino, const char* filename) {
     auto& bc = bufcache::get();
 
     // read directory to find file inode
     chickadeefs::inum_t in = 0;
-    for (unsigned directory_bn = 0; !in; ++directory_bn) {
+    for (size_t diroff = 0; !in; diroff += chickadeefs::blocksize) {
         size_t bsz;
-        void* directory_data = chickadeefs_get_inode_contents
-            (1, directory_bn, &bsz);
+        void* directory_data = get_data_page(dirino, diroff, &bsz);
         if (!directory_data) {
             break;
         }
@@ -291,17 +302,45 @@ size_t chickadeefs_read_file_data(const char* filename,
         bc.put_block(directory_data);
     }
 
-    size_t nread = 0;
-    while (sz > 0) {
-        // read inode contents
-        size_t bsz;
-        void* data = chickadeefs_get_inode_contents
-            (in, off / chickadeefs::blocksize, &bsz);
+    return in;
+}
 
-        // copy data from inode contents
+
+// chickadeefs_read_file_data(filename, buf, sz, off)
+//    Read up to `sz` bytes, from the file named `filename` in the
+//    disk's root directory, into `buf`, starting at file offset `off`.
+//    Returns the number of bytes read.
+
+size_t chickadeefs_read_file_data(const char* filename,
+                                  void* buf, size_t sz, size_t off) {
+    auto& bc = bufcache::get();
+    auto& fs = chkfsstate::get();
+
+    // read directory to find file inode number
+    auto dirino = fs.get_inode(1);
+    assert(dirino);
+    dirino->lock_read();
+
+    chickadeefs::inum_t inum = fs.lookup(dirino, filename);
+
+    dirino->unlock_read();
+    fs.put_inode(dirino);
+
+    // read file inode
+    auto ino = fs.get_inode(inum);
+    if (ino) {
+        ino->lock_read();
+    }
+
+    size_t nread = 0;
+    while (sz > 0 && ino) {
         size_t ncopy = 0;
-        if (data) {
-            size_t boff = off % chickadeefs::blocksize;
+
+        // read inode contents, copy data
+        size_t bsz;
+        size_t blockoff = ROUNDDOWN(off, chickadeefs::blocksize);
+        if (void* data = fs.get_data_page(ino, blockoff, &bsz)) {
+            size_t boff = off - blockoff;
             if (bsz > boff) {
                 ncopy = bsz - boff;
                 if (ncopy > sz) {
@@ -321,6 +360,11 @@ size_t chickadeefs_read_file_data(const char* filename,
         nread += ncopy;
         off += ncopy;
         sz -= ncopy;
+    }
+
+    if (ino) {
+        ino->unlock_read();
+        fs.put_inode(ino);
     }
 
     return nread;

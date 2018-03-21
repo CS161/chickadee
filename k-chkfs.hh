@@ -4,7 +4,7 @@
 #include "chickadeefs.hh"
 #include "k-lock.hh"
 
-// buffer cache entry
+// buffer cache
 
 struct bufentry {
     spinlock lock_;                  // protects modification to `flags_`
@@ -30,9 +30,6 @@ struct bufcache {
     bufentry e_[ne];
 
 
-    bufcache();
-    NO_COPY_OR_ASSIGN(bufcache);
-
     static inline bufcache& get();
 
     typedef void (*clean_block_function)(void*);
@@ -42,17 +39,41 @@ struct bufcache {
 
  private:
     static bufcache bc;
+
+    bufcache();
+    NO_COPY_OR_ASSIGN(bufcache);
 };
 
 
-size_t chickadeefs_read_file_data(const char* filename,
-                                  void* buf, size_t sz, size_t off);
+// chickadeefs state: a Chickadee file system on a specific disk
+// (Our implementation only speaks to `sata_disk`.)
+
+struct chkfsstate {
+    using inum_t = chickadeefs::inum_t;
+    using inode = chickadeefs::inode;
+
+
+    static inline chkfsstate& get();
+
+    inode* get_inode(inum_t inum);
+    void put_inode(inode* ino);
+
+    void* get_data_page(inode* ino, size_t off, size_t* n_valid_bytes);
+
+    inum_t lookup(inode* dirino, const char* name);
+
+
+  private:
+    static chkfsstate fs;
+
+    chkfsstate();
+    NO_COPY_OR_ASSIGN(chkfsstate);
+};
 
 
 inline bufentry::bufentry()
     : ref_(0), flags_(0), buf_(nullptr) {
 }
-
 inline void bufentry::clear() {
     assert(ref_ == 0);
     flags_ = 0;
@@ -62,5 +83,12 @@ inline void bufentry::clear() {
 inline bufcache& bufcache::get() {
     return bc;
 }
+
+inline chkfsstate& chkfsstate::get() {
+    return fs;
+}
+
+size_t chickadeefs_read_file_data(const char* filename,
+                                  void* buf, size_t sz, size_t off);
 
 #endif

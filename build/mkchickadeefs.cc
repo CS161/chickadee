@@ -28,7 +28,7 @@ using blocknum_t = chickadeefs::blocknum_t;
 static chickadeefs::superblock sb;
 static unsigned char** blocks;
 static unsigned freeb;
-static unsigned freeinode;
+static chickadeefs::inum_t freeinode;
 static std::vector<chickadeefs::dirent> root;
 
 
@@ -221,7 +221,7 @@ int main(int argc, char** argv) {
             parse_uint32(optarg, &sb.nblocks, 'b');
             break;
         case 'i':
-            parse_uint32(optarg, &sb.ninodes, 'i');
+            parse_uint32(optarg, reinterpret_cast<uint32_t*>(&sb.ninodes), 'i');
             break;
         case 'w':
             parse_uint32(optarg, &sb.nswap, 'w');
@@ -488,7 +488,7 @@ static void shuffle_blocks(bool preserve_inode2) {
     }
 
     // shuffle inodes
-    for (size_t i = 1; i != freeinode; ++i) {
+    for (chickadeefs::inum_t i = 1; i != freeinode; ++i) {
         shuffle_inode(get_inode(i), perm.data());
     }
 

@@ -31,6 +31,9 @@ inline uint16_t to_le(uint16_t x) {
 inline uint32_t to_le(uint32_t x) {
     return htole32(x);
 }
+inline int32_t to_le(int32_t x) {
+    return htole32(x);
+}
 inline uint64_t to_le(uint64_t x) {
     return htole64(x);
 }
@@ -38,6 +41,9 @@ inline uint16_t from_le(uint16_t x) {
     return le16toh(x);
 }
 inline uint32_t from_le(uint32_t x) {
+    return le32toh(x);
+}
+inline int32_t from_le(int32_t x) {
     return le32toh(x);
 }
 inline uint64_t from_le(uint64_t x) {

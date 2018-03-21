@@ -5,7 +5,7 @@
 namespace chickadeefs {
 
 typedef uint32_t blocknum_t;
-typedef uint32_t inum_t;
+typedef int32_t inum_t;
 
 static constexpr size_t blocksize = 4096;
 static constexpr size_t bitsperblock = blocksize * 8;

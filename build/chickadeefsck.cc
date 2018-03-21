@@ -531,7 +531,7 @@ int main(int argc, char** argv) {
                 sb.inode_bn, sb.fbb_bn + nfbb);
     }
     if (sb.ninodes < 10) {
-        eprintf("expected at least 10 inodes (have %u)\n", sb.ninodes);
+        eprintf("expected at least 10 inodes (have %d)\n", sb.ninodes);
     }
     size_t inodeperblock = blocksize / sizeof(chickadeefs::inode);
     size_t ninodeb = (sb.ninodes + inodeperblock - 1) / inodeperblock;
@@ -580,7 +580,7 @@ int main(int argc, char** argv) {
     clear_inodeq();
 
     // check all inodes
-    for (size_t inum = 0; inum != sb.ninodes; ++inum) {
+    for (chickadeefs::inum_t inum = 0; inum != sb.ninodes; ++inum) {
         inodeinfo::inodes[inum].scan();
     }
 
