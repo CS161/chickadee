@@ -19,7 +19,7 @@ void process_main(int argc, char** argv) {
     static char buf[125]; // to catch alignment bugs
 
     // read `kernel` `testpipe` `kernel` `testpipe` `sh` by default
-    if (argc == 0) {
+    if (argc <= 1) {
         static const char* const default_argv[] = {
             "wcdiskfile", "kernel", "testpipe", "kernel", "testpipe",
             "sh", nullptr
