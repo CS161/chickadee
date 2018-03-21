@@ -260,7 +260,6 @@ uintptr_t proc::syscall(regstate* regs) {
         unsigned char* buf = reinterpret_cast<unsigned char*>(regs->reg_rsi);
         uintptr_t sz = regs->reg_rdx;
         uintptr_t off = regs->reg_r10;
-        log_printf("size in is %zu\n", sz);
 
         if (!sata_disk) {
             return E_IO;

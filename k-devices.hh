@@ -201,26 +201,40 @@ struct ahcistate {
     static constexpr size_t sectorsize = 512;
 
 
+    // DMA and memory-mapped I/O state
     dmastate dma_;
     int pci_addr_;
     int sata_port_;
     volatile regs* dr_;
     volatile portregs* pr_;
-    unsigned nslots_;
-    unsigned irq_;
-    size_t nsectors_;
 
+    // metadata read from disk at startup (constant thereafter)
+    unsigned irq_;                     // interrupt number
+    size_t nsectors_;                  // # sectors on disk
+    unsigned nslots_;                  // # NCQ slots
+    unsigned slots_full_mask_;         // mask with each valid slot set to 1
+
+    // modifiable state
     spinlock lock_;
     wait_queue wq_;
     unsigned nslots_available_;        // # slots available for commands
     uint32_t slots_outstanding_mask_;  // 1 == that slot is used
-    int* slot_status_[32];     // pointer to store status, one per slot
+    int* slot_status_[32];             // ptrs to status storage, one per slot
 
 
     ahcistate(int pci_addr, int sata_port, volatile regs* mr);
     NO_COPY_OR_ASSIGN(ahcistate);
     static ahcistate* find(int pci_addr = 0, int sata_port = 0);
 
+    // high-level functions (they block)
+    int read(size_t sector, void* buf, size_t nsectors);
+    int write(size_t sector, const void* buf, size_t nsectors);
+
+    // interrupt handlers
+    void handle_interrupt();
+    void handle_error_interrupt();
+
+    // internal functions
     void clear(int slot);
     void push_buffer(int slot, void* data, size_t sz);
     void issue_meta(int slot, idecommand cmd, int features, int count = -1);
@@ -228,10 +242,6 @@ struct ahcistate {
                    bool fua = false, int priority = 0);
     void acknowledge(int slot, int status = 0);
     void await_basic(int slot);
-
-    int read(size_t sector, void* buf, size_t nsectors);
-    void handle_interrupt();
-    void handle_error_interrupt();
 };
 
 

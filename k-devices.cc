@@ -361,6 +361,38 @@ int ahcistate::read(size_t sector, void* buf, size_t nsectors) {
     return 0;
 }
 
+int ahcistate::write(size_t sector, const void* buf, size_t nsectors) {
+    uintptr_t pa = kptr2pa(buf);
+    assert(pa <= 0x100000000UL);
+    assert(nsectors > 0 && nsectors <= (64U << 10) / sectorsize);
+    assert(nsectors <= nslots_);
+    assert((pa ^ (pa + nsectors * sectorsize - 1)) < (64U << 10));
+
+    // obtain lock
+    proc* p = current();
+    auto irqs = lock_.lock();
+
+    // block until ready for command
+    waiter(p).block_until(wq_, [&] () {
+            return !slots_outstanding_mask_;
+        }, lock_, irqs);
+
+    // send command, record buffer and status storage
+    int r = E_AGAIN;
+    clear(0);
+    push_buffer(0, const_cast<void*>(buf), nsectors * sectorsize);
+    issue_ncq(0, cmd_write_fpdma_queued, sector);
+    slot_status_[0] = &r;
+
+    lock_.unlock(irqs);
+
+    // wait for response
+    waiter(p).block_until(wq_, [&] () {
+            return r != E_AGAIN;
+        });
+    return 0;
+}
+
 
 // FUNCTIONS FOR HANDLING INTERRUPTS
 
@@ -541,6 +573,7 @@ ahcistate::ahcistate(int pci_addr, int sata_port, volatile regs* dr)
     if ((devid[75] & 0x1F) + 1U < nslots_) {         // slots per disk
         nslots_ = (devid[75] & 0x1F) + 1;
     }
+    slots_full_mask_ = (nslots_ == 32 ? 0xFFFFFFFFU : (1U << nslots_) - 1);
     nslots_available_ = nslots_;
 
     // set features
