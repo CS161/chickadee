@@ -16,7 +16,7 @@ static int unparse_counts(char* buf, size_t bufsz, int mode,
 
 void process_main(int argc, char** argv) {
     sys_kdisplay(KDISPLAY_NONE);
-    static char buf[4096];
+    static char buf[125]; // to catch alignment bugs
 
     // read `kernel` `testpipe` `kernel` `testpipe` `sh` by default
     if (argc == 0) {
