@@ -7,12 +7,15 @@
 // buffer cache
 
 struct bufentry {
+    using blocknum_t = chickadeefs::blocknum_t;
+    static constexpr blocknum_t emptyblock = blocknum_t(-1);
+
     spinlock lock_;                  // protects modification to `flags_`
                                      // and initial setting of `buf_`
-    unsigned ref_;                   // refcount: protects entry
-    chickadeefs::blocknum_t bn_;     // disk block number
-    unsigned flags_;                 // flags
-    void* buf_;                      // memory buffer used for entry
+    blocknum_t bn_ = emptyblock;     // disk block number or `emptyblock`
+    unsigned ref_ = 0;               // refcount: protects entry
+    unsigned flags_ = 0;             // flags
+    void* buf_ = nullptr;            // memory buffer used for entry
 
     enum {
         f_loaded = 1, f_loading = 2, f_dirty = 4
@@ -24,6 +27,9 @@ struct bufentry {
 };
 
 struct bufcache {
+    using blocknum_t = bufentry::blocknum_t;
+    static constexpr blocknum_t emptyblock = bufentry::emptyblock;
+
     static constexpr size_t ne = 10;
 
     spinlock lock_;                  // protects all entries' bn_ and ref_
@@ -33,9 +39,9 @@ struct bufcache {
     static inline bufcache& get();
 
     typedef void (*clean_block_function)(void*);
-    void* get_disk_block(chickadeefs::blocknum_t bn,
+    void* get_disk_block(blocknum_t bn,
                          clean_block_function cleaner = nullptr);
-    void put_block(void* buf);
+    void put_block(void* pg);
 
  private:
     static bufcache bc;
@@ -59,7 +65,7 @@ struct chkfsstate {
     inode* get_inode(inum_t inum);
     void put_inode(inode* ino);
 
-    unsigned char* get_data_page(inode* ino, size_t off);
+    unsigned char* get_data_block(inode* ino, size_t off);
 
     inode* lookup_inode(inode* dirino, const char* name);
 

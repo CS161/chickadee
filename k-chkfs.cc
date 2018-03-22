@@ -16,19 +16,20 @@ bufcache::bufcache() {
 
 void* bufcache::get_disk_block(chickadeefs::blocknum_t bn,
                                clean_block_function cleaner) {
+    assert(chickadeefs::blocksize == PAGESIZE);
     auto irqs = lock_.lock();
 
     // look for slot containing `bn`
     size_t i;
     for (i = 0; i != ne; ++i) {
-        if (e_[i].ref_ != 0 && e_[i].bn_ == bn) {
+        if (e_[i].bn_ == bn) {
             break;
         }
     }
 
     // if not found, look for free slot
     if (i == ne) {
-        for (i = 0; i != ne && e_[i].ref_ != 0; ++i) {
+        for (i = 0; i != ne && e_[i].bn_ != emptyblock; ++i) {
         }
         if (i == ne) {
             // cache full!
@@ -220,41 +221,47 @@ void chkfsstate::put_inode(inode* ino) {
 }
 
 
-// chkfsstate::get_data_page(ino, off)
+// chkfsstate::get_data_block(ino, off)
 //    Return a pointer to the data page at offset `off` into inode `ino`.
-//    `off` must be a multiple of `blocksize`. If `off` is beyond end of
-//    file, returns `nullptr`. At most `min(blocksize, ino->size - off)`
-//    bytes of data in the returned page are valid.
-unsigned char* chkfsstate::get_data_page(inode* ino, size_t off) {
+//    `off` must be a multiple of `blocksize`. May return `nullptr` if
+//    no block has been allocated there. If the file is being read,
+//    then at most `min(blocksize, ino->size - off)` bytes of data
+//    in the returned page are valid.
+unsigned char* chkfsstate::get_data_block(inode* ino, size_t off) {
     assert(off % blocksize == 0);
     auto& bc = bufcache::get();
 
     // look up data block number
     unsigned bi = off / blocksize;
     chickadeefs::blocknum_t databn = 0;
-    if (off >= ino->size) {
-        // past end of file
-    } else if (bi < chickadeefs::ndirect) {
+    if (bi < chickadeefs::ndirect) {
         databn = ino->direct[bi];
     } else if (bi < chickadeefs::ndirect + chickadeefs::nindirect) {
-        auto indirect_data = bc.get_disk_block(ino->indirect);
-        assert(indirect_data);
-        databn = reinterpret_cast<chickadeefs::blocknum_t*>(indirect_data)
-            [bi - chickadeefs::ndirect];
-        bc.put_block(indirect_data);
+        if (ino->indirect != 0) {
+            auto indirect_data = bc.get_disk_block(ino->indirect);
+            assert(indirect_data);
+            databn = reinterpret_cast<chickadeefs::blocknum_t*>(indirect_data)
+                [bi - chickadeefs::ndirect];
+            bc.put_block(indirect_data);
+        }
     } else {
-        auto indirect2_data = bc.get_disk_block(ino->indirect2);
-        assert(indirect2_data);
-        bi -= chickadeefs::ndirect + chickadeefs::nindirect;
-        databn = reinterpret_cast<chickadeefs::blocknum_t*>(indirect2_data)
-            [bi / chickadeefs::nindirect];
+        chickadeefs::blocknum_t indirbn = 0;
+        if (ino->indirect2 != 0) {
+            auto indirect2_data = bc.get_disk_block(ino->indirect2);
+            assert(indirect2_data);
+            bi -= chickadeefs::ndirect + chickadeefs::nindirect;
+            indirbn = reinterpret_cast<chickadeefs::blocknum_t*>(indirect2_data)
+                [bi / chickadeefs::nindirect];
+            bc.put_block(indirect2_data);
+        }
 
-        auto indirect_data = bc.get_disk_block(databn);
-        assert(indirect_data);
-        databn = reinterpret_cast<chickadeefs::blocknum_t*>(indirect_data)
-            [bi % chickadeefs::nindirect];
-        bc.put_block(indirect_data);
-        bc.put_block(indirect2_data);
+        if (indirbn != 0) {
+            auto indirect_data = bc.get_disk_block(databn);
+            assert(indirect_data);
+            databn = reinterpret_cast<chickadeefs::blocknum_t*>(indirect_data)
+                [bi % chickadeefs::nindirect];
+            bc.put_block(indirect_data);
+        }
     }
 
     // load data block
@@ -279,7 +286,7 @@ chickadeefs::inode* chkfsstate::lookup_inode(inode* dirino,
     // read directory to find file inode
     chickadeefs::inum_t in = 0;
     for (size_t diroff = 0; !in; diroff += blocksize) {
-        void* directory_data = get_data_page(dirino, diroff);
+        void* directory_data = get_data_block(dirino, diroff);
         if (!directory_data) {
             break;
         }
@@ -333,7 +340,7 @@ size_t chickadeefs_read_file_data(const char* filename,
 
         // read inode contents, copy data
         size_t blockoff = ROUNDDOWN(off, fs.blocksize);
-        if (void* data = fs.get_data_page(ino, blockoff)) {
+        if (void* data = fs.get_data_block(ino, blockoff)) {
             size_t bsz = min(ino->size - blockoff, fs.blocksize);
             size_t boff = off - blockoff;
             if (bsz > boff) {
