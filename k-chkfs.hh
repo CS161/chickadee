@@ -51,6 +51,7 @@ struct bufcache {
 struct chkfsstate {
     using inum_t = chickadeefs::inum_t;
     using inode = chickadeefs::inode;
+    static constexpr size_t blocksize = chickadeefs::blocksize;
 
 
     static inline chkfsstate& get();
@@ -58,7 +59,7 @@ struct chkfsstate {
     inode* get_inode(inum_t inum);
     void put_inode(inode* ino);
 
-    void* get_data_page(inode* ino, size_t off, size_t* n_valid_bytes);
+    unsigned char* get_data_page(inode* ino, size_t off);
 
     inode* lookup_inode(inode* dirino, const char* name);
 
