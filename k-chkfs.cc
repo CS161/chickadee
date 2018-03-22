@@ -70,7 +70,7 @@ void* bufcache::get_disk_block(chickadeefs::blocknum_t bn,
             }
         } else {
             waiter(current()).block_until(sata_disk->wq_, [&] () {
-                    return (e_[i].flags_ & bufentry::f_loading) != 0;
+                    return (e_[i].flags_ & bufentry::f_loading) == 0;
                 }, e_[i].lock_, irqs);
         }
     }
