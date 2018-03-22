@@ -343,6 +343,8 @@ int main(int argc, char** argv) {
                 name += 4;
             } else if (strncmp(name, "initfs/", 7) == 0) {
                 name += 7;
+            } else if (strncmp(name, "diskfs/", 7) == 0) {
+                name += 7;
             }
         }
         add_file(argv[optind], name, is_first);

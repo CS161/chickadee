@@ -102,6 +102,14 @@ INITFS_BUILDSTAMP := $(shell echo "DEP_INITFS_CONTENTS:=$(INITFS_CONTENTS)" > $(
 endif
 
 
+DISKFS_CONTENTS = $(shell find diskfs -type f -not -name '\#*\#' -not -name '*~' 2>/dev/null) \
+	$(INITFS_CONTENTS)
+
+ifneq ($(strip $(DISKFS_CONTENTS)),$(DEP_DISKFS_CONTENTS))
+DISKFS_BUILDSTAMP := $(shell echo "DEP_DISKFS_CONTENTS:=$(DISKFS_CONTENTS)" > $(DEPSDIR)/_diskfs.d; echo always)
+endif
+
+
 # Define `CHICKADEE_FIRST_PROCESS` if appropriate
 ifneq ($(filter run-%,$(MAKECMDGOALS)),)
 ifeq ($(words $(MAKECMDGOALS)),1)
@@ -139,8 +147,8 @@ $(OBJDIR)/k-asm.h: kernel.hh build/mkkernelasm.awk $(BUILDSTAMPS)
 	$(call cxxcompile,-dM -E kernel.hh | awk -f build/mkkernelasm.awk | sort > $@,CREATE $@)
 	@if test ! -s $@; then echo '* Error creating $@!' 1>&2; exit 1; fi
 
-$(OBJDIR)/k-initfs.cc: \
-	build/mkinitfs.awk $(INITFS_CONTENTS) $(INITFS_BUILDSTAMP) $(BUILDSTAMPS) GNUmakefile
+$(OBJDIR)/k-initfs.cc: build/mkinitfs.awk \
+	$(INITFS_CONTENTS) $(INITFS_BUILDSTAMP) $(BUILDSTAMPS)
 	$(call run,echo $(INITFS_CONTENTS) | awk -f build/mkinitfs.awk >,CREATE,$@)
 
 $(OBJDIR)/k-devices.ko: $(OBJDIR)/k-initfs.cc
@@ -191,8 +199,10 @@ $(OBJDIR)/chickadeefsck: $(CHICKADEEFSCK_OBJS) $(BUILDSTAMPS)
 chickadeeboot.img: $(OBJDIR)/mkchickadeefs $(OBJDIR)/bootsector $(OBJDIR)/kernel
 	$(call run,$(OBJDIR)/mkchickadeefs -b 4096 -f 16 -s $(OBJDIR)/bootsector $(OBJDIR)/kernel > $@,CREATE $@)
 
-chickadeefs.img: $(OBJDIR)/mkchickadeefs $(OBJDIR)/bootsector $(OBJDIR)/kernel
-	$(call run,$(OBJDIR)/mkchickadeefs -b 32768 -f 16 -s $(OBJDIR)/bootsector $(OBJDIR)/kernel $(INITFS_CONTENTS) > $@,CREATE $@)
+chickadeefs.img: $(OBJDIR)/mkchickadeefs \
+	$(OBJDIR)/bootsector $(OBJDIR)/kernel $(DISKFS_CONTENTS) \
+	$(DISKFS_BUILDSTAMP)
+	$(call run,$(OBJDIR)/mkchickadeefs -b 32768 -f 16 -s $(OBJDIR)/bootsector $(OBJDIR)/kernel $(DISKFS_CONTENTS) > $@,CREATE $@)
 
 
 # How to run QEMU
