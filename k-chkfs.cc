@@ -52,6 +52,7 @@ void* bufcache::get_disk_block(chickadeefs::blocknum_t bn,
         if (!(e_[i].flags_ & bufentry::f_loading)) {
             void* x = kalloc(chickadeefs::blocksize);
             if (!x) {
+                --e_[i].ref_;
                 e_[i].lock_.unlock(irqs);
                 return nullptr;
             }
