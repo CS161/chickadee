@@ -115,6 +115,7 @@ ifneq ($(filter run-%,$(MAKECMDGOALS)),)
 ifeq ($(words $(MAKECMDGOALS)),1)
 RUNCMD_LASTWORD := $(lastword $(subst -, ,$(MAKECMDGOALS)))
 ifneq ($(filter obj/p-$(RUNCMD_LASTWORD),$(INITFS_CONTENTS)),)
+RUNSUFFIX := $(RUNCMD_LASTWORD)
 CHICKADEE_FIRST_PROCESS := $(RUNCMD_LASTWORD)
 CPPFLAGS += -DCHICKADEE_FIRST_PROCESS='"$(CHICKADEE_FIRST_PROCESS)"'
 endif
@@ -220,31 +221,31 @@ QEMUIMG = -M q35 \
 	-drive file=chickadeefs.img,if=none,format=raw,id=maindisk \
 	-device ide-drive,drive=maindisk,bus=ide.0
 
-run-%: run-$(QEMUDISPLAY)-%
+run: run-$(QEMUDISPLAY)
 	@:
-run-graphic-%: $(QEMUIMAGEFILES) check-qemu
+run-graphic: $(QEMUIMAGEFILES) check-qemu
 	@echo '* Run `gdb -x build/chickadee.gdb` to connect gdb to qemu.' 1>&2
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -gdb tcp::12949 $(QEMUIMG),QEMU $<)
-run-console-%: $(QEMUIMAGEFILES) check-qemu
+run-console: $(QEMUIMAGEFILES) check-qemu
 	@echo '* Run `gdb -x build/chickadee.gdb` to connect gdb to qemu.' 1>&2
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -curses -gdb tcp::12949 $(QEMUIMG),QEMU $<)
-run-monitor-%: $(QEMUIMAGEFILES) check-qemu
+run-monitor: $(QEMUIMAGEFILES) check-qemu
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -monitor stdio $(QEMUIMG),QEMU $<)
-run-gdb-%: run-gdb-$(QEMUDISPLAY)-%
+run-gdb: run-gdb-$(QEMUDISPLAY)
 	@:
-run-gdb-graphic-%: $(QEMUIMAGEFILES) check-qemu
+run-gdb-graphic: $(QEMUIMAGEFILES) check-qemu
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -gdb tcp::12949 $(QEMUIMG) &,QEMU $<)
 	$(call run,sleep 0.5; gdb -x build/chickadee.gdb,GDB)
-run-gdb-console-%: $(QEMUIMAGEFILES) check-qemu
+run-gdb-console: $(QEMUIMAGEFILES) check-qemu
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -curses -gdb tcp::12949 $(QEMUIMG),QEMU $<)
 
-run: run-anything
-run-graphic: run-graphic-anything
-run-console: run-console-anything
-run-monitor: run-monitor-anything
-run-gdb: run-gdb-anything
-run-gdb-graphic: run-gdb-graphic-anything
-run-gdb-console: run-gdb-console-anything
+run-$(RUNSUFFIX): run
+run-graphic-$(RUNSUFFIX): run-graphic
+run-console-$(RUNSUFFIX): run-console
+run-monitor-$(RUNSUFFIX): run-monitor
+run-gdb-$(RUNSUFFIX): run-gdb
+run-gdb-graphic-$(RUNSUFFIX): run-gdb-graphic
+run-gdb-console-$(RUNSUFFIX): run-gdb-console
 
 # Kill all my qemus
 kill:
