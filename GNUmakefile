@@ -115,10 +115,16 @@ ifneq ($(filter run-%,$(MAKECMDGOALS)),)
 ifeq ($(words $(MAKECMDGOALS)),1)
 RUNCMD_LASTWORD := $(lastword $(subst -, ,$(MAKECMDGOALS)))
 ifneq ($(filter obj/p-$(RUNCMD_LASTWORD),$(INITFS_CONTENTS)),)
-CPPFLAGS += -DCHICKADEE_FIRST_PROCESS='"$(RUNCMD_LASTWORD)"'
-$(OBJDIR)/kernel.ko: always
+CHICKADEE_FIRST_PROCESS := $(RUNCMD_LASTWORD)
+CPPFLAGS += -DCHICKADEE_FIRST_PROCESS='"$(CHICKADEE_FIRST_PROCESS)"'
 endif
 endif
+endif
+
+CHICKADEE_FIRST_PROCESS ?= allocator
+ifneq ($(strip $(CHICKADEE_FIRST_PROCESS)),$(DEP_CHICKADEE_FIRST_PROCESS))
+FIRST_PROCESS_BUILDSTAMP := $(shell echo "DEP_CHICKADEE_FIRST_PROCESS:=$(CHICKADEE_FIRST_PROCESS)" > $(DEPSDIR)/_first_process.d)
+obj/kernel.ko: always
 endif
 
 
