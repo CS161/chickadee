@@ -60,7 +60,7 @@ struct chkfsstate {
 
     void* get_data_page(inode* ino, size_t off, size_t* n_valid_bytes);
 
-    inum_t lookup(inode* dirino, const char* name);
+    inode* lookup_inode(inode* dirino, const char* name);
 
 
   private:

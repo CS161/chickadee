@@ -278,10 +278,12 @@ void* chkfsstate::get_data_page(inode* ino, size_t off, size_t* n_valid_bytes) {
 }
 
 
-// chkfsstate::lookup(dirino, filename)
+// chkfsstate::lookup_inode(dirino, filename)
 //    Look up `filename` in the directory inode `dirino`, returning the
-//    corresponding inode number (or 0 if not found).
-chickadeefs::inum_t chkfsstate::lookup(inode* dirino, const char* filename) {
+//    corresponding inode (or nullptr if not found). The caller should
+//    eventually call `put_inode` on the returned inode pointer.
+chickadeefs::inode* chkfsstate::lookup_inode(inode* dirino,
+                                             const char* filename) {
     auto& bc = bufcache::get();
 
     // read directory to find file inode
@@ -304,7 +306,7 @@ chickadeefs::inum_t chkfsstate::lookup(inode* dirino, const char* filename) {
         bc.put_block(directory_data);
     }
 
-    return in;
+    return get_inode(in);
 }
 
 
@@ -323,19 +325,20 @@ size_t chickadeefs_read_file_data(const char* filename,
     assert(dirino);
     dirino->lock_read();
 
-    chickadeefs::inum_t inum = fs.lookup(dirino, filename);
+    auto ino = fs.lookup_inode(dirino, filename);
 
     dirino->unlock_read();
     fs.put_inode(dirino);
 
-    // read file inode
-    auto ino = fs.get_inode(inum);
-    if (ino) {
-        ino->lock_read();
+    if (!ino) {
+        return 0;
     }
 
+    // read file inode
+    ino->lock_read();
+
     size_t nread = 0;
-    while (sz > 0 && ino) {
+    while (sz > 0) {
         size_t ncopy = 0;
 
         // read inode contents, copy data
@@ -364,10 +367,7 @@ size_t chickadeefs_read_file_data(const char* filename,
         sz -= ncopy;
     }
 
-    if (ino) {
-        ino->unlock_read();
-        fs.put_inode(ino);
-    }
-
+    ino->unlock_read();
+    fs.put_inode(ino);
     return nread;
 }
