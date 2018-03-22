@@ -38,7 +38,6 @@ void* bufcache::get_disk_block(chickadeefs::blocknum_t bn,
             return nullptr;
         }
         e_[i].bn_ = bn;
-        e_[i].buf_ = nullptr;
     }
 
     // mark reference
@@ -51,20 +50,21 @@ void* bufcache::get_disk_block(chickadeefs::blocknum_t bn,
     // load block, or wait for concurrent reader to load it
     while (!(e_[i].flags_ & bufentry::f_loaded)) {
         if (!(e_[i].flags_ & bufentry::f_loading)) {
-            void* x = kalloc(chickadeefs::blocksize);
-            if (!x) {
-                --e_[i].ref_;
-                e_[i].lock_.unlock(irqs);
-                return nullptr;
+            if (!e_[i].buf_) {
+                e_[i].buf_ = kalloc(chickadeefs::blocksize);
+                if (!e_[i].buf_) {
+                    --e_[i].ref_;
+                    e_[i].lock_.unlock(irqs);
+                    return nullptr;
+                }
             }
             e_[i].flags_ |= bufentry::f_loading;
             e_[i].lock_.unlock(irqs);
             sata_disk->read
-                (x, chickadeefs::blocksize, bn * chickadeefs::blocksize);
+                (e_[i].buf_, chickadeefs::blocksize, bn * chickadeefs::blocksize);
             irqs = e_[i].lock_.lock();
             e_[i].flags_ = (e_[i].flags_ & ~bufentry::f_loading)
                 | bufentry::f_loaded;
-            e_[i].buf_ = x;
             if (cleaner) {
                 cleaner(e_[i].buf_);
             }

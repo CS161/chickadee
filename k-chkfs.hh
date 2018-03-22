@@ -22,7 +22,6 @@ struct bufentry {
     };
 
 
-    inline bufentry();
     inline void clear();
 };
 
@@ -78,10 +77,8 @@ struct chkfsstate {
 };
 
 
-inline bufentry::bufentry()
-    : ref_(0), flags_(0), buf_(nullptr) {
-}
 inline void bufentry::clear() {
+    bn_ = emptyblock;
     assert(ref_ == 0);
     flags_ = 0;
     buf_ = nullptr;
