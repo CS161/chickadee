@@ -45,6 +45,8 @@ class vmiter {
     // negative on failure.
     int map(uintptr_t pa, int perm = PTE_P | PTE_W | PTE_U)
         __attribute__((warn_unused_result));
+    // free mapped page and clear mapping. Like `kfree(ka()); map(0, 0)`
+    inline void kfree_page();
 
   private:
     x86_64_pagetable* pt_;
@@ -84,6 +86,7 @@ class ptiter {
     inline int level() const;               // current level (0-2)
     inline x86_64_pagetable* ptp() const;   // current page table page
     inline uintptr_t ptp_pa() const;        // physical address of ptp
+    inline void kfree_ptp();                // `kfree(ptp())` + clear mapping
 
     // move to next page table page in depth-first order
     inline void next();
@@ -163,6 +166,13 @@ inline vmiter& vmiter::operator-=(intptr_t delta) {
 inline void vmiter::step() {
     real_find(last_va());
 }
+inline void vmiter::kfree_page() {
+    assert((va_ & (PAGESIZE - 1)) == 0);
+    if (*pep_ & PTE_P) {
+        kfree(ka<void*>());
+    }
+    *pep_ = 0;
+}
 
 inline ptiter::ptiter(x86_64_pagetable* pt, uintptr_t va)
     : pt_(pt) {
@@ -194,6 +204,10 @@ inline uintptr_t ptiter::ptp_pa() const {
 }
 inline x86_64_pagetable* ptiter::ptp() const {
     return pa2ka<x86_64_pagetable*>(ptp_pa());
+}
+inline void ptiter::kfree_ptp() {
+    kfree(ptp());
+    *pep_ = 0;
 }
 
 #endif
