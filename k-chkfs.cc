@@ -60,16 +60,17 @@ void* bufcache::get_disk_block(chickadeefs::blocknum_t bn,
             }
             e_[i].flags_ |= bufentry::f_loading;
             e_[i].lock_.unlock(irqs);
-            sata_disk->read
-                (e_[i].buf_, chickadeefs::blocksize, bn * chickadeefs::blocksize);
+            sata_disk->read(e_[i].buf_, chickadeefs::blocksize,
+                            bn * chickadeefs::blocksize);
             irqs = e_[i].lock_.lock();
             e_[i].flags_ = (e_[i].flags_ & ~bufentry::f_loading)
                 | bufentry::f_loaded;
             if (cleaner) {
                 cleaner(e_[i].buf_);
             }
+            read_wq_.wake_all();
         } else {
-            waiter(current()).block_until(sata_disk->wq_, [&] () {
+            waiter(current()).block_until(read_wq_, [&] () {
                     return (e_[i].flags_ & bufentry::f_loading) == 0;
                 }, e_[i].lock_, irqs);
         }

@@ -3,6 +3,7 @@
 #include "kernel.hh"
 #include "chickadeefs.hh"
 #include "k-lock.hh"
+#include "k-wait.hh"
 
 // buffer cache
 
@@ -32,6 +33,7 @@ struct bufcache {
     static constexpr size_t ne = 10;
 
     spinlock lock_;                  // protects all entries' bn_ and ref_
+    wait_queue read_wq_;
     bufentry e_[ne];
 
 
