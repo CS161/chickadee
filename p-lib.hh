@@ -107,8 +107,7 @@ static inline pid_t sys_fork(void) {
 //    Exit this process. Does not return.
 static inline void __attribute__((noreturn)) sys_exit(int status) {
     syscall0(SYSCALL_EXIT, status);
-    while (1) {
-    }
+    assert(false);
 }
 
 // sys_pause()
