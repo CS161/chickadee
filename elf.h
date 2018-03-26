@@ -1,6 +1,11 @@
 #ifndef CHICKADEE_ELF_H
 #define CHICKADEE_ELF_H
+#if defined(CHICKADEE_KERNEL) || defined(CHICKADEE_PROCESS)
 #include "types.h"
+#else
+#include <inttypes.h>
+#include <stddef.h>
+#endif
 
 // elf.h
 //

@@ -3,7 +3,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
-#include <inttypes.h>
 #include <fcntl.h>
 #include "elf.h"
 #include "chickadeefs.hh"
