@@ -55,6 +55,24 @@ struct elf_section {
     uint64_t sh_entsize;
 };
 
+// symbol table entry (not required by loader)
+struct elf_symbol {
+    uint32_t st_name;
+    uint8_t st_info;
+    uint8_t st_other;
+    uint16_t st_shndx;
+    uint64_t st_value;
+    uint64_t st_size;
+};
+
+// in-memory reference to debug symbol table + string table
+struct elf_symtabref {
+    elf_symbol* sym;
+    size_t nsym;
+    char* strtab;
+    size_t size;
+};
+
 // Values for elf_header::e_type
 #define ELF_ET_EXEC             2   // executable file
 
@@ -66,13 +84,30 @@ struct elf_section {
 #define ELF_PFLAG_WRITE         2
 #define ELF_PFLAG_READ          4
 
-// Values for elf_section::s_type
-#define ELF_STYPE_NULL          0
-#define ELF_STYPE_PROGBITS      1
-#define ELF_STYPE_SYMTAB        2
-#define ELF_STYPE_STRTAB        3
+// Values for elf_section::sh_type
+#define ELF_SHT_NULL            0
+#define ELF_SHT_PROGBITS        1
+#define ELF_SHT_SYMTAB          2
+#define ELF_SHT_STRTAB          3
+#define ELF_SHT_NOBITS          8
 
-// Values for elf_section::s_name
-#define ELF_SNAME_UNDEF         0
+// Values for elf_section::sh_flags
+#define ELF_SHF_ALLOC           2
+
+// Values for elf_symbol::st_name
+#define ELF_STN_UNDEF           0
+
+// Values for elf_symbol::st_shndx
+#define ELF_SHN_UNDEF           0
+#define ELF_SHN_ABS             0xFFF1U
+#define ELF_SHN_COMMON          0xFFF2U
+
+// Values for elf_symbol::st_info
+#define ELF_STB_MASK            0xF0
+#define ELF_STB_LOCAL           0x00
+#define ELF_STB_GLOBAL          0x10
+#define ELF_STB_WEAK            0x20
+#define ELF_STT_MASK            0x0F
+#define ELF_STT_OBJECT          0x01
 
 #endif /* !CHICKADEE_ELF_H */

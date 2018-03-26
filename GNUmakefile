@@ -159,11 +159,12 @@ $(OBJDIR)/kernel.full: $(KERNEL_OBJS) $(INITFS_CONTENTS) kernel.ld
 $(OBJDIR)/p-%.full: $(OBJDIR)/p-%.o $(PROCESS_LIB_OBJS) process.ld
 	$(call link,-T process.ld -o $@ $< $(PROCESS_LIB_OBJS),LINK)
 
-$(OBJDIR)/kernel: $(OBJDIR)/kernel.full
+$(OBJDIR)/kernel: $(OBJDIR)/kernel.full $(OBJDIR)/mkchickadeesymtab
 	$(call run,$(OBJDUMP) -C -S -j .lowtext -j .text -j .ctors $< >$@.asm)
 	$(call run,$(NM) -n $< >$@.sym)
 	$(call run,$(OBJCOPY) -j .lowtext -j .lowdata -j .text -j .rodata -j .data -j .bss -j .ctors -j .init_array $<,STRIP,$@)
 	@if $(OBJDUMP) -p $@ | grep off | grep -iv 'off[ 0-9a-fx]*000 ' >/dev/null 2>&1; then echo "* Warning: Some sections of kernel object file are not page-aligned." 1>&2; fi
+	$(call run,$(OBJDIR)/mkchickadeesymtab $@)
 
 $(OBJDIR)/%: $(OBJDIR)/%.full
 	$(call run,$(OBJDUMP) -C -S -j .text -j .ctors $< >$@.asm)
@@ -175,6 +176,12 @@ $(OBJDIR)/bootsector: $(BOOT_OBJS) boot.ld
 	$(call run,$(OBJDUMP) -C -S $@.full >$@.asm)
 	$(call run,$(NM) -n $@.full >$@.sym)
 	$(call run,$(OBJCOPY) -S -O binary -j .text $@.full $@)
+
+
+# How to make host program for ensuring a loaded symbol table
+
+$(OBJDIR)/mkchickadeesymtab: build/mkchickadeesymtab.cc $(BUILDSTAMPS)
+	$(call run,$(HOSTCXX) $(CPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS_AT) -g -o $@,HOSTCOMPILE,$<)
 
 
 # How to make host programs for constructing & checking file systems

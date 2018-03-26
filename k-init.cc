@@ -2,12 +2,16 @@
 #include "lib.hh"
 #include "k-apic.hh"
 #include "k-devices.hh"
+#include "elf.h"
 
+// symtab: reference to kernel symbol table; useful for debugging.
+// The `mkchickadeesymtab` function fills this structure in.
+elf_symtabref symtab = {
+    reinterpret_cast<elf_symbol*>(0xFFFFFFFF81000000), 0, nullptr, 0
+};
+
+// sata_disk: pointer to the first SATA disk found
 ahcistate* sata_disk;
-
-// k-hardware.c
-//
-//    Grody functions for interacting with x86 hardware.
 
 
 // init_hardware
@@ -213,6 +217,12 @@ void init_physical_ranges() {
                         ROUNDUP(ktext2pa(_kernel_end), PAGESIZE),
                         mem_kernel);
     // reserve memory for debugging facilities
+    if (symtab.size) {
+        auto sympa = ktext2pa(symtab.sym);
+        physical_ranges.set(ROUNDDOWN(sympa, PAGESIZE),
+                            ROUNDUP(sympa + symtab.size, PAGESIZE),
+                            mem_kernel);
+    }
 #if HAVE_SANITIZERS
     init_sanitizers();
 #endif
