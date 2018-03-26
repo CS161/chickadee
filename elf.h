@@ -114,5 +114,6 @@ struct elf_symtabref {
 #define ELF_STB_WEAK            0x20
 #define ELF_STT_MASK            0x0F
 #define ELF_STT_OBJECT          0x01
+#define ELF_STT_FUNC            0x02
 
 #endif /* !CHICKADEE_ELF_H */

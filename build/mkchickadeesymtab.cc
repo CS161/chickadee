@@ -22,6 +22,8 @@
 # include <io.h>
 #endif
 
+static bool verbose = false;
+
 struct elf_info {
     const char* filename_;
     char* data_ = nullptr;
@@ -42,12 +44,13 @@ struct elf_info {
     bool validate();
     unsigned find_section(const char* name) const;
     const char* shstrtab() const;
+    const char* section_display_name(unsigned i) const;
     uint64_t first_offset() const;
     elf_symbol* symtab() const;
     elf_symbol* find_symbol(const char* name, elf_symbol* after = nullptr) const;
     void sort_symtab();
 
-    void shift_sections(unsigned idx, ptrdiff_t diff);
+    void shift_sections(size_t offset, ptrdiff_t diff);
 };
 
 
@@ -62,7 +65,6 @@ void elf_info::grow(size_t capacity) {
         data_ = data;
         capacity_ = capacity;
         if (ok_) {
-            fprintf(stderr, "!\n");
             eh_ = reinterpret_cast<elf_header*>(data_);
             pht_ = reinterpret_cast<elf_program*>(data_ + eh_->e_phoff);
             sht_ = reinterpret_cast<elf_section*>(data_ + eh_->e_shoff);
@@ -77,20 +79,25 @@ bool elf_info::validate() {
         return true;
     }
 
+    // basics
     eh_ = reinterpret_cast<elf_header*>(data_);
     if (size_ < sizeof(*eh_)
         || eh_->e_magic != ELF_MAGIC) {
         fprintf(stderr, "%s: not an ELF file\n", filename_);
+    clear_exit:
+        eh_ = nullptr;
+        pht_ = nullptr;
+        sht_ = nullptr;
         return false;
     }
     if (eh_->e_phentsize != sizeof(elf_program)
         || eh_->e_shentsize != sizeof(elf_section)) {
         fprintf(stderr, "%s: unexpected component sizes\n", filename_);
-        return false;
+        goto clear_exit;
     }
     if (!eh_->e_phnum || !eh_->e_shnum) {
         fprintf(stderr, "%s: empty components\n", filename_);
-        return false;
+        goto clear_exit;
     }
     pht_ = reinterpret_cast<elf_program*>(data_ + eh_->e_phoff);
     sht_ = reinterpret_cast<elf_section*>(data_ + eh_->e_shoff);
@@ -99,78 +106,74 @@ bool elf_info::validate() {
         || eh_->e_shoff >= size_
         || (size_ - eh_->e_shoff) / sizeof(*sht_) < eh_->e_shnum) {
         fprintf(stderr, "%s: bad offsets\n", filename_);
-        return false;
-    }
-    uint64_t last_offset = 0;
-    for (unsigned i = 0; i != eh_->e_shnum; ++i) {
-        auto& sh = sht_[i];
-        if (sh.sh_type != ELF_SHT_NULL
-            && sh.sh_type != ELF_SHT_NOBITS) {
-            if (sh.sh_offset >= size_
-                || sh.sh_size > size_ - sh.sh_offset) {
-                fprintf(stderr, "%s (section %u): bad offset/size\n",
-                        filename_, i);
-                return false;
-            } else if (sh.sh_offset < last_offset) {
-                fprintf(stderr, "%s (section %u): offsets out of order\n",
-                        filename_, i);
-                return false;
-            } else {
-                last_offset = sh.sh_offset + sh.sh_size;
-            }
-        }
+        goto clear_exit;
     }
 
+    // section header string table
     if (eh_->e_shstrndx == 0
         || eh_->e_shstrndx >= eh_->e_shnum
         || sht_[eh_->e_shstrndx].sh_type != ELF_SHT_STRTAB
         || sht_[eh_->e_shstrndx].sh_size == 0) {
         fprintf(stderr, "%s: no section header string table\n", filename_);
-        return false;
+        goto clear_exit;
     }
     char* shstrtab = &data_[sht_[eh_->e_shstrndx].sh_offset];
     size_t shstrtab_size = sht_[eh_->e_shstrndx].sh_size;
     if (shstrtab[0] != 0
         || shstrtab[shstrtab_size - 1] != 0) {
         fprintf(stderr, "%s: bad section header string table\n", filename_);
-        return false;
+        goto clear_exit;
     }
+
+    // sections
     for (unsigned i = 0; i != eh_->e_shnum; ++i) {
-        if (i == 0 && sht_[i].sh_type != ELF_SHT_NULL) {
+        auto& sh = sht_[i];
+        if (i == 0 && sh.sh_type != ELF_SHT_NULL) {
             fprintf(stderr, "%s: should start with null section\n", filename_);
             return false;
         }
-        if (sht_[i].sh_name >= shstrtab_size) {
+        if (sh.sh_name >= shstrtab_size) {
             fprintf(stderr, "%s <#%u>: bad section name\n",
                     filename_, i);
             return false;
         }
-        if (sht_[i].sh_type == ELF_SHT_SYMTAB
-            && (sht_[i].sh_link >= eh_->e_shnum
-                || sht_[sht_[i].sh_link].sh_type != ELF_SHT_STRTAB)) {
+        const char* secname = shstrtab + sh.sh_name;
+        secname = *secname ? secname : "<empty>";
+
+        if (sh.sh_type != ELF_SHT_NULL
+            && sh.sh_type != ELF_SHT_NOBITS
+            && (sh.sh_offset >= size_
+                || sh.sh_size > size_ - sh.sh_offset)) {
+            fprintf(stderr, "%s <%s>: bad offset/size\n",
+                    filename_, secname);
+            goto clear_exit;
+        }
+        if (sh.sh_type == ELF_SHT_SYMTAB
+            && (sh.sh_link >= eh_->e_shnum
+                || sht_[sh.sh_link].sh_type != ELF_SHT_STRTAB)) {
             fprintf(stderr, "%s <%s>: bad linked string table\n",
-                    filename_, shstrtab + sht_[i].sh_name);
+                    filename_, shstrtab + sh.sh_name);
             return false;
         }
-        if (sht_[i].sh_type == ELF_SHT_SYMTAB) {
+        if (sh.sh_type == ELF_SHT_SYMTAB) {
             elf_symbol* sym = reinterpret_cast<elf_symbol*>
-                (data_ + sht_[i].sh_offset);
-            size_t size = sht_[i].sh_size / sizeof(*sym);
-            size_t strsize = sht_[sht_[i].sh_link].sh_size;
+                (data_ + sh.sh_offset);
+            size_t size = sh.sh_size / sizeof(*sym);
+            size_t strsize = sht_[sh.sh_link].sh_size;
             for (size_t j = 0; j != size; ++j) {
                 if (sym[j].st_name >= strsize) {
                     fprintf(stderr, "%s <%s>: symbol name out of range\n",
-                            filename_, shstrtab + sht_[i].sh_name);
+                            filename_, shstrtab + sh.sh_name);
                     return false;
                 }
             }
         }
-        if (sht_[i].sh_type == ELF_SHT_STRTAB
-            && (sht_[i].sh_size == 0
-                || data_[sht_[i].sh_offset] != 0
-                || data_[sht_[i].sh_offset + sht_[i].sh_size - 1] != 0)) {
+        if (sh.sh_type == ELF_SHT_STRTAB
+            && (sh.sh_size == 0
+                || data_[sh.sh_offset] != 0
+                || data_[sh.sh_offset + sh.sh_size - 1] != 0)) {
             fprintf(stderr, "%s <%s>: bad string table contents\n",
-                    filename_, shstrtab + sht_[i].sh_name);
+                    filename_, shstrtab + sh.sh_name);
             return false;
         }
     }
@@ -180,8 +183,14 @@ bool elf_info::validate() {
 }
 
 const char* elf_info::shstrtab() const {
-    assert(ok_);
+    assert(sht_);
     return &data_[sht_[eh_->e_shstrndx].sh_offset];
+}
+
+const char* elf_info::section_display_name(unsigned i) const {
+    assert(i < eh_->e_shnum);
+    const char* name = shstrtab() + sht_[i].sh_name;
+    return *name ? name : "[unnamed]";
 }
 
 unsigned elf_info::find_section(const char* name) const {
@@ -219,20 +228,34 @@ elf_symbol* elf_info::symtab() const {
     return symtab_;
 }
 
+static inline bool symbol_less(const elf_symbol& a, const elf_symbol& b) {
+    bool asp = (a.st_info & ELF_STT_MASK) > ELF_STT_FUNC;
+    bool bsp = (b.st_info & ELF_STT_MASK) > ELF_STT_FUNC;
+    if (asp || bsp) {
+        return asp && !bsp;
+    } else {
+        return (a.st_value < b.st_value)
+            || (a.st_value == b.st_value
+                && a.st_size < b.st_size);
+    }
+}
+
 void elf_info::sort_symtab() {
-    unsigned i = 1;
     symtab();
-    while (i < nsymtab_
-           && symtab_[i].st_value >= symtab_[i - 1].st_value) {
+    unsigned i = 2;
+    while (i < nsymtab_ && !symbol_less(symtab_[i], symtab_[i - 1])) {
         ++i;
     }
     if (i < nsymtab_) {
-        std::sort(&symtab_[i - 1], &symtab_[nsymtab_],
-                  [] (const elf_symbol& a, const elf_symbol& b) {
-                      return (a.st_value < b.st_value)
-                          || (a.st_value == b.st_value
-                              && a.st_size < b.st_size);
-                  });
+        if (verbose) {
+            fprintf(stderr, "%s: sorting <.symtab>\n", filename_);
+            fprintf(stderr, "  `%s` #%u @%zx > `%s` #%u @%zx\n",
+                    symstrtab_ + symtab_[i - 1].st_name, i - 1,
+                    symtab_[i - 1].st_value,
+                    symstrtab_ + symtab_[i].st_name, i,
+                    symtab_[i].st_value);
+        }
+        std::stable_sort(&symtab_[1], &symtab_[nsymtab_], symbol_less);
         changed_ = true;
     }
 }
@@ -255,52 +278,50 @@ elf_symbol* elf_info::find_symbol(const char* name,
     }
 }
 
-void elf_info::shift_sections(unsigned idx, ptrdiff_t diff) {
-    assert(idx < eh_->e_shnum && diff >= 0);
-
-    // find offset shift
-    uint64_t soff = sht_[idx].sh_offset;
-    for (unsigned i = idx; i != eh_->e_shnum; ++i) {
-        if (sht_[i].sh_type != ELF_SHT_NULL
-            && sht_[i].sh_type != ELF_SHT_NOBITS) {
-            soff = sht_[i].sh_offset;
-            break;
-        }
-    }
+void elf_info::shift_sections(size_t offset, ptrdiff_t diff) {
+    assert(offset < size_ && diff > 0);
 
     // update program headers
+    if (eh_->e_phoff + eh_->e_phnum * sizeof(*pht_) >= offset) {
+        fprintf(stderr, "%s: program header spans alignment boundary\n", filename_);
+        exit(1);
+    }
     for (unsigned i = 0; i != eh_->e_phnum; ++i) {
-        if (pht_[i].p_offset >= soff) {
-            pht_[i].p_offset += diff;
-        } else if (pht_[i].p_offset + pht_[i].p_filesz > soff) {
-            fprintf(stderr, "%s (program %u): warning: spans alignment boundary\n", filename_, i);
-            fprintf(stderr, "  shifting %zu + %zu, program %zu + %zu\n", soff, diff, pht_[i].p_offset, pht_[i].p_filesz);
-            pht_[i].p_filesz += diff;
+        auto& ph = pht_[i];
+        if (ph.p_offset >= offset) {
+            ph.p_offset += diff;
+        } else if (ph.p_offset + ph.p_filesz > offset) {
+            fprintf(stderr, "%s: program %u spans alignment boundary\n", filename_, i);
+            fprintf(stderr, "  shifting %zu+%zu, program %zu+%zu\n", offset, diff, ph.p_offset, ph.p_filesz);
+            exit(1);
         }
     }
 
     // update section headers
-    for (unsigned i = idx; i != eh_->e_shnum; ++i) {
-        if ((sht_[i].sh_type != ELF_SHT_NULL
-             && sht_[i].sh_type != ELF_SHT_NOBITS)
-            || sht_[i].sh_offset >= soff) {
-            sht_[i].sh_offset += diff;
+    for (unsigned i = 0; i != eh_->e_shnum; ++i) {
+        auto& sh = sht_[i];
+        if (sh.sh_offset >= offset) {
+            sh.sh_offset += diff;
+        } else if (sh.sh_type != ELF_SHT_NULL
+                   && sh.sh_type != ELF_SHT_NOBITS
+                   && sh.sh_offset + sh.sh_size > offset) {
+            fprintf(stderr, "%s: section <%s> spans alignment boundary\n", filename_, section_display_name(i));
+            fprintf(stderr, "  shifting %zu+%zu, section %zu+%zu\n", offset, diff, sh.sh_offset, sh.sh_size);
+            exit(1);
         }
     }
 
     // move data
-    if (diff) {
-        grow(size_ + diff);
-        memmove(&data_[soff + diff], &data_[soff], size_ - soff);
-        memset(&data_[soff], 0, diff);
-        size_ += diff;
-        changed_ = true;
+    grow(size_ + diff);
+    memmove(&data_[offset + diff], &data_[offset], size_ - offset);
+    memset(&data_[offset], 0, diff);
+    size_ += diff;
+    changed_ = true;
 
-        // update main offsets
-        if (eh_->e_shoff >= soff) {
-            eh_->e_shoff += diff;
-            sht_ = reinterpret_cast<elf_section*>(data_ + eh_->e_shoff);
-        }
+    // update main offsets
+    if (eh_->e_shoff >= offset) {
+        eh_->e_shoff += diff;
+        sht_ = reinterpret_cast<elf_section*>(data_ + eh_->e_shoff);
     }
 }
 
@@ -353,6 +374,9 @@ static unsigned rewrite_symtabref(elf_info& ei, const char* name,
             if (memcmp(ei.data_ + stref_off, &xstref, sizeof(xstref)) != 0) {
                 memcpy(ei.data_ + stref_off, &xstref, sizeof(xstref));
                 ei.changed_ = true;
+                if (verbose) {
+                    fprintf(stderr, "%s: filling out `%s`\n", ei.filename_, name);
+                }
             }
             ++nfound;
         }
@@ -367,7 +391,7 @@ int main(int argc, char** argv) {
     bool lsymtab_set = false;
 
     int opt;
-    while ((opt = getopt(argc, argv, "a:s:")) != -1) {
+    while ((opt = getopt(argc, argv, "a:s:V")) != -1) {
         switch (opt) {
         case 'a': {
             char* end;
@@ -383,6 +407,9 @@ int main(int argc, char** argv) {
             lsymtab_set = true;
             break;
         }
+        case 'V':
+            verbose = true;
+            break;
         default:
             usage();
         }
@@ -406,11 +433,13 @@ int main(int argc, char** argv) {
         }
     }
 
+    mode_t creatmode = S_IRWXU | S_IRWXG | S_IRWXO;
     {
         struct stat s;
         int r = fstat(fd, &s);
         assert(r == 0);
         ei.grow(S_ISREG(s.st_mode) ? (s.st_size + 32767) & ~32767 : 262144);
+        creatmode &= s.st_mode;
     }
 
     while (1) {
@@ -452,7 +481,14 @@ int main(int argc, char** argv) {
 
         // align symbol table on a page boundary
         if (symtab.sh_offset & 0xFFF) {
-            ei.shift_sections(symtabndx, 0x1000 - (symtab.sh_offset & 0xFFF));
+            assert(symtab.sh_addralign < 0x1000);
+            symtab.sh_addralign = 0x1000;
+            ei.changed_ = true;
+            ei.shift_sections(symtab.sh_offset,
+                              0x1000 - (symtab.sh_offset & 0xFFF));
+            if (verbose) {
+                fprintf(stderr, "%s: aligning <.symtab>\n", ei.filename_);
+            }
         }
     }
 
@@ -479,12 +515,18 @@ int main(int argc, char** argv) {
         ei.sht_[symtabndx].sh_flags |= ELF_SHF_ALLOC;
         ei.sht_[symtabndx].sh_addr = loadaddr;
         ei.changed_ = true;
+        if (verbose) {
+            fprintf(stderr, "%s: marking <.symtab> as allocated\n", ei.filename_);
+        }
     }
     if (loadaddr && !(ei.sht_[symtabndx + 1].sh_flags & ELF_SHF_ALLOC)) {
         ei.sht_[symtabndx + 1].sh_flags |= ELF_SHF_ALLOC;
         ei.sht_[symtabndx + 1].sh_addr = loadaddr
             + strtab_offset - first_offset;
         ei.changed_ = true;
+        if (verbose) {
+            fprintf(stderr, "%s: marking <.symstrtab> as allocated\n", ei.filename_);
+        }
     }
 
     // find or add a program header
@@ -522,6 +564,9 @@ int main(int argc, char** argv) {
             ph.p_memsz = ph.p_filesz;
             ph.p_align = 0x1000;
             ei.changed_ = true;
+            if (verbose) {
+                fprintf(stderr, "%s: adding program header\n", ei.filename_);
+            }
         }
     }
 
@@ -538,7 +583,7 @@ int main(int argc, char** argv) {
     }
     int ofd = STDOUT_FILENO;
     if (strcmp(ofn, "-") != 0) {
-        ofd = open(ofn, O_WRONLY | O_CREAT | O_TRUNC);
+        ofd = open(ofn, O_WRONLY | O_CREAT | O_TRUNC, creatmode);
         if (ofd == -1) {
             fprintf(stderr, "%s: %s\n", ofn, strerror(errno));
             exit(1);
