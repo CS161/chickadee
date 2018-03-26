@@ -45,5 +45,6 @@ typedef int pid_t;                    // process IDs
 #endif
 
 #define __section(x) __attribute__((section(x)))
+#define __no_asan    __attribute__((no_sanitize_address))
 
 #endif /* !CHICKADEE_TYPES_H */

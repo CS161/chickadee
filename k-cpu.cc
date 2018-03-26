@@ -25,8 +25,7 @@ void cpustate::init() {
         assert(reinterpret_cast<uintptr_t>(&syscall_scratch_) == addr + 16);
     }
 
-    self_ = this;
-    current_ = nullptr;
+    assert(self_ == this && !current_);
     index_ = this - cpus;
     runq_lock_.clear();
     idle_task_ = nullptr;

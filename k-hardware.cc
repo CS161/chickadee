@@ -270,7 +270,8 @@ extern "C" {
 //    Return 0 if the static variables guarded by `*guard` are already
 //    initialized. Otherwise lock `*guard` and return 1. The compiler
 //    will initialize the statics, then call `__cxa_guard_release`.
-int __cxa_guard_acquire(std::atomic<char>* guard) {
+int __cxa_guard_acquire(long long* arg) {
+    std::atomic<char>* guard = reinterpret_cast<std::atomic<char>*>(arg);
     if (guard->load(std::memory_order_relaxed) == 2) {
         return 0;
     }
@@ -290,7 +291,8 @@ int __cxa_guard_acquire(std::atomic<char>* guard) {
 // __cxa_guard_release(guard)
 //    Mark `guard` to indicate that the static variables it guards are
 //    initialized.
-void __cxa_guard_release(std::atomic<char>* guard) {
+void __cxa_guard_release(long long* arg) {
+    std::atomic<char>* guard = reinterpret_cast<std::atomic<char>*>(arg);
     guard->store(2);
 }
 

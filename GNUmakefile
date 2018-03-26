@@ -11,15 +11,13 @@ all: $(QEMUIMAGEFILES)
 # For verbose commands, run `make V=1 all`.
 V = 0
 ifeq ($(V),1)
-compile = $(CC) $(CPPFLAGS) $(CFLAGS) $(DEPCFLAGS) $(1)
-cxxcompile = $(CXX) $(CPPFLAGS) $(CXXFLAGS) $(DEPCFLAGS) $(1)
-assemble = $(CC) $(CPPFLAGS) $(ASFLAGS) $(DEPCFLAGS) $(1)
+cxxcompile = $(CXX) $(CPPFLAGS) $(DEPCFLAGS) $(1)
+assemble = $(CC) $(CPPFLAGS) $(DEPCFLAGS) $(ASFLAGS) $(1)
 link = $(LD) $(LDFLAGS) $(1)
 run = $(1) $(3)
 else
-compile = @/bin/echo " " $(2) && $(CC) $(CPPFLAGS) $(CFLAGS) $(DEPCFLAGS) $(1)
-cxxcompile = @/bin/echo " " $(2) && $(CXX) $(CPPFLAGS) $(CXXFLAGS) $(DEPCFLAGS) $(1)
-assemble = @/bin/echo " " $(2) && $(CC) $(CPPFLAGS) $(ASFLAGS) $(DEPCFLAGS) $(1)
+cxxcompile = @/bin/echo " " $(2) && $(CXX) $(CPPFLAGS) $(DEPCFLAGS) $(1)
+assemble = @/bin/echo " " $(2) && $(CC) $(CPPFLAGS) $(DEPCFLAGS) $(ASFLAGS) $(1)
 link = @/bin/echo " " $(2) $(patsubst %.full,%,$@) && $(LD) $(LDFLAGS) $(1)
 run = @$(if $(2),/bin/echo " " $(2) $(3) &&,) $(1) $(3)
 endif
@@ -30,13 +28,11 @@ endif
 #
 # `$(NCPU)` controls the number of CPUs QEMU should use. It defaults to 2.
 NCPU = 2
-QEMULOG ?= file:log.txt
-QEMUOPT = -net none -parallel $(QEMULOG) -smp $(NCPU)
+LOG ?= file:log.txt
+QEMUOPT = -net none -parallel $(LOG) -smp $(NCPU)
 ifneq ($(D),)
 QEMUOPT += -d int,cpu_reset -no-reboot
 endif
-
--include build/rules.mk
 
 
 # Sets of object files
@@ -97,17 +93,11 @@ INITFS_CONTENTS = $(shell find initfs -type f -not -name '\#*\#' -not -name '*~'
 	obj/p-wc \
 	obj/p-wcdiskfile
 
-ifneq ($(strip $(INITFS_CONTENTS)),$(DEP_INITFS_CONTENTS))
-INITFS_BUILDSTAMP := $(shell echo "DEP_INITFS_CONTENTS:=$(INITFS_CONTENTS)" > $(DEPSDIR)/_initfs.d; echo always)
-endif
-
-
 DISKFS_CONTENTS = $(shell find diskfs -type f -not -name '\#*\#' -not -name '*~' 2>/dev/null) \
 	$(INITFS_CONTENTS)
 
-ifneq ($(strip $(DISKFS_CONTENTS)),$(DEP_DISKFS_CONTENTS))
-DISKFS_BUILDSTAMP := $(shell echo "DEP_DISKFS_CONTENTS:=$(DISKFS_CONTENTS)" > $(DEPSDIR)/_diskfs.d; echo always)
-endif
+
+-include build/rules.mk
 
 
 # Define `CHICKADEE_FIRST_PROCESS` if appropriate
@@ -132,30 +122,30 @@ endif
 # How to make object files
 
 $(PROCESS_OBJS): $(OBJDIR)/%.o: %.cc $(BUILDSTAMPS)
-	$(call cxxcompile,-O1 -DCHICKADEE_PROCESS -c $< -o $@,COMPILE $<)
+	$(call cxxcompile,$(CXXFLAGS) -O1 -DCHICKADEE_PROCESS -c $< -o $@,COMPILE $<)
 
-$(OBJDIR)/%.ko: %.cc $(BUILDSTAMPS)
-	$(call cxxcompile,-O2 -DCHICKADEE_KERNEL -mcmodel=kernel -c $< -o $@,COMPILE $<)
+$(OBJDIR)/%.ko: %.cc $(KERNELBUILDSTAMPS)
+	$(call cxxcompile,$(KERNELCXXFLAGS) -O2 -DCHICKADEE_KERNEL -mcmodel=kernel -c $< -o $@,COMPILE $<)
 
-$(OBJDIR)/%.ko: %.S $(OBJDIR)/k-asm.h $(BUILDSTAMPS)
+$(OBJDIR)/%.ko: %.S $(OBJDIR)/k-asm.h $(KERNELBUILDSTAMPS)
 	$(call assemble,-O2 -mcmodel=kernel -c $< -o $@,ASSEMBLE $<)
 
-$(OBJDIR)/boot.o: $(OBJDIR)/%.o: boot.cc $(BUILDSTAMPS)
-	$(call cxxcompile,-Os -fomit-frame-pointer -c $< -o $@,COMPILE $<)
+$(OBJDIR)/boot.o: $(OBJDIR)/%.o: boot.cc $(KERNELBUILDSTAMPS)
+	$(call cxxcompile,$(CXXFLAGS) -Os -fomit-frame-pointer -c $< -o $@,COMPILE $<)
 
 $(OBJDIR)/bootentry.o: $(OBJDIR)/%.o: \
-	bootentry.S $(OBJDIR)/k-asm.h $(BUILDSTAMPS)
+	bootentry.S $(OBJDIR)/k-asm.h $(KERNELBUILDSTAMPS)
 	$(call assemble,-Os -fomit-frame-pointer -c $< -o $@,ASSEMBLE $<)
 
 
 # How to make supporting source files
 
-$(OBJDIR)/k-asm.h: kernel.hh build/mkkernelasm.awk $(BUILDSTAMPS)
+$(OBJDIR)/k-asm.h: kernel.hh build/mkkernelasm.awk $(KERNELBUILDSTAMPS)
 	$(call cxxcompile,-dM -E kernel.hh | awk -f build/mkkernelasm.awk | sort > $@,CREATE $@)
 	@if test ! -s $@; then echo '* Error creating $@!' 1>&2; exit 1; fi
 
 $(OBJDIR)/k-initfs.cc: build/mkinitfs.awk \
-	$(INITFS_CONTENTS) $(INITFS_BUILDSTAMP) $(BUILDSTAMPS)
+	$(INITFS_CONTENTS) $(INITFS_BUILDSTAMP) $(KERNELBUILDSTAMPS)
 	$(call run,echo $(INITFS_CONTENTS) | awk -f build/mkinitfs.awk >,CREATE,$@)
 
 $(OBJDIR)/k-devices.ko: $(OBJDIR)/k-initfs.cc
@@ -165,15 +155,20 @@ $(OBJDIR)/k-devices.ko: $(OBJDIR)/k-initfs.cc
 
 $(OBJDIR)/kernel.full: $(KERNEL_OBJS) $(INITFS_CONTENTS) kernel.ld
 	$(call link,-T kernel.ld -o $@ $(KERNEL_OBJS) -b binary $(INITFS_CONTENTS),LINK)
-	@if $(OBJDUMP) -p $@ | grep off | grep -iv 'off[ 0-9a-fx]*000 ' >/dev/null 2>&1; then echo "* Warning: Some sections of kernel object file are not page-aligned." 1>&2; fi
 
 $(OBJDIR)/p-%.full: $(OBJDIR)/p-%.o $(PROCESS_LIB_OBJS) process.ld
 	$(call link,-T process.ld -o $@ $< $(PROCESS_LIB_OBJS),LINK)
 
-$(OBJDIR)/%: $(OBJDIR)/%.full
+$(OBJDIR)/kernel: $(OBJDIR)/kernel.full
 	$(call run,$(OBJDUMP) -C -S -j .lowtext -j .text -j .ctors $< >$@.asm)
 	$(call run,$(NM) -n $< >$@.sym)
 	$(call run,$(OBJCOPY) -j .lowtext -j .lowdata -j .text -j .rodata -j .data -j .bss -j .ctors -j .init_array $<,STRIP,$@)
+	@if $(OBJDUMP) -p $@ | grep off | grep -iv 'off[ 0-9a-fx]*000 ' >/dev/null 2>&1; then echo "* Warning: Some sections of kernel object file are not page-aligned." 1>&2; fi
+
+$(OBJDIR)/%: $(OBJDIR)/%.full
+	$(call run,$(OBJDUMP) -C -S -j .text -j .ctors $< >$@.asm)
+	$(call run,$(NM) -n $< >$@.sym)
+	$(call run,$(OBJCOPY) -j .text -j .rodata -j .data -j .bss -j .ctors -j .init_array $<,STRIP,$@)
 
 $(OBJDIR)/bootsector: $(BOOT_OBJS) boot.ld
 	$(call link,-T boot.ld -o $@.full $(BOOT_OBJS),LINK)

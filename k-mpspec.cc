@@ -135,10 +135,14 @@ const mpconfig* mpconfig::find() {
     static bool initialized = false;
     if (!initialized) {
         const mpfloat* mpf;
-        if (uint16_t ebda_base = read_unaligned_pa<uint16_t>(X86_BDA_EBDA_BASE_ADDRESS_PA)) {
+        disable_asan();
+        if (uint16_t ebda_base = read_unaligned_pa<uint16_t>
+                (X86_BDA_EBDA_BASE_ADDRESS_PA)) {
             mpf = find_float(pa2ka<const uint8_t*>(ebda_base << 4), 1024);
         } else {
-            uint16_t basemem = read_unaligned_pa<uint16_t>(X86_BDA_BASE_MEMORY_SIZE_PA); // reported in KiB - 1KiB
+            // `basemem` is reported in KiB - 1KiB
+            uint16_t basemem = read_unaligned_pa<uint16_t>
+                (X86_BDA_BASE_MEMORY_SIZE_PA);
             mpf = find_float(pa2ka<const uint8_t*>(basemem << 10), 1024);
         }
         if (!mpf) {
@@ -150,6 +154,7 @@ const mpconfig* mpconfig::find() {
                 config = c;
             }
         }
+        enable_asan();
         initialized = true;
     }
     return config;

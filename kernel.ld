@@ -23,7 +23,7 @@ SECTIONS {
 
 
     /* Text segment: instructions and read-only globals */
-    . = 0xFFFFFFFF80040000;
+    . = 0xFFFFFFFF80100000;
     _kernel_start = .;
     .text : {
         *(.text.unlikely .text.*_unlikely .text.unlikely.*)

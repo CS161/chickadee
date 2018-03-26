@@ -10,7 +10,7 @@
 #define ELF_MAGIC 0x464C457FU   // "\x7FELF" in little endian
 
 // executable header
-typedef struct elf_header {
+struct elf_header {
     uint32_t e_magic;       // @0 must equal ELF_MAGIC
     uint8_t e_elf[12];
     uint16_t e_type;        // @0x10
@@ -26,10 +26,10 @@ typedef struct elf_header {
     uint16_t e_shentsize;   // @0x3a should equal sizeof(elf_section)
     uint16_t e_shnum;       // @0x3c number of elf_sections
     uint16_t e_shstrndx;    // @0x3e
-} elf_header;
+};
 
 // program header (required by the loader)
-typedef struct elf_program {
+struct elf_program {
     uint32_t p_type;        // @0x00 see ELF_PTYPE below
     uint32_t p_flags;       // @0x04 see ELF_PFLAG below
     uint64_t p_offset;      // @0x08 offset from elf_header to program data
@@ -39,20 +39,24 @@ typedef struct elf_program {
     uint64_t p_memsz;       // @0x28 number of bytes in memory (any bytes beyond
                             //   p_filesz are initialized to zero)
     uint64_t p_align;       // @0x30
-} elf_program;
+};
 
-typedef struct elf_section {
-    uint32_t s_name;
-    uint32_t s_type;
-    uint64_t s_flags;
-    uint64_t s_addr;
-    uint64_t s_offset;
-    uint64_t s_size;
-    uint32_t s_link;
-    uint32_t s_info;
-    uint64_t s_addralign;
-    uint64_t s_entsize;
-} elf_section;
+// section definition (not required by loader)
+struct elf_section {
+    uint32_t sh_name;
+    uint32_t sh_type;
+    uint64_t sh_flags;
+    uint64_t sh_addr;
+    uint64_t sh_offset;
+    uint64_t sh_size;
+    uint32_t sh_link;
+    uint32_t sh_info;
+    uint64_t sh_addralign;
+    uint64_t sh_entsize;
+};
+
+// Values for elf_header::e_type
+#define ELF_ET_EXEC             2   // executable file
 
 // Values for elf_program::p_type
 #define ELF_PTYPE_LOAD          1

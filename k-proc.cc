@@ -154,42 +154,51 @@ int proc::load(const char* binary_name) {
 //    Generic version of `proc::load(binary_name)`.
 
 int proc::load(loader& ld) {
-    const elf_header* eh;
-    const elf_program* ph;
+    union {
+        elf_header eh;
+        elf_program ph;
+    } u;
     size_t len;
+    unsigned nph, phoff;
 
     // validate the binary
     uint8_t* headerpg;
     ssize_t r = ld.get_page(&headerpg, 0);
     if (r < 0) {
         goto exit;
-    }
-
-    eh = reinterpret_cast<const elf_header*>(headerpg);
-    len = r;
-    if (eh->e_magic != ELF_MAGIC
-        || eh->e_phentsize != sizeof(elf_program)
-        || eh->e_shentsize != sizeof(elf_section)
-        || eh->e_phoff > PAGESIZE
-        || eh->e_phoff > len
-        || eh->e_phnum == 0
-        || eh->e_phnum > (PAGESIZE - eh->e_phoff) / sizeof(elf_program)
-        || eh->e_phnum > (len - eh->e_phoff) / sizeof(elf_program)) {
+    } else if (size_t(r) < sizeof(elf_header)) {
         r = E_NOEXEC;
         goto exit;
     }
 
+    len = r;
+    memcpy(&u.eh, headerpg, sizeof(elf_header));
+    if (u.eh.e_magic != ELF_MAGIC
+        || u.eh.e_type != ELF_ET_EXEC
+        || u.eh.e_phentsize != sizeof(elf_program)
+        || u.eh.e_shentsize != sizeof(elf_section)
+        || u.eh.e_phoff > PAGESIZE
+        || u.eh.e_phoff > len
+        || u.eh.e_phnum == 0
+        || u.eh.e_phnum > (PAGESIZE - u.eh.e_phoff) / sizeof(elf_program)
+        || u.eh.e_phnum > (len - u.eh.e_phoff) / sizeof(elf_program)) {
+        r = E_NOEXEC;
+        goto exit;
+    }
+    nph = u.eh.e_phnum;
+    phoff = u.eh.e_phoff;
+    ld.entry_rip_ = u.eh.e_entry;
+
     // load each loadable program segment into memory
-    ph = reinterpret_cast<const elf_program*>(headerpg + eh->e_phoff);
-    for (int i = 0; i < eh->e_phnum; ++i) {
-        if (ph[i].p_type == ELF_PTYPE_LOAD
-            && (r = load_segment(ph[i], ld)) < 0) {
+    for (unsigned i = 0; i != nph; ++i) {
+        memcpy(&u.ph, headerpg + phoff + i * sizeof(u.ph), sizeof(u.ph));
+        if (u.ph.p_type == ELF_PTYPE_LOAD
+            && (r = load_segment(u.ph, ld)) < 0) {
             goto exit;
         }
     }
 
     // set the entry point from the ELF header
-    ld.entry_rip_ = eh->e_entry;
     r = 0;
 
  exit:

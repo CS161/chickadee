@@ -42,6 +42,11 @@
 #define VA_NONCANONMAX  0x0000FFFFFFFFFFFFUL // max non-canonical address
 #define VA_NONCANONEND  0x0001000000000000UL // one past `VA_NONCANONMAX`
 
+#define PA_IOLOWMIN     0x00000000000A0000UL // min address of MMIO region 1
+#define PA_IOLOWEND     0x0000000000100000UL // end address of MMIO region 1
+#define PA_IOHIGHMIN    0x00000000C0000000UL // min address of MMIO region 2
+#define PA_IOHIGHEND    0x0000000100000000UL // end address of MMIO region 2
+
 // Parts of a paged address: page index, page offset
 static inline int pageindex(uintptr_t addr, int level) {
     return (int) (addr >> (PAGEOFFBITS + level * PAGEINDEXBITS)) & 0x1FF;
