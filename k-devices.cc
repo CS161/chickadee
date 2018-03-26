@@ -522,11 +522,6 @@ ahcistate::ahcistate(int pci_addr, int sata_port, volatile regs* dr)
     issue_meta(0, cmd_identify_device, 0);
     await_basic(0);
 
-    for (int i = 0; i != 256; ++i) {
-        if (devid[i])
-            log_printf("IDE IDENT %d %x\n", i, devid[i]);
-    }
-
     assert(!(devid[0] & 0x0004));                  // response complete
     assert((devid[53] & 0x0006) == 0x0006);        // all words set
     // valid SATA device
