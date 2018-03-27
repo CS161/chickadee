@@ -209,7 +209,6 @@ static void parse_uint32(const char* arg, uint32_t* val, int opt) {
 
 int main(int argc, char** argv) {
     uint32_t first_datab = 0;
-    uint32_t journal_nblocks = 0;
     const char* bootsector = nullptr;
     const char* outfile = nullptr;
     bool randomize = false;
@@ -227,7 +226,7 @@ int main(int argc, char** argv) {
             parse_uint32(optarg, &sb.nswap, 'w');
             break;
         case 'j':
-            parse_uint32(optarg, &journal_nblocks, 'j');
+            parse_uint32(optarg, &sb.njournal, 'j');
             break;
         case 'f':
             parse_uint32(optarg, &first_datab, 'f');
@@ -279,9 +278,9 @@ int main(int argc, char** argv) {
     size_t ninodeb = (sb.ninodes * inodesize + blocksize - 1) / blocksize;
     sb.data_bn = sb.inode_bn + ninodeb;
 
-    if (sb.data_bn + journal_nblocks > sb.nblocks) {
+    if (sb.data_bn + sb.njournal > sb.nblocks) {
         fprintf(stderr, "too few blocks, need at least %zu\n",
-                size_t(sb.data_bn + journal_nblocks));
+                size_t(sb.data_bn + sb.njournal));
         exit(1);
     }
     if (first_datab && first_datab != sb.data_bn) {
@@ -289,7 +288,7 @@ int main(int argc, char** argv) {
                 size_t(first_datab), size_t(sb.data_bn));
         exit(1);
     }
-    sb.journal_bn = sb.nblocks - journal_nblocks;
+    sb.journal_bn = sb.nblocks - sb.njournal;
 
     // initialize blocks
     blocks = new unsigned char*[sb.nblocks];

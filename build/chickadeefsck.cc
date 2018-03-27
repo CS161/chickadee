@@ -505,6 +505,7 @@ int main(int argc, char** argv) {
     sb.nblocks = from_le(sb.nblocks);
     sb.nswap = from_le(sb.nswap);
     sb.ninodes = from_le(sb.ninodes);
+    sb.njournal = from_le(sb.njournal);
     sb.swap_bn = from_le(sb.swap_bn);
     sb.fbb_bn = from_le(sb.fbb_bn);
     sb.inode_bn = from_le(sb.inode_bn);
@@ -548,6 +549,10 @@ int main(int argc, char** argv) {
     }
     if (sb.journal_bn < sb.data_bn || sb.journal_bn > sb.nblocks) {
         eprintf("unexpected journal_bn %u\n", sb.journal_bn);
+    }
+    if (sb.njournal > sb.nblocks - sb.journal_bn) {
+        eprintf("unexpected njournal %u (expected at least %u)\n",
+                sb.njournal, sb.nblocks + sb.journal_bn);
     }
     if (nerrors > 0) {
         exit(1);

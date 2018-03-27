@@ -44,6 +44,7 @@ struct superblock {
     blocknum_t nblocks;           // # blocks in file system
     blocknum_t nswap;             // # blocks in swap space (unused)
     inum_t ninodes;               // # inodes in file system
+    blocknum_t njournal;          // # blocks in journal
     blocknum_t swap_bn;           // first swap space block
     blocknum_t fbb_bn;            // first free block bitmap block
     blocknum_t inode_bn;          // first inode block
