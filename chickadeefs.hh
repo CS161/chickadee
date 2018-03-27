@@ -125,10 +125,6 @@ struct journalreplayer {
     unsigned nmr_;
     bool ok_;
 
-    enum jstate {
-        js_complete, js_committable, js_invalid_committed, js_uncommitted
-    };
-
 
     journalreplayer();
     virtual ~journalreplayer();
