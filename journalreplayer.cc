@@ -74,6 +74,17 @@ bool journalreplayer::analyze(unsigned char* jd, unsigned nblocks) {
             error(mr_[mi].bi, "journal complete_boundary above commit_boundary");
             ok_ = false;
         }
+        if (cur->nref
+            && mi > 0
+            && tiddiff_t(cur->tid - mr_[mi - 1].b->commit_boundary) < 0) {
+            error(mr_[mi].bi, "journal adds data to a committed transaction");
+            ok_ = false;
+        }
+        if (cur->nref
+            && tiddiff_t(cur->tid - mr_[mi].b->complete_boundary) < 0) {
+            error(mr_[mi].bi, "journal adds data to a completed transaction");
+            ok_ = false;
+        }
         if ((cur->flags & jf_complete)
             && tiddiff_t(cur->tid - cur->complete_boundary) >= 0) {
             error(mr_[mi].bi, "completed transaction above complete_boundary");
