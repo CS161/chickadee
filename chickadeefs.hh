@@ -77,18 +77,19 @@ struct dirent {
 
 
 static constexpr uint64_t journalmagic = 0xFBBFBB009EEBCEEDUL;
+static constexpr uint32_t nochecksum = 0x82600A5F;
 static constexpr size_t ref_size = (nindirect - 7) / 3;
 typedef uint16_t tid_t;
 typedef int16_t tiddiff_t;
 
-struct jblockref {
+struct jblockref {              // component of `jmetablock`
     blocknum_t bn;              // destination block number
     uint32_t bchecksum;         // CRC32C checksum of block data
     uint16_t bflags;            // see `jbf_` constants
 };
 struct jmetablock {
     uint64_t magic;             // must equal `chickadeefs::journalmagic`
-    uint32_t checksum;          // CRC32C checksum of last 4088B of data
+    uint32_t checksum;          // CRC32C checksum of block starting at `seq`
     uint32_t padding;           // (not including magic, checksum, or padding)
     tid_t seq;                  // sequence number
     tid_t tid;                  // associated tid

@@ -124,7 +124,7 @@ bool journalreplayer::is_potential_metablock(const unsigned char* jd) {
         return false;
     }
     auto checksum = from_le(jmb->checksum);
-    return checksum == 0
+    return checksum == nochecksum
         || checksum == crc32c(jd + 16, blocksize - 16);
 }
 
@@ -190,7 +190,7 @@ unsigned journalreplayer::analyze_block_reference(jmetablock* jmb,
         if (is_potential_metablock(djd)) {
             error(dbi, "referenced datablock looks like metablock (recoverable)");
             jmb->flags |= jf_error;
-        } else if (bchecksum != 0
+        } else if (bchecksum != nochecksum
                    && bchecksum != crc32c(djd, blocksize)) {
             error(dbi, "referenced datablock has bad checksum (recoverable)");
             jmb->flags |= jf_error;
