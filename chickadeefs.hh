@@ -4,48 +4,60 @@
 
 namespace chickadeefs {
 
-typedef uint32_t blocknum_t;
-typedef int32_t inum_t;
+typedef uint32_t blocknum_t;               // type of block numbers
+typedef int32_t inum_t;                    // type of inode numbers
 
+// block size
 static constexpr size_t blocksize = 4096;
 static constexpr size_t bitsperblock = blocksize * 8;
-static constexpr size_t ndirect = 9;
-static constexpr size_t maxdirectsize = ndirect * blocksize;
-static constexpr size_t nindirect = blocksize / sizeof(blocknum_t);
-static constexpr size_t inodesize = 64;
-static constexpr size_t inodesperblock = blocksize / inodesize;
-static constexpr size_t maxindirectsize = maxdirectsize
-    + nindirect * blocksize;
-static constexpr size_t maxindirect2size = maxindirectsize
-    + nindirect * nindirect * blocksize;
-static constexpr size_t maxsize = maxindirect2size;
-static constexpr size_t maxnamelen = 123;
-static constexpr size_t superblock_offset = 512;
 
+// superblock information
+static constexpr size_t superblock_offset = 512;   // offset of struct in block
 static constexpr uint64_t magic = 0xFBBFBB003EE9BEEFUL;
 
+// inode information
+static constexpr size_t ndirect = 9;       // # direct pointers per inode
+static constexpr size_t nindirect = blocksize / sizeof(blocknum_t);
+        // # block pointers per indirect or indirect2 block
+static constexpr size_t inodesize = 64;    // `sizeof(struct inode)`
+static constexpr size_t inodesperblock = blocksize / inodesize;
+
+// file sizes
+static constexpr size_t maxdirectsize = ndirect * blocksize;
+        // maximum file size possible using only direct blocks
+static constexpr size_t maxindirectsize = maxdirectsize
+    + nindirect * blocksize;               // ... plus indirect block
+static constexpr size_t maxindirect2size = maxindirectsize
+    + nindirect * nindirect * blocksize;   // ... plus indirect2 block
+static constexpr size_t maxsize = maxindirect2size;
+
+// directory entry information
+static constexpr size_t maxnamelen = 123;  // max strlen(name) supported
+
+// `inode::type` constants
 static constexpr uint32_t type_regular = 1;
 static constexpr uint32_t type_directory = 2;
 
+
 struct superblock {
-    uint64_t magic;
-    blocknum_t nblocks;
-    blocknum_t nswap;
-    inum_t ninodes;
-    blocknum_t swap_bn;
-    blocknum_t fbb_bn;
-    blocknum_t inode_bn;
-    blocknum_t data_bn;
-    blocknum_t journal_bn;
+    uint64_t magic;               // must equal `chickadeefs::magic`
+    blocknum_t nblocks;           // # blocks in file system
+    blocknum_t nswap;             // # blocks in swap space (unused)
+    inum_t ninodes;               // # inodes in file system
+    blocknum_t swap_bn;           // first swap space block
+    blocknum_t fbb_bn;            // first free block bitmap block
+    blocknum_t inode_bn;          // first inode block
+    blocknum_t data_bn;           // first data-area block
+    blocknum_t journal_bn;        // first block in journal
 };
 
 struct inode {
-    uint32_t type;
-    uint32_t size;
-    uint32_t nlink;
-    std::atomic<uint32_t> mlock;
-    std::atomic<uint32_t> mref;
-    blocknum_t direct[ndirect];
+    uint32_t type;                // file type (regular, directory, or 0/none)
+    uint32_t size;                // file size
+    uint32_t nlink;               // # hard links to file
+    std::atomic<uint32_t> mlock;  // used in memory
+    std::atomic<uint32_t> mref;   // used in memory
+    blocknum_t direct[ndirect];   // block pointers
     blocknum_t indirect;
     blocknum_t indirect2;
 
@@ -58,8 +70,8 @@ struct inode {
 };
 
 struct dirent {
-    inum_t inum;
-    char name[maxnamelen + 1];
+    inum_t inum;                  // inode # (0 = none)
+    char name[maxnamelen + 1];    // file name (null terminated)
 };
 
 
@@ -69,20 +81,20 @@ typedef uint16_t tid_t;
 typedef int16_t tiddiff_t;
 
 struct jblockref {
-    blocknum_t bn;
-    uint32_t bchecksum;
-    uint16_t bflags;
+    blocknum_t bn;              // destination block number
+    uint32_t bchecksum;         // CRC32C checksum of block data
+    uint16_t bflags;            // see `jbf_` constants
 };
 struct jmetablock {
-    uint64_t magic;
-    uint32_t checksum;
-    uint32_t padding;
-    tid_t seq;
-    tid_t tid;
-    tid_t commit_boundary;
-    tid_t complete_boundary;
-    uint16_t flags;
-    uint16_t nref;
+    uint64_t magic;             // must equal `chickadeefs::journalmagic`
+    uint32_t checksum;          // CRC32C checksum of last 4088B of data
+    uint32_t padding;           // (not including magic, checksum, or padding)
+    tid_t seq;                  // sequence number
+    tid_t tid;                  // associated tid
+    tid_t commit_boundary;      // first noncommitted tid
+    tid_t complete_boundary;    // first noncompleted tid
+    uint16_t flags;             // see `jf_` constants
+    uint16_t nref;              // # valid entries in `ref`
     jblockref ref[ref_size];
 
     inline bool is_valid_meta() const;
