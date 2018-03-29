@@ -138,7 +138,8 @@ void proc::exception(regstate* regs) {
 
 
     // Return to the current process.
-    assert(this->state_ == proc::runnable);
+    // If exception arrived in user mode, the process must be runnable.
+    assert((regs->reg_cs & 3) == 0 || this->state_ == proc::runnable);
 }
 
 
