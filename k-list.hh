@@ -67,6 +67,9 @@ struct list {
     // If `position == nullptr`, insert at tail
     inline void insert(T* position, T* x);
 
+    // Swap the contents of this list with those of `other`.
+    inline void swap(list<T, member>& other);
+
 
 private:
     static constexpr size_t member_offset() {
@@ -187,6 +190,20 @@ inline void list<T, member>::erase(T* x) {
 template <typename T, list_links (T::* member)>
 inline void list<T, member>::insert(T* position, T* x) {
     (x->*member).insert_before(position ? &head_ : &(position->*member));
+}
+
+template <typename T, list_links (T::* member)>
+inline void list<T, member>::swap(list<T, member>& other) {
+    list_links x, *p1, *p2;
+    p1 = head_.next_;
+    p2 = head_.prev_;
+    p1->prev_ = p2->next_ = &other.head_;
+    p1 = other.head_.next_;
+    p2 = other.head_.prev_;
+    p1->prev_ = p2->next_ = &head_;
+    memcpy(&x, &head_, sizeof(x));
+    memcpy(&head_, &other.head_, sizeof(x));
+    memcpy(&other.head_, &x, sizeof(x));
 }
 
 #endif
