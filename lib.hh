@@ -216,6 +216,7 @@ inline bool is_error(uintptr_t r) {
 #define OF_READ                 1
 #define OF_WRITE                2
 #define OF_CREATE               4
+#define OF_CREAT                OF_CREATE     // ¯\_(ツ)_/¯
 #define OF_TRUNC                8
 
 // sys_lseek() origins
