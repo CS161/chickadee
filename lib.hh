@@ -94,7 +94,7 @@ inline constexpr T max(T a, T b) {
 }
 
 // msb(x)
-//    Return index of most significant bit in `x`, plus one.
+//    Return index of most significant one bit in `x`, plus one.
 //    Returns 0 if `x == 0`.
 inline constexpr int msb(int x) {
     return x ? sizeof(x) * 8 - __builtin_clz(x) : 0;
@@ -113,6 +113,28 @@ inline constexpr int msb(long long x) {
 }
 inline constexpr int msb(unsigned long long x) {
     return x ? sizeof(x) * 8 - __builtin_clzll(x) : 0;
+}
+
+// lsb(x)
+//    Return index of least significant one bit in `x`, plus one.
+//    Returns 0 if `x == 0`.
+inline constexpr int lsb(int x) {
+    return __builtin_ffs(x);
+}
+inline constexpr int lsb(unsigned x) {
+    return __builtin_ffs(x);
+}
+inline constexpr int lsb(long x) {
+    return __builtin_ffsl(x);
+}
+inline constexpr int lsb(unsigned long x) {
+    return __builtin_ffsl(x);
+}
+inline constexpr int lsb(long long x) {
+    return __builtin_ffsll(x);
+}
+inline constexpr int lsb(unsigned long long x) {
+    return __builtin_ffsll(x);
 }
 
 // rounddown_pow2(x)
