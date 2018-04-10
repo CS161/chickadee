@@ -113,6 +113,28 @@ void bufcache::put_block(void* buf) {
 }
 
 
+// bufcache::sync(drop)
+//    Write all dirty buffers to disk (blocking until complete).
+//    Additionally free all buffer cache contents, except referenced
+//    blocks, if `drop` is true.
+
+int bufcache::sync(bool drop) {
+    // Write dirty buffers to disk: your code here!
+
+    if (drop) {
+        auto irqs = lock_.lock();
+        for (size_t i = 0; i != ne; ++i) {
+            if (e_[i].bn_ != emptyblock && !e_[i].ref_) {
+                kfree(e_[i].buf_);
+                e_[i].clear();
+            }
+        }
+        lock_.unlock(irqs);
+    }
+
+    return 0;
+}
+
 
 // clean_inode_block(buf)
 //    This function is called when loading an inode block into the

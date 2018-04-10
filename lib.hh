@@ -166,6 +166,10 @@ inline uint32_t crc32c(const void* buf, size_t sz) {
 #define SYSCALL_OPEN            107
 #define SYSCALL_UNLINK          108
 #define SYSCALL_READDISKFILE    109
+#define SYSCALL_SYNC            110
+#define SYSCALL_LSEEK           111
+#define SYSCALL_FTRUNCATE       112
+#define SYSCALL_RENAME          113
 
 
 // System call error return values
@@ -213,6 +217,12 @@ inline bool is_error(uintptr_t r) {
 #define OF_WRITE                2
 #define OF_CREATE               4
 #define OF_TRUNC                8
+
+// sys_lseek() origins
+#define LSEEK_SET               0    // Seek from beginning of file
+#define LSEEK_CUR               1    // Seek from current position
+#define LSEEK_END               2    // Seek from end of file
+#define LSEEK_SIZE              3    // Do not seek; return file size
 
 
 // Console printing

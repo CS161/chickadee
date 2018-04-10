@@ -44,6 +44,8 @@ struct bufcache {
                          clean_block_function cleaner = nullptr);
     void put_block(void* pg);
 
+    int sync(bool drop);
+
  private:
     static bufcache bc;
 

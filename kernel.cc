@@ -269,6 +269,9 @@ uintptr_t proc::syscall(regstate* regs) {
         return chickadeefs_read_file_data(filename, buf, sz, off);
     }
 
+    case SYSCALL_SYNC:
+        return bufcache::get().sync(regs->reg_rdi != 0);
+
     default:
         // no such system call
         log_printf("%d: no such system call %u\n", pid_, regs->reg_rax);

@@ -177,6 +177,7 @@ inline int sys_close(int fd) {
 //    Open a new file descriptor for pathname `path`. `flags` should
 //    contain at least one of `OF_READ` and `OF_WRITE`.
 inline int sys_open(const char* path, int flags) {
+    access_memory(path);
     return syscall0(SYSCALL_OPEN, reinterpret_cast<uintptr_t>(path),
                     flags);
 }
@@ -199,6 +200,8 @@ inline int sys_pipe(int pfd[2]) {
 //    only on failure.
 inline int sys_execv(const char* program_name, const char* const* argv,
                      size_t argc) {
+    access_memory(program_name);
+    access_memory(argv);
     return syscall0(SYSCALL_EXECV,
                     reinterpret_cast<uintptr_t>(program_name),
                     reinterpret_cast<uintptr_t>(argv), argc);
@@ -219,6 +222,7 @@ inline int sys_execv(const char* program_name, const char* const* argv) {
 // sys_unlink(pathname)
 //    Remove the file named `pathname`.
 inline int sys_unlink(const char* pathname) {
+    access_memory(pathname);
     return syscall0(SYSCALL_UNLINK, reinterpret_cast<uintptr_t>(pathname));
 }
 
@@ -232,6 +236,39 @@ inline ssize_t sys_readdiskfile(const char* filename,
     return syscall0(SYSCALL_READDISKFILE,
                     reinterpret_cast<uintptr_t>(filename),
                     reinterpret_cast<uintptr_t>(buf), sz, off);
+}
+
+// sys_sync(drop)
+//    Synchronize all modified buffer cache contents to disk. If
+//    `drop` is true, then additionally drop all buffer cache contents,
+//    so that future reads start from an empty cache.
+inline int sys_sync(int drop = 0) {
+    return syscall0(SYSCALL_SYNC, drop);
+}
+
+// sys_lseek(fd, offset, origin)
+//    Set the current file position for `fd` to `off`, relative to
+//    `origin` (one of the `LSEEK_` constants). Returns the new file
+//    position (or, for `LSEEK_SIZE`, the file size).
+inline ssize_t sys_lseek(int fd, size_t off, int origin) {
+    return syscall0(SYSCALL_LSEEK, fd, off, origin);
+}
+
+// sys_ftruncate(fd, len)
+//    Set the size of file `fd` to `sz`. If the file was previously
+//    larger, the extra data is lost; if it was shorter, it is extended
+//    with zero bytes.
+inline int sys_ftruncate(int fd, size_t sz) {
+    return syscall0(SYSCALL_FTRUNCATE, fd, sz);
+}
+
+// sys_rename(oldpath, newpath)
+//    Rename the file with name `oldpath` to `newpath`.
+inline int sys_rename(const char* oldpath, const char* newpath) {
+    access_memory(oldpath);
+    access_memory(newpath);
+    return syscall0(SYSCALL_RENAME, reinterpret_cast<uintptr_t>(oldpath),
+                    reinterpret_cast<uintptr_t>(newpath));
 }
 
 // sys_panic(msg)
