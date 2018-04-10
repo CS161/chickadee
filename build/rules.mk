@@ -147,7 +147,7 @@ always:
 	@:
 
 # These targets don't correspond to files
-.PHONY: all always clean realclean distclean \
+.PHONY: all always clean realclean distclean cleanfs \
 	run run-graphic run-console run-monitor \
 	run-gdb run-gdb-graphic run-gdb-console \
 	check-qemu kill \

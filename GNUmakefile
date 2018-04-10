@@ -103,14 +103,13 @@ DISKFS_CONTENTS = $(shell find diskfs -type f -not -name '\#*\#' -not -name '*~'
 
 
 # Define `CHICKADEE_FIRST_PROCESS` if appropriate
-ifneq ($(filter run-%,$(MAKECMDGOALS)),)
-ifeq ($(words $(MAKECMDGOALS)),1)
-RUNCMD_LASTWORD := $(lastword $(subst -, ,$(MAKECMDGOALS)))
+RUNCMD_LASTWORD := $(filter run-%,$(MAKECMDGOALS))
+ifeq ($(words $(RUNCMD_LASTWORD)),1)
+RUNCMD_LASTWORD := $(lastword $(subst -, ,$(RUNCMD_LASTWORD)))
 ifneq ($(filter obj/p-$(RUNCMD_LASTWORD),$(INITFS_CONTENTS)),)
 RUNSUFFIX := $(RUNCMD_LASTWORD)
 CHICKADEE_FIRST_PROCESS := $(RUNCMD_LASTWORD)
 CPPFLAGS += -DCHICKADEE_FIRST_PROCESS='"$(CHICKADEE_FIRST_PROCESS)"'
-endif
 endif
 endif
 
@@ -214,6 +213,9 @@ chickadeefs.img: $(OBJDIR)/mkchickadeefs \
 	$(OBJDIR)/bootsector $(OBJDIR)/kernel $(DISKFS_CONTENTS) \
 	$(DISKFS_BUILDSTAMP)
 	$(call run,$(OBJDIR)/mkchickadeefs -b 32768 -f 16 -s $(OBJDIR)/bootsector $(OBJDIR)/kernel $(DISKFS_CONTENTS) > $@,CREATE $@)
+
+cleanfs:
+	rm -f chickadeefs.img
 
 
 # How to run QEMU

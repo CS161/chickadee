@@ -70,11 +70,13 @@ void process_main() {
     assert_eq(n, 4);
     assert_memeq(buf, " by,", 4);
 
+    // cannot write fd open only for reading
     n = sys_write(f, "!", 1);
-    assert_lt(n, 0);
+    assert_eq(n, E_BADF);
 
+    // cannot read fd open only for writing
     n = sys_read(wf, buf, 1);
-    assert_lt(n, 0);
+    assert_eq(n, E_BADF);
 
     sys_close(f);
     sys_close(wf);
