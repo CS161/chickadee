@@ -95,7 +95,7 @@ void process_main() {
     console_printf("child tests...\n");
 
     pid_t p = sys_fork();
-    assert(p >= 0);
+    assert_ge(p, 0);
 
     if (p == 0) {
         x = sys_close(pfd[1]);
@@ -171,7 +171,7 @@ void process_main() {
     assert_eq(n, 5);
 
     p = sys_fork();
-    assert(p >= 0);
+    assert_ge(p, 0);
 
     if (p == 0) {
         n = sys_read(pfd[0], buf, 100);

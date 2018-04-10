@@ -4,8 +4,7 @@ void process_main() {
     sys_kdisplay(KDISPLAY_NONE);
 
     int f = sys_open("emerson.txt", OF_READ);
-    assert(f >= 0);
-    assert(f > 2);
+    assert_gt(f, 2);
 
     char buf[200];
     ssize_t n = sys_read(f, buf, 1);
@@ -38,7 +37,7 @@ void process_main() {
         ++f3;
     }
     int r = sys_dup2(f, f3);
-    assert(r >= 0);
+    assert_ge(r, 0);
 
     n = sys_read(f, buf, 10);
     assert_eq(n, 10);
@@ -96,7 +95,7 @@ void process_main() {
 
     strcpy(page, "emerson.txt");
     f = sys_open(page, OF_READ);
-    assert(f > 2);
+    assert_gt(f, 2);
 
     n = sys_read(f, buf, 4);
     assert_eq(n, 4);

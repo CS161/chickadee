@@ -28,7 +28,9 @@ void process_main() {
     assert_eq(r, E_BADF);
 
     r = sys_dup2(2, 3);
-    assert_eq(r, 0);
+    if (r != 0) {
+        assert_eq(r, 3);
+    }
 
     r = fdprintf(3, "3\n");
     assert_gt(r, 0);
@@ -40,7 +42,9 @@ void process_main() {
     assert_eq(r, E_BADF);
 
     r = sys_dup2(2, 3);
-    assert_eq(r, 0);
+    if (r != 0) {
+        assert_eq(r, 3);
+    }
 
     r = fdprintf(3, "4\n");
     assert_gt(r, 0);
@@ -52,7 +56,9 @@ void process_main() {
     assert_gt(r, 0);
 
     r = sys_dup2(3, 3);
-    assert_eq(r, 0);
+    if (r != 0) {
+        assert_eq(r, 3);
+    }
 
     r = fdprintf(3, "6\n");
     assert_gt(r, 0);
@@ -70,7 +76,9 @@ void process_main() {
     assert_eq(r, 0);
 
     r = sys_dup2(3, 2);
-    assert_eq(r, 0);
+    if (r != 0) {
+        assert_eq(r, 2);
+    }
 
     r = sys_dup2(2, 0);
     assert_eq(r, 0);

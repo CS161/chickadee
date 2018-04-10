@@ -26,7 +26,7 @@ void process_main() {
 
         int status = 0;
         pid_t ch = sys_waitpid(0, &status, W_NOHANG);
-        assert(ch > 0);
+        assert_gt(ch, 0);
 
         size_t idx = 0;
         while (idx != arraysize(order) && children[idx] != ch) {

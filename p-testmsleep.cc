@@ -11,7 +11,7 @@ void process_main() {
     int my_idx = 0;
     for (int i = 0; i < 3; ++i) {
         pid_t f = sys_fork();
-        assert(f >= 0);
+        assert_ge(f, 0);
         my_idx = (my_idx * 2) + (f == 0);
     }
 
