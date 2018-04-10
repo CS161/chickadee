@@ -3,6 +3,8 @@
 void process_main() {
     sys_kdisplay(KDISPLAY_NONE);
 
+    sys_write(1, "Starting testwritefs (assuming clean file system)...\n", 53);
+
     // read file
     int f = sys_open("emerson.txt", OF_READ);
     assert_gt(f, 2);
