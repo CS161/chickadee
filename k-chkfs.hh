@@ -44,6 +44,8 @@ struct bufcache {
                          clean_block_function cleaner = nullptr);
     void put_block(void* pg);
 
+    bufentry* find_entry(void* data);
+
     int sync(bool drop);
 
  private:

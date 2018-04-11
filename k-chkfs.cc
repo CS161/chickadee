@@ -83,33 +83,44 @@ void* bufcache::get_disk_block(chickadeefs::blocknum_t bn,
 }
 
 
+// bufcache::find_entry(buf)
+//    Return the `bufentry` containing pointer `buf`. This entry
+//    must have a nonzero `ref_`.
+
+bufentry* bufcache::find_entry(void* buf) {
+    if (buf) {
+        buf = ROUNDDOWN(buf, chickadeefs::blocksize);
+
+        // Synchronization is not necessary!
+        // 1. The relevant entry has nonzero `ref_`, so its `buf_`
+        //    will not change.
+        // 2. No other entry has the same `buf_` because nonempty
+        //    entries have unique `buf_`s.
+        // (XXX Really, though, `buf_` should be std::atomic<void*>.)
+        for (size_t i = 0; i != ne; ++i) {
+            if (e_[i].buf_ == buf) {
+                return &e_[i];
+            }
+        }
+        assert(false);
+    }
+    return nullptr;
+}
+
+
 // bufcache::put_block(buf)
 //    Decrement the reference count for buffer cache block `buf`.
 
 void bufcache::put_block(void* buf) {
-    if (!buf) {
-        return;
-    }
-
-    auto irqs = lock_.lock();
-
-    // find block
-    size_t i;
-    for (i = 0; i != ne; ++i) {
-        if (e_[i].ref_ != 0 && e_[i].buf_ == buf) {
-            break;
+    if (bufentry* e = find_entry(buf)) {
+        auto irqs = e->lock_.lock();
+        --e->ref_;
+        if (e->ref_ == 0) {
+            kfree(e->buf_);
+            e->clear();
         }
+        e->lock_.unlock(irqs);
     }
-    assert(i != ne);
-
-    // drop reference
-    --e_[i].ref_;
-    if (e_[i].ref_ == 0) {
-        kfree(e_[i].buf_);
-        e_[i].clear();
-    }
-
-    lock_.unlock(irqs);
 }
 
 
