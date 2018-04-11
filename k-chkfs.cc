@@ -224,7 +224,8 @@ chickadeefs::inode* chkfsstate::get_inode(inum_t inum) {
     chickadeefs::inode* ino = nullptr;
     if (inum > 0 && inum < ninodes) {
         ino = reinterpret_cast<inode*>
-            (bc.get_disk_block(inode_bn + inum / chickadeefs::inodesperblock));
+            (bc.get_disk_block(inode_bn + inum / chickadeefs::inodesperblock,
+                               clean_inode_block));
     }
     if (ino != nullptr) {
         ino += inum % chickadeefs::inodesperblock;
