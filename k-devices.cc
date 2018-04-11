@@ -231,7 +231,7 @@ void console_show_cursor(int cpos) {
 }
 
 
-// memfile functions and initial contents
+// memfile functions
 
 memfile* memfile::initfs_lookup(const char* name, size_t namelen) {
     for (memfile* f = initfs; f != initfs + initfs_size; ++f) {
