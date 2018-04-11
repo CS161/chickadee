@@ -44,7 +44,7 @@ KERNEL_OBJS = $(OBJDIR)/k-exception.ko \
 	$(OBJDIR)/k-init.ko $(OBJDIR)/k-hardware.ko $(OBJDIR)/k-mpspec.ko \
 	$(OBJDIR)/k-devices.ko $(OBJDIR)/k-cpu.ko $(OBJDIR)/k-proc.ko \
 	$(OBJDIR)/crc32c.ko $(OBJDIR)/k-chkfs.ko \
-	$(OBJDIR)/k-memviewer.ko $(OBJDIR)/lib.ko
+	$(OBJDIR)/k-memviewer.ko $(OBJDIR)/lib.ko $(OBJDIR)/k-initfs.ko
 
 PROCESS_LIB_OBJS = $(OBJDIR)/lib.o $(OBJDIR)/p-lib.o
 PROCESS_OBJS = $(PROCESS_LIB_OBJS) \
@@ -149,7 +149,8 @@ $(OBJDIR)/k-initfs.cc: build/mkinitfs.awk \
 	$(INITFS_CONTENTS) $(INITFS_BUILDSTAMP) $(KERNELBUILDSTAMPS)
 	$(call run,echo $(INITFS_CONTENTS) | awk -f build/mkinitfs.awk >,CREATE,$@)
 
-$(OBJDIR)/k-devices.ko: $(OBJDIR)/k-initfs.cc
+$(OBJDIR)/k-initfs.ko: $(OBJDIR)/k-initfs.cc
+	$(call cxxcompile,$(KERNELCXXFLAGS) -O2 -DCHICKADEE_KERNEL -mcmodel=kernel -c $< -o $@,COMPILE $<)
 
 
 # How to make binaries and the boot sector

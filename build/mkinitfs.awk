@@ -1,5 +1,6 @@
 BEGIN {
-    OFS = ""; files = ""
+    OFS = ""; files = "";
+    print "#include \"k-devices.hh\"";
 }
 {
     for (i = 1; i <= NF; ++i) {
