@@ -14,9 +14,7 @@ void process_main(int argc, char** argv) {
     while (1) {
         ssize_t n = sys_readdiskfile(filename, buf, sizeof(buf), off);
         if (n < 0) {
-            char err[100];
-            n = snprintf(err, sizeof(err), "%s: error %d\n", filename, int(n));
-            sys_write(2, err, n);
+            dprintf(2, "%s: error %d\n", filename, int(n));
             sys_exit(1);
         } else if (n == 0) {
             break;

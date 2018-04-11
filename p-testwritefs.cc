@@ -3,9 +3,11 @@
 void process_main() {
     sys_kdisplay(KDISPLAY_NONE);
 
-    sys_write(1, "Starting testwritefs (assuming clean file system)...\n", 53);
+    printf("Starting testwritefs (assuming clean file system)...\n");
 
     // read file
+    printf("%s:%d: read\n", __FILE__, __LINE__);
+
     int f = sys_open("emerson.txt", OF_READ);
     assert_gt(f, 2);
 
@@ -21,6 +23,8 @@ void process_main() {
 
 
     // overwrite start of file
+    printf("%s:%d: overwrite start\n", __FILE__, __LINE__);
+
     f = sys_open("emerson.txt", OF_WRITE);
     assert_gt(f, 2);
 
@@ -44,6 +48,8 @@ void process_main() {
 
 
     // read & write same file
+    printf("%s:%d: read and write\n", __FILE__, __LINE__);
+
     f = sys_open("emerson.txt", OF_READ);
     assert_gt(f, 2);
 
@@ -85,6 +91,8 @@ void process_main() {
 
 
     // read & write same file with combination flags
+    printf("%s:%d: read|write\n", __FILE__, __LINE__);
+
     f = sys_open("emerson.txt", OF_READ);
     assert_gt(f, 2);
 
@@ -120,11 +128,15 @@ void process_main() {
 
 
     // synchronize disk
+    printf("%s:%d: sync\n", __FILE__, __LINE__);
+
     int r = sys_sync(1);
     assert_ge(r, 0);
 
 
     // read again, this time from disk
+    printf("%s:%d: read\n", __FILE__, __LINE__);
+
     f = sys_open("emerson.txt", OF_READ);
     assert_gt(f, 2);
 
@@ -138,90 +150,6 @@ void process_main() {
     sys_close(f);
 
 
-    // truncate file
-    f = sys_open("emerson.txt", OF_WRITE | OF_TRUNC);
-    assert_gt(f, 2);
-
-    n = sys_write(f, "CLARE ROJAS WAS HERE", 20);
-    assert_eq(n, 20);
-
-    sys_close(f);
-
-
-    f = sys_open("emerson.txt", OF_READ);
-    assert_gt(f, 2);
-
-    memset(buf, 0, sizeof(buf));
-    n = sys_read(f, buf, 200);
-    assert_eq(n, 20);
-    assert_memeq(buf, "CLARE ROJAS WAS HERE", 20);
-
-    sys_close(f);
-
-
-    // create file
-    f = sys_open("geisel.txt", OF_WRITE);
-    assert_lt(f, 0);
-    assert_eq(f, E_NOENT);
-
-    f = sys_open("geisel.txt", OF_WRITE);
-    assert_lt(f, 0);
-
-    f = sys_open("geisel.txt", OF_WRITE | OF_CREATE);
-    assert_gt(f, 2);
-
-    n = sys_write(f, "Why, girl, you're insane!\n"
-                  "Elephants don't hatch chickadee eggs!\n", 64);
-    assert_eq(n, 64);
-
-    sys_close(f);
-
-
-    f = sys_open("geisel.txt", OF_READ);
-    assert_gt(f, 2);
-
-    memset(buf, 0, sizeof(buf));
-    n = sys_read(f, buf, 200);
-    assert_eq(n, 64);
-    assert_memeq(buf, "Why, girl, you're insane!\n"
-                 "Elephants don't hatch chickadee eggs!\n", 64);
-
-    sys_close(f);
-
-
-    // read & write same file
-    f = sys_open("geisel.txt", OF_READ);
-    assert_gt(f, 2);
-
-    wf = sys_open("geisel.txt", OF_WRITE);
-    assert_gt(wf, 2);
-    assert_ne(wf, f);
-
-    memset(buf, 0, sizeof(buf));
-    n = sys_read(f, buf, 4);
-    assert_eq(n, 4);
-    assert_memeq(buf, "Why,", 4);
-
-    n = sys_write(wf, "Am I scaring you tonight?", 25);
-    assert_eq(n, 25);
-
-    memset(buf, 0, sizeof(buf));
-    n = sys_read(f, buf, 25);
-    assert_eq(n, 25);
-    assert_memeq(buf, " scaring you tonight?\nEle", 25);
-
-    n = sys_write(wf, "!", 1);
-    assert_eq(n, 1);
-
-    memset(buf, 0, sizeof(buf));
-    n = sys_read(f, buf, 5);
-    assert_eq(n, 5);
-    assert_memeq(buf, "phant", 5);
-
-    sys_close(f);
-    sys_close(wf);
-
-
-    console_printf("testwritefs succeeded.\n");
+    printf("testwritefs succeeded.\n");
     sys_exit(0);
 }

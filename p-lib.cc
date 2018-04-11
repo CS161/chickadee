@@ -1,24 +1,35 @@
 #include "p-lib.hh"
 
-// app_printf
-//     A version of console_printf that picks a sensible color by process ID.
+// dprintf
+//    Construct a string from `format` and pass it to `sys_write(fd)`.
+//    Returns the number of characters printed, or E_2BIG if the string
+//    could not be constructed.
 
-void app_printf(int colorid, const char* format, ...) {
-    int color;
-    if (colorid < 0) {
-        color = 0x0700;
-    } else {
-        static const uint8_t col[] = { 0x0E, 0x0F, 0x0C, 0x0A, 0x09 };
-        color = col[colorid % sizeof(col)] << 8;
-    }
-
+int dprintf(int fd, const char* format, ...) {
+    char buf[1025];
     va_list val;
     va_start(val, format);
-    cursorpos = console_vprintf(cursorpos, color, format, val);
-    va_end(val);
+    size_t n = vsnprintf(buf, sizeof(buf), format, val);
+    if (n < sizeof(buf)) {
+        return sys_write(fd, buf, n);
+    } else {
+        return E_2BIG;
+    }
+}
 
-    if (CROW(cursorpos) >= 23) {
-        cursorpos = CPOS(0, 0);
+
+// printf
+//    Like `printf(1, ...)`.
+
+int printf(const char* format, ...) {
+    char buf[1025];
+    va_list val;
+    va_start(val, format);
+    size_t n = vsnprintf(buf, sizeof(buf), format, val);
+    if (n < sizeof(buf)) {
+        return sys_write(1, buf, n);
+    } else {
+        return E_2BIG;
     }
 }
 

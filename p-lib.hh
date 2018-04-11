@@ -280,12 +280,14 @@ static inline pid_t __attribute__((noreturn)) sys_panic(const char* msg) {
 }
 
 
-// OTHER HELPER FUNCTIONS
+// dprintf(fd, format, ...)
+//    Construct a string from `format` and pass it to `sys_write(fd)`.
+//    Returns the number of characters printed, or E_2BIG if the string
+//    could not be constructed.
+int dprintf(int fd, const char* format, ...);
 
-// app_printf(format, ...)
-//    Calls console_printf() (see lib.h). The cursor position is read from
-//    `cursorpos`, a shared variable defined by the kernel, and written back
-//    into that variable. The initial color is based on the current process ID.
-void app_printf(int colorid, const char* format, ...);
+// printf(format, ...)
+//    Like `dprintf(1, format, ...)`.
+int printf(const char* format, ...);
 
 #endif

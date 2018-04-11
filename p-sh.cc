@@ -129,10 +129,7 @@ static void child_redirect(int fd, char* pathname) {
     }
     int r = sys_open(pathname, flags);
     if (r < 0) {
-        char buf[120];
-        int n = snprintf(buf, sizeof(buf), "%s: error %d\n",
-                         pathname, r);
-        sys_write(2, buf, n);
+        dprintf(2, "%s: error %d\n", pathname, r);
         sys_exit(1);
     }
     if (r != fd) {

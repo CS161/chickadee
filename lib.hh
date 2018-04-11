@@ -24,8 +24,8 @@ int strncmp(const char* a, const char* b, size_t maxlen);
 char* strchr(const char* s, int c);
 long strtol(const char* s, char** endptr = nullptr, int base = 0);
 unsigned long strtoul(const char* s, char** endptr = nullptr, int base = 0);
-int snprintf(char* s, size_t size, const char* format, ...);
-int vsnprintf(char* s, size_t size, const char* format, va_list val);
+ssize_t snprintf(char* s, size_t size, const char* format, ...);
+ssize_t vsnprintf(char* s, size_t size, const char* format, va_list val);
 inline bool isspace(unsigned char c);
 }
 

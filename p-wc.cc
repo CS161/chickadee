@@ -45,9 +45,7 @@ void process_main(int argc, char** argv) {
         if (argno < argc && strcmp(argv[argno], "-") != 0) {
             fd = sys_open(argv[argno], OF_READ);
             if (fd < 0) {
-                int n = snprintf(buf, sizeof(buf), "%s: error %d\n",
-                                 argv[argno]);
-                sys_write(2, buf, n);
+                dprintf(2, "%s: error %d\n", argv[argno], fd);
                 sys_exit(1);
             }
             newfd = true;

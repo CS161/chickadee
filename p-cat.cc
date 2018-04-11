@@ -9,9 +9,7 @@ void process_main(int argc, char** argv) {
         if (i < argc && strcmp(argv[i], "-") != 0) {
             f = sys_open(argv[i], OF_READ);
             if (f < 0) {
-                int n = snprintf(buf, sizeof(buf), "%s: error %d\n",
-                                 argv[i], f);
-                sys_write(1, buf, n);
+                dprintf(2, "%s: error %d\n", argv[i], f);
                 sys_exit(1);
             }
         }

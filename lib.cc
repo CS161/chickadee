@@ -500,6 +500,7 @@ typedef struct string_printer {
     printer p;
     char* s;
     char* end;
+    size_t n;
 } string_printer;
 
 static void string_putc(printer* p, unsigned char c, int color) {
@@ -507,22 +508,26 @@ static void string_putc(printer* p, unsigned char c, int color) {
     if (sp->s < sp->end) {
         *sp->s++ = c;
     }
+    ++sp->n;
     (void) color;
 }
 
-int vsnprintf(char* s, size_t size, const char* format, va_list val) {
+ssize_t vsnprintf(char* s, size_t size, const char* format, va_list val) {
     string_printer sp;
     sp.p.putc = string_putc;
     sp.s = s;
-    if (size) {
-        sp.end = s + size - 1;
-        printer_vprintf(&sp.p, 0, format, val);
+    sp.end = s + size;
+    sp.n = 0;
+    printer_vprintf(&sp.p, 0, format, val);
+    if (size && sp.s < sp.end) {
         *sp.s = 0;
+    } else if (size) {
+        sp.end[-1] = 0;
     }
-    return sp.s - s;
+    return sp.n;
 }
 
-int snprintf(char* s, size_t size, const char* format, ...) {
+ssize_t snprintf(char* s, size_t size, const char* format, ...) {
     va_list val;
     va_start(val, format);
     int n = vsnprintf(s, size, format, val);
