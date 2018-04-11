@@ -289,7 +289,7 @@ unsigned char* chkfsstate::get_data_block(inode* ino, size_t off) {
         }
 
         if (indirbn != 0) {
-            auto indirect_data = bc.get_disk_block(databn);
+            auto indirect_data = bc.get_disk_block(indirbn);
             assert(indirect_data);
             databn = reinterpret_cast<chickadeefs::blocknum_t*>(indirect_data)
                 [bi % chickadeefs::nindirect];
