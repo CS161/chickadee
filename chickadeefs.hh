@@ -1,6 +1,11 @@
 #ifndef CHICKADEE_CHICKADEEFS_HH
 #define CHICKADEE_CHICKADEEFS_HH
 #include <atomic>
+#if defined(CHICKADEE_KERNEL) || defined(CHICKADEE_PROCESS)
+# include "lib.hh"
+#else
+# include <assert.h>
+#endif
 
 namespace chickadeefs {
 
@@ -31,12 +36,37 @@ static constexpr size_t maxindirect2size = maxindirectsize
     + nindirect * nindirect * blocksize;   // ... plus indirect2 block
 static constexpr size_t maxsize = maxindirect2size;
 
+// special block numbers
+static constexpr blocknum_t emptyblock = blocknum_t(-1);
+
 // directory entry information
 static constexpr size_t maxnamelen = 123;  // max strlen(name) supported
 
 // `inode::type` constants
 static constexpr uint32_t type_regular = 1;
 static constexpr uint32_t type_directory = 2;
+
+
+// bi_direct_index(bi)
+//    Return the direct block index for file block index `bi`.
+//    This is either an index into `inode::direct`, or an index
+//    into an indirect block.
+inline unsigned bi_direct_index(size_t bi) {
+    assert(bi < maxsize / blocksize);
+    if (bi < ndirect) {
+        return bi;
+    } else {
+        return (bi - ndirect) % nindirect;
+    }
+}
+
+// bi_indirect_index(bi)
+//    Return the indirect block index for file block index `bi`.
+//    This is an index into the indirect2 block.
+inline unsigned bi_indirect_index(size_t bi) {
+    assert(bi >= ndirect + nindirect && bi < maxsize / blocksize);
+    return (bi - ndirect - nindirect) / nindirect;
+}
 
 
 struct superblock {
