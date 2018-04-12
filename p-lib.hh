@@ -250,7 +250,7 @@ inline int sys_sync(int drop = 0) {
 //    Set the current file position for `fd` to `off`, relative to
 //    `origin` (one of the `LSEEK_` constants). Returns the new file
 //    position (or, for `LSEEK_SIZE`, the file size).
-inline ssize_t sys_lseek(int fd, size_t off, int origin) {
+inline ssize_t sys_lseek(int fd, ssize_t off, int origin) {
     return syscall0(SYSCALL_LSEEK, fd, off, origin);
 }
 
