@@ -56,12 +56,12 @@ static chickadeefs::superblock sb;
 
 enum blocktype {
     bunused = 0, bsuperblock, bswap, bfbb, binode,
-    bjournal, bfree, bdirectory, bregular, bindirect, bindirect2
+    bjournal, bfree, bdirectory, bdata, bindirect, bindirect2
 };
 
 static const char* const typenames[] = {
     "unused", "superblock", "swap", "fbb", "inode",
-    "journal", "free", "directory", "regular", "indirect", "indirect2"
+    "journal", "free", "directory", "data", "indirect", "indirect2"
 };
 
 struct blockinfo {
@@ -163,7 +163,7 @@ void inodeinfo::visit(const char* ref) {
         eprintf("%s: refers to inode number 0\n", ref);
     } else if (visits_ == 1) {
         chickadeefs::inode* in = get_inode();
-        type_ = bregular;
+        type_ = bdata;
         if (from_le(in->type) == chickadeefs::type_directory) {
             type_ = bdirectory;
         } else if (from_le(in->type) != chickadeefs::type_regular) {
