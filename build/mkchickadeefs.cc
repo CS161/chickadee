@@ -421,7 +421,9 @@ int main(int argc, char** argv) {
         }
     }
 
-    if (fclose(f) != 0) {
+    if (fflush(f) != 0
+        || ftruncate(fileno(f), sb.nblocks * blocksize) != 0
+        || fclose(f) != 0) {
         fprintf(stderr, "%s: %s\n", outfile, strerror(errno));
         exit(1);
     } else {
