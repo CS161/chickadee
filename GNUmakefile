@@ -46,7 +46,7 @@ KERNEL_OBJS = $(OBJDIR)/k-exception.ko \
 	$(OBJDIR)/crc32c.ko $(OBJDIR)/k-chkfs.ko \
 	$(OBJDIR)/k-memviewer.ko $(OBJDIR)/lib.ko $(OBJDIR)/k-initfs.ko
 
-PROCESS_LIB_OBJS = $(OBJDIR)/lib.o $(OBJDIR)/p-lib.o $(OBJDIR)/crc32c.o
+PROCESS_LIB_OBJS = $(OBJDIR)/lib.o $(OBJDIR)/p-lib.o $(OBJDIR)/crc32c.co
 PROCESS_OBJS = $(PROCESS_LIB_OBJS) \
 	$(OBJDIR)/p-allocator.o \
 	$(OBJDIR)/p-allocexit.o \
@@ -124,7 +124,10 @@ endif
 
 # How to make object files
 
-$(PROCESS_OBJS): $(OBJDIR)/%.o: %.cc $(BUILDSTAMPS)
+$(filter %.o,$(PROCESS_OBJS)): $(OBJDIR)/%.o: %.cc $(BUILDSTAMPS)
+	$(call cxxcompile,$(CXXFLAGS) -O1 -DCHICKADEE_PROCESS -c $< -o $@,COMPILE $<)
+
+$(OBJDIR)/%.co: %.cc $(BUILDSTAMPS)
 	$(call cxxcompile,$(CXXFLAGS) -O1 -DCHICKADEE_PROCESS -c $< -o $@,COMPILE $<)
 
 $(OBJDIR)/%.ko: %.cc $(KERNELBUILDSTAMPS)
