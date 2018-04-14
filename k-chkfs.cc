@@ -173,10 +173,12 @@ void inode::lock_read() {
     while (1) {
         if (v == uint32_t(-1)) {
             current()->yield();
+            v = mlock.load(std::memory_order_relaxed);
         } else if (mlock.compare_exchange_weak(v, v + 1,
                                                std::memory_order_acquire)) {
             return;
         } else {
+            // `compare_exchange_weak` already reloaded `v`
             pause();
         }
     }
