@@ -4,6 +4,7 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <getopt.h>
 #include <inttypes.h>
 #include <vector>
 #include <deque>
@@ -235,7 +236,7 @@ void inodeinfo::finish_visit() {
 void inodeinfo::visit_data(blocknum_t b, size_t idx, size_t sz) {
     if (b != 0) {
         if (verbose) {
-            ewprintf("  [%zu]: data block %u\n", idx, b);
+            printf("  [%zu]: data block %u\n", idx, b);
         }
         if (idx * blocksize >= sz) {
             ewprintf("inode %u @%s [%zu]: warning: dangling block reference\n",
@@ -311,7 +312,7 @@ void inodeinfo::visit_directory_data(blocknum_t b, size_t pos, size_t sz) {
 void inodeinfo::visit_indirect(blocknum_t b, size_t idx, size_t sz) {
     if (b != 0) {
         if (verbose) {
-            ewprintf("  [%zu]: indirect block %u\n", idx, b);
+            printf("  [%zu]: indirect block %u\n", idx, b);
         }
         if (idx * blocksize >= sz) {
             ewprintf("inode %u @%s [%zu]: warning: dangling indirect block reference\n",
@@ -341,7 +342,7 @@ void inodeinfo::visit_indirect(blocknum_t b, size_t idx, size_t sz) {
 void inodeinfo::visit_indirect2(blocknum_t b, size_t idx, size_t sz) {
     if (b != 0) {
         if (verbose) {
-            ewprintf("  [%zu]: indirect2 block %u\n", idx, b);
+            printf("  [%zu]: indirect2 block %u\n", idx, b);
         }
         if (idx * blocksize >= sz) {
             ewprintf("inode %u @%s [%zu]: warning: dangling indirect2 block reference\n",
@@ -376,8 +377,9 @@ struct ujournalreplayer : public chickadeefs::journalreplayer {
 
     ujournalreplayer(unsigned char* disk);
 
-    void error(unsigned bi, const char* text) override;
-    void write_block(unsigned bn, unsigned char* buf) override;
+    void message(unsigned bi, const char* format, ...) override;
+    void error(unsigned bi, const char* format, ...) override;
+    void write_block(uint16_t tid, unsigned bn, unsigned char* buf) override;
     void write_replay_complete() override;
 };
 
@@ -385,12 +387,37 @@ ujournalreplayer::ujournalreplayer(unsigned char* disk) {
     disk_ = disk;
 }
 
-void ujournalreplayer::error(unsigned bi, const char* text) {
-    eprintf("journal block %u/%u: %s\n", bi, sb.nblocks - sb.journal_bn,
-            text);
+void ujournalreplayer::message(unsigned bi, const char* format, ...) {
+    if (verbose) {
+        va_list val;
+        va_start(val, format);
+        printf("journal: ");
+        if (bi != -1U) {
+            printf("block %u/%u: ", bi, sb.njournal);
+        }
+        vprintf(format, val);
+        printf("\n");
+        va_end(val);
+    }
 }
 
-void ujournalreplayer::write_block(unsigned bn, unsigned char* buf) {
+void ujournalreplayer::error(unsigned bi, const char* format, ...) {
+    printf("journal: ");
+    if (bi != -1U) {
+        printf("block %u/%u: ", bi, sb.njournal);
+    }
+    va_list val;
+    va_start(val, format);
+    vprintf(format, val);
+    printf("\n");
+    va_end(val);
+    ++nerrors;
+}
+
+void ujournalreplayer::write_block(uint16_t tid, unsigned bn, unsigned char* buf) {
+    if (verbose) {
+        printf("journal transaction %u: replaying block %u\n", tid, bn);
+    }
     memcpy(disk_ + bn * blocksize, buf, blocksize);
 }
 
@@ -403,9 +430,9 @@ void ujournalreplayer::write_replay_complete() {
 
 static void replay_journal() {
     // copy journal
-    size_t jsz = (sb.nblocks - sb.journal_bn) * blocksize;
+    size_t jsz = sb.njournal * blocksize;
     unsigned char* jcopy = new unsigned char[jsz];
-    memcpy(jcopy, data + sb.nblocks * blocksize, jsz);
+    memcpy(jcopy, data + sb.journal_bn * blocksize, jsz);
 
     // replay it
     ujournalreplayer ujr(data);
@@ -415,28 +442,56 @@ static void replay_journal() {
 }
 
 
-static void usage() {
-    fprintf(stderr, "Usage: chickadeefsck [-V] [-r] [IMAGE]\n");
-    exit(1);
+static void __attribute__((noreturn)) usage() {
+    fprintf(stderr, "Usage: chickadeefsck [-V] [-s | --no-journal] [IMAGE]\n");
+    exit(2);
 }
+
+static void __attribute__((noreturn)) help() {
+    printf("Usage: chickadeefsck [-V] [-s | --no-journal] [IMAGE]\n\
+Check the ChickadeeFS IMAGE for errors and exit with a status code\n\
+indicating success.\n\
+\n\
+  --verbose, -V          print information about IMAGE\n\
+  --save-journal, -s     replay journal into IMAGE\n\
+  --no-journal           do not replay journal before checking image\n\
+  --help                 display this help and exit\n");
+    exit(0);
+}
+
+static struct option options[] = {
+    { "verbose", no_argument, nullptr, 'V' },
+    { "save", no_argument, nullptr, 's' },
+    { "save-journal", no_argument, nullptr, 's' },
+    { "no-journal", no_argument, nullptr, 'x' },
+    { "help", no_argument, nullptr, 'h' },
+    { nullptr, 0, nullptr, 0 }
+};
 
 int main(int argc, char** argv) {
     bool replay = false;
+    bool no_journal = false;
 
     int opt;
-    while ((opt = getopt(argc, argv, "Vr")) != -1) {
+    while ((opt = getopt_long(argc, argv, "Vs", options, nullptr)) != -1) {
         switch (opt) {
         case 'V':
             verbose = true;
             break;
-        case 'r':
+        case 's':
             replay = true;
             break;
+        case 'x':
+            no_journal = true;
+            break;
+        case 'h':
+            help();
         default:
             usage();
         }
     }
-    if (optind != argc && optind + 1 != argc) {
+    if ((optind != argc && optind + 1 != argc)
+        || (replay && no_journal)) {
         usage();
     }
 
@@ -445,11 +500,15 @@ int main(int argc, char** argv) {
     int fd = STDIN_FILENO;
     if (optind + 1 == argc && strcmp(argv[optind], "-") != 0) {
         filename = argv[optind];
-        fd = open(filename, O_RDONLY);
+        fd = open(filename, replay ? O_RDWR : O_RDONLY);
         if (fd == -1) {
             fprintf(stderr, "%s: %s\n", filename, strerror(errno));
-            exit(1);
+            exit(2);
         }
+    }
+    if (isatty(fd)) {
+        fprintf(stderr, "%s: Is a terminal\n", filename);
+        usage();
     }
 
     struct stat s;
@@ -465,8 +524,9 @@ int main(int argc, char** argv) {
     }
     if (data == reinterpret_cast<unsigned char*>(MAP_FAILED)) {
         if (replay) {
-            fprintf(stderr, "can't modify file to replay journal\n");
-            exit(1);
+            fprintf(stderr, "%s: %s (cannot save journal)\n",
+                    filename, strerror(errno));
+            exit(2);
         }
         size = 0;
         size_t capacity = 16384;
@@ -484,7 +544,7 @@ int main(int argc, char** argv) {
                 break;
             } else if (r == -1 && errno != EAGAIN) {
                 fprintf(stderr, "%s: %s\n", filename, strerror(errno));
-                exit(1);
+                exit(2);
             } else if (r > 0) {
                 size += r;
             }
@@ -560,7 +620,7 @@ int main(int argc, char** argv) {
     fbb = data + sb.fbb_bn * blocksize;
 
     // check journal
-    if (sb.journal_bn < sb.nblocks) {
+    if (sb.journal_bn < sb.nblocks && !no_journal) {
         replay_journal();
     }
 

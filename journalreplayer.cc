@@ -42,7 +42,10 @@ bool journalreplayer::analyze(unsigned char* jd, unsigned nblocks) {
     for (unsigned bi = 0; bi != nb_; ++bi) {
         analyze_block(bi);
     }
-    if (!ok_ || !nmr_) {
+    if (!ok_) {
+        return false;
+    } else if (!nmr_) {
+        message(-1U, "no metablocks found");
         return false;
     }
 
@@ -61,37 +64,37 @@ bool journalreplayer::analyze(unsigned char* jd, unsigned nblocks) {
                 error(mr_[mi].bi, "duplicate journal seqno");
                 ok_ = false;
             }
-            if (tiddiff_t(cur->commit_boundary - last->commit_boundary) < 0) {
+            if (tid_lt(cur->commit_boundary, last->commit_boundary)) {
                 error(mr_[mi].bi, "journal commit_boundary backtracked");
                 ok_ = false;
             }
-            if (tiddiff_t(cur->complete_boundary - last->complete_boundary) < 0) {
+            if (tid_lt(cur->complete_boundary, last->complete_boundary)) {
                 error(mr_[mi].bi, "journal complete_boundary backtracked");
                 ok_ = false;
             }
         }
-        if (tiddiff_t(cur->complete_boundary - cur->commit_boundary) > 0) {
+        if (tid_gt(cur->complete_boundary, cur->commit_boundary)) {
             error(mr_[mi].bi, "journal complete_boundary above commit_boundary");
             ok_ = false;
         }
         if (cur->nref
             && mi > 0
-            && tiddiff_t(cur->tid - mr_[mi - 1].b->commit_boundary) < 0) {
+            && tid_lt(cur->tid, mr_[mi - 1].b->commit_boundary)) {
             error(mr_[mi].bi, "journal adds data to a committed transaction");
             ok_ = false;
         }
         if (cur->nref
-            && tiddiff_t(cur->tid - mr_[mi].b->complete_boundary) < 0) {
+            && tid_lt(cur->tid, mr_[mi].b->complete_boundary)) {
             error(mr_[mi].bi, "journal adds data to a completed transaction");
             ok_ = false;
         }
         if ((cur->flags & jf_complete)
-            && tiddiff_t(cur->tid - cur->complete_boundary) >= 0) {
+            && tid_ge(cur->tid, cur->complete_boundary)) {
             error(mr_[mi].bi, "completed transaction above complete_boundary");
             ok_ = false;
         }
         if ((cur->flags & jf_commit)
-            && tiddiff_t(cur->tid - cur->commit_boundary) >= 0) {
+            && tid_ge(cur->tid, cur->commit_boundary)) {
             error(mr_[mi].bi, "committed transaction above commit_boundary");
             ok_ = false;
         }
@@ -107,6 +110,8 @@ bool journalreplayer::analyze(unsigned char* jd, unsigned nblocks) {
     // The last valid metablock has the relevant boundaries.
     tid_t complete_boundary = mr_[nmr_ - 1].b->complete_boundary;
     tid_t commit_boundary = mr_[nmr_ - 1].b->commit_boundary;
+    message(-1U, "committable region is [%u,%u)", complete_boundary,
+            commit_boundary);
     for (tid_t tid = complete_boundary; tid != commit_boundary; ++tid) {
         analyze_tid(tid);
     }
@@ -116,8 +121,8 @@ bool journalreplayer::analyze(unsigned char* jd, unsigned nblocks) {
     // should be ignored.
     for (unsigned mx = nmr_; mx != 0; --mx) {
         auto jmb = mr_[mx - 1].b;
-        if (tiddiff_t(jmb->tid - complete_boundary) >= 0
-            && tiddiff_t(jmb->tid - commit_boundary) < 0) {
+        if (tid_ge(jmb->tid, complete_boundary)
+            && tid_lt(jmb->tid, commit_boundary)) {
             analyze_overwritten_blocks(mx);
         }
     }
@@ -142,8 +147,9 @@ bool journalreplayer::is_potential_metablock(const unsigned char* jd) {
 void journalreplayer::analyze_block(unsigned bi) {
     assert(bi < nb_);
     auto jd = jd_ + bi * blocksize;
+    auto jmb = reinterpret_cast<jmetablock*>(jd);
     if (is_potential_metablock(jd)) {
-        auto jmb = reinterpret_cast<jmetablock*>(jd);
+        message(bi, "found potential metablock");
         jmb->seq = from_le(jmb->seq);
         jmb->tid = from_le(jmb->tid);
         jmb->commit_boundary = from_le(jmb->commit_boundary);
@@ -184,6 +190,14 @@ void journalreplayer::analyze_block(unsigned bi) {
             mr_[x].b = jmb;
             ++nmr_;
         }
+    } else if (from_le(jmb->magic) != 0) {
+        if (from_le(jmb->magic) != journalmagic) {
+            message(bi, "not a metablock (magic number %" PRIx64 ")",
+                    from_le(jmb->magic));
+        } else {
+            message(bi, "not a metablock (checksum %x)",
+                    from_le(jmb->checksum));
+        }
     }
 }
 
@@ -216,36 +230,52 @@ void journalreplayer::analyze_tid(tid_t tid) {
 
     for (unsigned mi = 0; mi != nmr_; ++mi) {
         auto jmb = mr_[mi].b;
-        if (flags != 0
-            && !(flags & jf_commit)
-            && jmb->seq != tid_t(mr_[mi - 1].b->seq + 1)) {
-            error(mr_[mi].bi, "missing seq number in committable region");
-            ok_ = false;
+        unsigned tid_flags = 0;
+        if (flags != 0) {
+            auto want_seq = tid_t(mr_[mi - 1].b->seq + 1);
+            if (jmb->seq == want_seq) { // no seq numbers missing
+                if (tid_gt(jmb->commit_boundary, tid)) {
+                    tid_flags |= jf_commit;
+                }
+                if (tid_gt(jmb->complete_boundary, tid)) {
+                    tid_flags |= jf_complete;
+                }
+            } else if (!(flags & jf_commit)) {
+                error(mr_[mi].bi, "tid %u: seq number %u missing", tid, want_seq);
+                ok_ = false;
+            }
         }
         if (jmb->tid == tid) {
-            if (!!(jmb->flags & jf_start) != (flags == 0)) {
-                error(mr_[mi].bi, "jf_start flag in improper place");
+            tid_flags = jmb->flags;
+            if (tid_gt(jmb->commit_boundary, tid)) {
+                tid_flags |= jf_commit;
+            }
+            if (tid_gt(jmb->complete_boundary, tid)) {
+                tid_flags |= jf_complete;
+            }
+            if (!!(tid_flags & jf_start) != (flags == 0)) {
+                error(mr_[mi].bi, "tid %u: jf_start flag in improper place", tid);
                 ok_ = false;
             }
             if ((flags & jf_commit)
                 && jmb->nref != 0) {
-                error(mr_[mi].bi, "transaction continues after jf_commit");
+                error(mr_[mi].bi, "tid %u: continues after commit", tid);
                 ok_ = false;
             }
             if (flags & jf_complete) {
-                error(mr_[mi].bi, "transaction continues after jf_complete");
+                error(mr_[mi].bi, "tid %u: continues after complete", tid);
                 ok_ = false;
             }
-            if (jmb->flags & jf_complete) {
-                error(mr_[mi].bi, "transaction completes below complete_boundary");
+            if (tid_flags & jf_complete) {
+                error(mr_[mi].bi, "tid %u: completes below complete_boundary", tid);
                 ok_ = false;
             }
-            flags |= jmb->flags;
+            flags |= tid_flags;
         }
     }
 
     if (!(flags & jf_commit)) {
-        error(0, "missing committed transaction in committable region");
+        error(-1U, "tid %u in committable region is not committed", tid);
         ok_ = false;
     }
 }
@@ -288,8 +318,8 @@ void journalreplayer::run() {
     tid_t commit_boundary = mr_[nmr_ - 1].b->commit_boundary;
     for (unsigned mi = 0; mi != nmr_; ++mi) {
         auto jmb = mr_[mi].b;
-        if (tiddiff_t(jmb->tid - complete_boundary) >= 0
-            && tiddiff_t(jmb->tid - commit_boundary) < 0) {
+        if (tid_ge(jmb->tid, complete_boundary)
+            && tid_lt(jmb->tid, commit_boundary)) {
             unsigned delta = 1;
             for (unsigned refi = 0; refi != jmb->nref; ++refi) {
                 auto& ref = jmb->ref[refi];
@@ -302,7 +332,7 @@ void journalreplayer::run() {
                         uint64_t magic = to_le(journalmagic);
                         memcpy(djd, &magic, sizeof(magic));
                     }
-                    write_block(from_le(ref.bn), djd);
+                    write_block(jmb->tid, from_le(ref.bn), djd);
                 }
                 if (!(bflags & jbf_nonjournaled)) {
                     ++delta;
@@ -316,10 +346,13 @@ void journalreplayer::run() {
 
 // `run()` callbacks
 
-void journalreplayer::error(unsigned, const char*) {
+void journalreplayer::message(blocknum_t, const char*, ...) {
 }
 
-void journalreplayer::write_block(blocknum_t, unsigned char*) {
+void journalreplayer::error(unsigned, const char*, ...) {
+}
+
+void journalreplayer::write_block(tid_t, blocknum_t, unsigned char*) {
 }
 
 void journalreplayer::write_replay_complete() {

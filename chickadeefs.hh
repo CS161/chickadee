@@ -107,11 +107,25 @@ struct dirent {
 };
 
 
+using tid_t = uint16_t;
+using tiddiff_t = int16_t;
+
+inline bool tid_lt(tid_t x, tid_t y) {
+    return tiddiff_t(x - y) < 0;
+}
+inline bool tid_le(tid_t x, tid_t y) {
+    return tiddiff_t(x - y) <= 0;
+}
+inline bool tid_ge(tid_t x, tid_t y) {
+    return tiddiff_t(x - y) >= 0;
+}
+inline bool tid_gt(tid_t x, tid_t y) {
+    return tiddiff_t(x - y) > 0;
+}
+
 static constexpr uint64_t journalmagic = 0xFBBFBB009EEBCEEDUL;
 static constexpr uint32_t nochecksum = 0x82600A5F;
 static constexpr size_t ref_size = (nindirect - 7) / 3;
-typedef uint16_t tid_t;
-typedef int16_t tiddiff_t;
 
 struct jblockref {              // component of `jmetablock`
     blocknum_t bn;              // destination block number
@@ -133,12 +147,15 @@ struct jmetablock {
     inline bool is_valid_meta() const;
 };
 enum {
+    // jmetablock::flags bits
     jf_meta = 0x01,             // this block is a metablock (mandatory)
     jf_error = 0x02,
     jf_corrupt = 0x04,
-    jf_start = 0x10,            // metablock starts a txn
-    jf_commit = 0x20,           // metablock commits this txn
-    jf_complete = 0x40,         // metablock marks this txn as complete
+    jf_start = 0x10,            // metablock starts transaction `tid`
+    jf_commit = 0x20,           // metablock commits `tid` (optional)
+    jf_complete = 0x40,         // metablock marks `tid` complete (optional)
+
+    // jblockref::bflags bits
     jbf_escaped = 0x100,        // refblock is escaped in journal
     jbf_nonjournaled = 0x200,   // refblock is no longer journaled
     jbf_overwritten = 0x400     // refblock overwritten in later txn
@@ -166,10 +183,12 @@ struct journalreplayer {
 
     // The following are callbacks called by `run()`.
 
+    // Report a progress message at journal block index `bi`.
+    virtual void message(unsigned bi, const char* format, ...);
     // Report an error at journal block index `bi`.
-    virtual void error(unsigned bi, const char* text);
-    // Write the data in `buf` to block number `bn`.
-    virtual void write_block(blocknum_t bn, unsigned char* buf);
+    virtual void error(unsigned bi, const char* format, ...);
+    // Write the data in `buf` to block number `bn` (txn was `tid`).
+    virtual void write_block(tid_t tid, blocknum_t bn, unsigned char* buf);
     // Called at the end of `run()`.
     virtual void write_replay_complete();
 

@@ -13,6 +13,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <assert.h>
+#include <getopt.h>
 #include <vector>
 #include <random>
 #include <algorithm>
@@ -207,6 +208,35 @@ static void parse_uint32(const char* arg, uint32_t* val, int opt) {
     *val = n;
 }
 
+static struct option options[] = {
+    { "blocks", required_argument, nullptr, 'b' },
+    { "inodes", required_argument, nullptr, 'i' },
+    { "swap", required_argument, nullptr, 'w' },
+    { "journal", required_argument, nullptr, 'j' },
+    { "first-data", required_argument, nullptr, 'f' },
+    { "random", no_argument, nullptr, 'r' },
+    { "bootsector", required_argument, nullptr, 's' },
+    { "output", required_argument, nullptr, 'o' },
+    { "help", no_argument, nullptr, 'h' },
+    { nullptr, 0, nullptr, 0 }
+};
+
+static void __attribute__((noreturn)) help() {
+    printf("Usage: mkchickadeefs [OPTS] [-o IMAGE] FILE...\n\
+Create a ChickadeeFS image from the arguments.\n\
+\n\
+  --blocks, -b N         allocate N blocks (default 1024)\n\
+  --inodes, -i N         allocate N inodes\n\
+  --swap, -w N           allocate N blocks for swap space\n\
+  --journal, -j N        allocate N blocks for journal\n\
+  --first-data, -f B     allocate first file sequentially starting at block B\n\
+  --bootsector, -s FILE  read FILE into the boot sector\n\
+  --randomize            scramble block order before writing\n\
+  --output, -o IMAGE     write output to IMAGE\n\
+  --help                 print this message and exit\n");
+    exit(0);
+}
+
 int main(int argc, char** argv) {
     uint32_t first_datab = 0;
     const char* bootsector = nullptr;
@@ -248,6 +278,8 @@ int main(int argc, char** argv) {
             }
             outfile = optarg;
             break;
+        case 'h':
+            help();
         default:
             fprintf(stderr, "unknown argument\n");
             exit(1);
@@ -315,6 +347,7 @@ int main(int argc, char** argv) {
         sb2.nblocks = to_le(sb.nblocks);
         sb2.nswap = to_le(sb.nswap);
         sb2.ninodes = to_le(sb.ninodes);
+        sb2.njournal = to_le(sb.njournal);
         sb2.swap_bn = to_le(sb.swap_bn);
         sb2.fbb_bn = to_le(sb.fbb_bn);
         sb2.inode_bn = to_le(sb.inode_bn);
