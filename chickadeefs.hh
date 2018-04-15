@@ -98,6 +98,7 @@ struct inode {
     void unlock_read();
     void lock_write();
     void unlock_write();
+    bool has_write_lock() const;
 };
 
 struct dirent {

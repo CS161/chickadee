@@ -40,7 +40,7 @@ class vmiter {
     void step();
 
     // map current va to `pa` with permissions `perm`
-    // Current va must be page-aligned. Calls knewpage() to allocate
+    // Current va must be page-aligned. Calls kallocpage() to allocate
     // page table pages if necessary. Returns 0 on success,
     // negative on failure.
     int map(uintptr_t pa, int perm = PTE_P | PTE_W | PTE_U)

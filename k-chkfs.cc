@@ -1,5 +1,6 @@
 #include "k-chkfs.hh"
 #include "k-devices.hh"
+#include "k-chkfsiter.hh"
 
 bufcache bufcache::bc;
 
@@ -123,6 +124,24 @@ void bufcache::put_entry(bufentry* e) {
 }
 
 
+// bufcache::get_write(e)
+//    Obtain a write reference for `e`.
+
+void bufcache::get_write(bufentry* e) {
+    // Your code here
+    assert(false);
+}
+
+
+// bufcache::put_write(e)
+//    Release a write reference for `e`.
+
+void bufcache::put_write(bufentry* e) {
+    // Your code here
+    assert(false);
+}
+
+
 // bufcache::sync(drop)
 //    Write all dirty buffers to disk (blocking until complete).
 //    Additionally free all buffer cache contents, except referenced
@@ -203,8 +222,12 @@ void inode::lock_write() {
 }
 
 void inode::unlock_write() {
-    assert(mlock.load(std::memory_order_relaxed) == uint32_t(-1));
+    assert(has_write_lock());
     mlock.store(0, std::memory_order_release);
+}
+
+bool inode::has_write_lock() const {
+    return mlock.load(std::memory_order_relaxed) == uint32_t(-1);
 }
 
 }
@@ -325,17 +348,19 @@ unsigned char* chkfsstate::get_data_block(inode* ino, size_t off) {
 chickadeefs::inode* chkfsstate::lookup_inode(inode* dirino,
                                              const char* filename) {
     auto& bc = bufcache::get();
+    chkfs_fileiter it(dirino);
 
     // read directory to find file inode
     chickadeefs::inum_t in = 0;
     for (size_t diroff = 0; !in; diroff += blocksize) {
-        void* directory_data = get_data_block(dirino, diroff);
-        if (!directory_data) {
+        bufentry* e;
+        if (!(it.find(diroff).present()
+              && (e = bc.get_disk_entry(it.blocknum())))) {
             break;
         }
 
         size_t bsz = min(dirino->size - diroff, blocksize);
-        auto dirent = reinterpret_cast<chickadeefs::dirent*>(directory_data);
+        auto dirent = reinterpret_cast<chickadeefs::dirent*>(e->buf_);
         for (unsigned i = 0; i * sizeof(*dirent) < bsz; ++i, ++dirent) {
             if (dirent->inum && strcmp(dirent->name, filename) == 0) {
                 in = dirent->inum;
@@ -343,10 +368,23 @@ chickadeefs::inode* chkfsstate::lookup_inode(inode* dirino,
             }
         }
 
-        bc.put_block(directory_data);
+        bc.put_entry(e);
     }
 
     return get_inode(in);
+}
+
+
+// chkfsstate::allocate_block()
+//    Allocate and return the number of a fresh block. The returned
+//    block need not be initialized (but it should not be in flight
+//    to the disk or part of any incomplete journal transaction).
+//    Returns the block number or an error code on failure. Errors
+//    can be distinguished by `blocknum >= blocknum_t(E_MINERROR)`.
+
+auto chkfsstate::allocate_block() -> blocknum_t {
+    // Your code here
+    return E_INVAL;
 }
 
 
@@ -376,14 +414,17 @@ size_t chickadeefs_read_file_data(const char* filename,
 
     // read file inode
     ino->lock_read();
+    chkfs_fileiter it(ino);
 
     size_t nread = 0;
     while (sz > 0) {
         size_t ncopy = 0;
 
         // read inode contents, copy data
-        size_t blockoff = ROUNDDOWN(off, fs.blocksize);
-        if (void* data = fs.get_data_block(ino, blockoff)) {
+        bufentry* e;
+        if (it.find(off).present()
+            && (e = bc.get_disk_entry(it.blocknum()))) {
+            size_t blockoff = ROUNDDOWN(off, fs.blocksize);
             size_t bsz = min(ino->size - blockoff, fs.blocksize);
             size_t boff = off - blockoff;
             if (bsz > boff) {
@@ -392,10 +433,10 @@ size_t chickadeefs_read_file_data(const char* filename,
                     ncopy = sz;
                 }
                 memcpy(reinterpret_cast<unsigned char*>(buf) + nread,
-                       reinterpret_cast<unsigned char*>(data) + boff,
+                       reinterpret_cast<unsigned char*>(e->buf_) + boff,
                        ncopy);
             }
-            bc.put_block(data);
+            bc.put_entry(e);
         }
 
         // account for copied data
