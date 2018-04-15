@@ -244,7 +244,8 @@ int main(int argc, char** argv) {
     bool randomize = false;
 
     int opt;
-    while ((opt = getopt(argc, argv, "b:i:w:j:f:rs:o:")) != -1) {
+    while ((opt = getopt_long(argc, argv, "b:i:w:j:f:rs:o:",
+                              options, nullptr)) != -1) {
         switch (opt) {
         case 'b':
             parse_uint32(optarg, &sb.nblocks, 'b');
