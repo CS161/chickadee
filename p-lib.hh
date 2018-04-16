@@ -271,6 +271,33 @@ inline int sys_rename(const char* oldpath, const char* newpath) {
                     reinterpret_cast<uintptr_t>(newpath));
 }
 
+// sys_gettid()
+//    Return the current thread ID.
+inline pid_t sys_gettid() {
+    return syscall0(SYSCALL_GETTID);
+}
+
+// sys_clone(function, arg, stack_top)
+//    Create a new thread running `function` with `arg`, starting at
+//    stack address `stack_top`. Returns the new thread's thread ID.
+//
+//    In the context of the new thread, when the `function` returns,
+//    the thread should call `sys_texit` with the function's return value
+//    as argument.
+inline pid_t sys_clone(void (*function)(void*), void* arg, char* stack_top) {
+    // Your code here -- you'll need more assembly than usual
+    return E_NOSYS;
+}
+
+// sys_texit(status)
+//    Exit the current thread with exit status `status`. If this is
+//    the last thread in the process, this will have the same effect
+//    as `sys_exit(status)`.
+inline void __attribute__((noreturn)) sys_texit(int status) {
+    syscall0(SYSCALL_TEXIT, status);
+    assert(false);
+}
+
 // sys_panic(msg)
 //    Panic.
 static inline pid_t __attribute__((noreturn)) sys_panic(const char* msg) {

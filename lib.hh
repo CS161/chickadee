@@ -192,6 +192,9 @@ inline uint32_t crc32c(const void* buf, size_t sz) {
 #define SYSCALL_LSEEK           111
 #define SYSCALL_FTRUNCATE       112
 #define SYSCALL_RENAME          113
+#define SYSCALL_GETTID          114
+#define SYSCALL_CLONE           115
+#define SYSCALL_TEXIT           116
 
 
 // System call error return values

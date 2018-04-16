@@ -63,6 +63,7 @@ PROCESS_OBJS = $(PROCESS_LIB_OBJS) \
 	$(OBJDIR)/p-testpipe.o \
 	$(OBJDIR)/p-testppid.o \
 	$(OBJDIR)/p-testrwaddr.o \
+	$(OBJDIR)/p-testthread.o \
 	$(OBJDIR)/p-testvfs.o \
 	$(OBJDIR)/p-testwaitpid.o \
 	$(OBJDIR)/p-testwritefs.o \
@@ -88,6 +89,7 @@ INITFS_CONTENTS = $(shell find initfs -type f -not -name '\#*\#' -not -name '*~'
 	obj/p-testpipe \
 	obj/p-testppid \
 	obj/p-testrwaddr \
+	obj/p-testthread \
 	obj/p-testvfs \
 	obj/p-testwaitpid \
 	obj/p-testwritefs \
