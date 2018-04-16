@@ -41,6 +41,7 @@ static constexpr blocknum_t emptyblock = blocknum_t(-1);
 
 // directory entry information
 static constexpr size_t maxnamelen = 123;  // max strlen(name) supported
+static constexpr size_t direntsize = 128;  // `sizeof(struct dirent)`
 
 // `inode::type` constants
 static constexpr uint32_t type_regular = 1;

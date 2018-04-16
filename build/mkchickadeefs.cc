@@ -554,3 +554,5 @@ static void shuffle_blocks(bool preserve_inode2) {
 
 static_assert(sizeof(chickadeefs::inode) == chickadeefs::inodesize,
               "inodesize valid");
+static_assert(sizeof(chickadeefs::dirent) == chickadeefs::direntsize,
+              "direntsize valid");

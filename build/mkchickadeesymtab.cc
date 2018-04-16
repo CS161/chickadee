@@ -602,7 +602,3 @@ int main(int argc, char** argv) {
     }
     exit(0);
 }
-
-
-static_assert(sizeof(chickadeefs::inode) == chickadeefs::inodesize,
-              "inodesize valid");
