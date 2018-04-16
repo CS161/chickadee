@@ -103,21 +103,21 @@ static void test1() {
 
     // wait for thread to exit
     sys_msleep(10);
+    message("simple thread tests succeed!");
 
     // start a new thread to check thread returning doesn't go wrong
-    message("checking automated texit (1)");
+    message("checking automated texit");
     t = sys_clone(thread1b, pfd, stack1 + PAGESIZE);
     assert_gt(t, 0);
     sys_msleep(10);
-
-    message("test1 succeeded");
 }
 
 
 static int thread2a(void*) {
     // this blocks forever
     char buf[20];
-    (void) sys_read(pfd[0], buf, sizeof(buf));
+    ssize_t n = sys_read(pfd[0], buf, sizeof(buf));
+    assert_ne(n, 0);
     sys_yield();
     assert(false);
 }
@@ -137,6 +137,26 @@ static void test2() {
 }
 
 
+static int thread3a(void*) {
+    sys_msleep(10);
+    return 161;
+}
+
+static void test3() {
+    // create thread
+    char* stack1 = reinterpret_cast<char*>
+        (ROUNDUP((char*) end, PAGESIZE) + 16 * PAGESIZE);
+    int r = sys_page_alloc(stack1);
+    assert_eq(r, 0);
+
+    pid_t t = sys_clone(thread3a, pfd, stack1 + PAGESIZE);
+    assert_gt(t, 0);
+
+    // this should quit the `thread2a` thread too
+    sys_texit(0);
+}
+
+
 void process_main() {
     sys_kdisplay(KDISPLAY_NONE);
 
@@ -153,6 +173,7 @@ void process_main() {
 
 
     // test2
+    message("checking that exit exits all threads");
     int r = sys_pipe(pfd);
     assert_eq(r, 0);
     p = sys_fork();
@@ -161,6 +182,27 @@ void process_main() {
         test2();
     }
     int status = 0;
+    ch = sys_waitpid(p, &status);
+    assert_eq(ch, p);
+    assert_eq(status, 161);
+
+    // check that `thread2a` really exited; if it did not, then
+    // the read end of the pipe will still be open (because `thread2a`
+    // has the write end open)
+    sys_close(pfd[1]);
+    char buf[20];
+    ssize_t n = sys_read(pfd[0], buf, sizeof(buf));
+    assert_eq(n, 0);
+
+
+    // test3
+    message("checking that implicit texit sets status");
+    p = sys_fork();
+    assert_ge(p, 0);
+    if (p == 0) {
+        test3();
+    }
+    status = 0;
     ch = sys_waitpid(p, &status);
     assert_eq(ch, p);
     assert_eq(status, 161);
