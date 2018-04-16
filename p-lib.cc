@@ -61,3 +61,12 @@ void assert_fail(const char* file, int line, const char* msg) {
                  file, line, msg);
     sys_panic(NULL);
 }
+
+
+// sys_clone
+//    Create a new thread.
+
+pid_t sys_clone(void (*function)(void*), void* arg, char* stack_top) {
+    // Your code here
+    return E_NOSYS;
+}

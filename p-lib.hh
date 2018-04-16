@@ -284,10 +284,10 @@ inline pid_t sys_gettid() {
 //    In the context of the new thread, when the `function` returns,
 //    the thread should call `sys_texit` with the function's return value
 //    as argument.
-inline pid_t sys_clone(void (*function)(void*), void* arg, char* stack_top) {
-    // Your code here -- you'll need more assembly than usual
-    return E_NOSYS;
-}
+//
+//    Unlike most other system calls, we recommend you implement `sys_clone`
+//    in `p-lib.cc`.
+pid_t sys_clone(void (*function)(void*), void* arg, char* stack_top);
 
 // sys_texit(status)
 //    Exit the current thread with exit status `status`. If this is
