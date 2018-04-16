@@ -17,8 +17,8 @@ static void message(const char* x) {
 }
 
 
-static void thread1(void* x) {
-    message("starting thread1");
+static int thread1a(void* x) {
+    message("starting thread1a");
 
     // wait for phase 1
     while (phase != 1) {
@@ -35,27 +35,31 @@ static void thread1(void* x) {
     while (phase != 3) {
         sys_yield();
     }
+
+    // read from pipe, write to pipe
     char buf[100];
     memset(buf, 0, sizeof(buf));
     ssize_t n = sys_read(pfd[0], buf, sizeof(buf));
     assert_eq(n, 2);
     assert_memeq(buf, "Yo", 2);
 
-    // enter phase 4
+    phase = 4;
     message("piping to main");
     n = sys_write(pfd[1], "Hi", 2);
     assert_eq(n, 2);
-    phase = 4;
 
-    // wait for phase 5 (which never comes)
-    while (phase != 5) {
-        sys_yield();
-    }
+    sys_texit(0);
 }
 
-void process_main() {
-    sys_kdisplay(KDISPLAY_NONE);
 
+static int thread1b(void*) {
+    // the argument to `sys_texit` is thrown away; we're just
+    // checking that nothing goes badly wrong
+    return 0;
+}
+
+
+static void test1() {
     // create thread
     message("clone");
     char* stack1 = reinterpret_cast<char*>
@@ -63,7 +67,7 @@ void process_main() {
     int r = sys_page_alloc(stack1);
     assert_eq(r, 0);
 
-    pid_t t = sys_clone(thread1, pfd, stack1 + PAGESIZE);
+    pid_t t = sys_clone(thread1a, pfd, stack1 + PAGESIZE);
     assert_gt(t, 0);
 
     // enter phase 1
@@ -83,10 +87,11 @@ void process_main() {
     assert_eq(r, 0);
     assert(pfd[0] > 2 && pfd[1] > 2);
     assert(pfd[0] != pfd[1]);
-    r = sys_write(pfd[1], "Yo", 2);
     phase = 3;
 
-    // wait for phase 4
+    r = sys_write(pfd[1], "Yo", 2);
+
+    // enter phase 4
     while (phase != 4) {
         sys_yield();
     }
@@ -95,6 +100,70 @@ void process_main() {
     r = sys_read(pfd[0], buf, sizeof(buf));
     assert_eq(r, 2);
     assert_memeq(buf, "Hi", 2);
+
+    // wait for thread to exit
+    sys_msleep(10);
+
+    // start a new thread to check thread returning doesn't go wrong
+    message("checking automated texit (1)");
+    t = sys_clone(thread1b, pfd, stack1 + PAGESIZE);
+    assert_gt(t, 0);
+    sys_msleep(10);
+
+    message("test1 succeeded");
+}
+
+
+static int thread2a(void*) {
+    // this blocks forever
+    char buf[20];
+    (void) sys_read(pfd[0], buf, sizeof(buf));
+    sys_yield();
+    assert(false);
+}
+
+static void test2() {
+    // create thread
+    char* stack1 = reinterpret_cast<char*>
+        (ROUNDUP((char*) end, PAGESIZE) + 16 * PAGESIZE);
+    int r = sys_page_alloc(stack1);
+    assert_eq(r, 0);
+
+    pid_t t = sys_clone(thread1a, pfd, stack1 + PAGESIZE);
+    assert_gt(t, 0);
+
+    // this should quit the `thread2a` thread too
+    sys_exit(161);
+}
+
+
+void process_main() {
+    sys_kdisplay(KDISPLAY_NONE);
+
+
+    // test1
+    pid_t p = sys_fork();
+    assert_ge(p, 0);
+    if (p == 0) {
+        test1();
+        sys_exit(0);
+    }
+    pid_t ch = sys_waitpid(p);
+    assert_eq(ch, p);
+
+
+    // test2
+    int r = sys_pipe(pfd);
+    assert_eq(r, 0);
+    p = sys_fork();
+    assert_ge(p, 0);
+    if (p == 0) {
+        test2();
+    }
+    int status = 0;
+    ch = sys_waitpid(p, &status);
+    assert_eq(ch, p);
+    assert_eq(status, 161);
 
 
     console_printf("testthread succeeded.\n");
