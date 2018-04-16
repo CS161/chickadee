@@ -287,7 +287,7 @@ inline pid_t sys_gettid() {
 //
 //    Unlike most other system calls, we recommend you implement `sys_clone`
 //    in `p-lib.cc`.
-pid_t sys_clone(void (*function)(void*), void* arg, char* stack_top);
+pid_t sys_clone(int (*function)(void*), void* arg, char* stack_top);
 
 // sys_texit(status)
 //    Exit the current thread with exit status `status`. If this is
