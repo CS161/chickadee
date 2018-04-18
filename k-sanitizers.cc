@@ -10,6 +10,9 @@ struct source_location {
     const char* file;
     uint32_t line;
     uint32_t column;
+    inline constexpr bool valid() const {
+        return file != nullptr;
+    }
 };
 
 struct type_descriptor {
@@ -69,10 +72,13 @@ const char* const type_mismatch_data::type_check_kind_names[] = {
     "upcast of", "cast to virtual base of", "_Nonnull binding to"
 };
 
-struct overflow_data {
+struct type_data {
     source_location location;
     type_descriptor* type;
 };
+using overflow_data = type_data;
+using invalid_value_data = type_data;
+using vla_bound_data = type_data;
 
 struct out_of_bounds_data {
     source_location location;
@@ -86,9 +92,10 @@ struct shift_out_of_bounds_data {
     type_descriptor* rhs_type;
 };
 
-struct invalid_value_data {
+struct nonnull_arg_data {
     source_location location;
-    type_descriptor* type;
+    source_location attr_location;
+    int arg_index;
 };
 
 }
@@ -133,6 +140,20 @@ void __ubsan_handle_negate_overflow(overflow_data* data,
                  data->type->name);
 }
 
+void __ubsan_handle_divrem_overflow(overflow_data* data,
+                                    unsigned long a, unsigned long b) {
+    char buf[NUMBUFSZ];
+    if (data->type->is_signed() && long(data->type->value(b)) == -1L) {
+        error_printf("!!! %s:%d: division of %s by -1 cannot be represented in type %s\n",
+                     data->location.file, data->location.line,
+                     data->type->unparse_value(buf, sizeof(buf), a),
+                     data->type->name);
+    } else {
+        error_printf("!!! %s:%d: division by zero\n",
+                     data->location.file, data->location.line);
+    }
+}
+
 void __ubsan_handle_shift_out_of_bounds(shift_out_of_bounds_data* data,
                                         unsigned long a, unsigned long b) {
     char buf1[NUMBUFSZ], buf2[NUMBUFSZ];
@@ -154,20 +175,6 @@ void __ubsan_handle_shift_out_of_bounds(shift_out_of_bounds_data* data,
     }
 }
 
-void __ubsan_handle_divrem_overflow(overflow_data* data,
-                                    unsigned long a, unsigned long b) {
-    char buf[NUMBUFSZ];
-    if (data->type->is_signed() && long(data->type->value(b)) == -1L) {
-        error_printf("!!! %s:%d: division of %s by -1 cannot be represented in type %s\n",
-                     data->location.file, data->location.line,
-                     data->type->unparse_value(buf, sizeof(buf), a),
-                     data->type->name);
-    } else {
-        error_printf("!!! %s:%d: division by zero\n",
-                     data->location.file, data->location.line);
-    }
-}
-
 void __ubsan_handle_type_mismatch(type_mismatch_data* data,
                                   unsigned long ptr) {
     if (!ptr) {
@@ -181,8 +188,8 @@ void __ubsan_handle_type_mismatch(type_mismatch_data* data,
                      data->type_check_kind_names[data->type_check_kind],
                      ptr, data->type->name);
     } else {
-        error_printf("!!! %s:%d: %s address %p with insufficient space\n"
-                     "!!!   for an object with type %s\n",
+        error_printf("!!! %s:%d: %s address %p\n"
+                     "!!!   with insufficient space for an object with type %s\n",
                      data->location.file, data->location.line,
                      data->type_check_kind_names[data->type_check_kind],
                      ptr, data->type->name);
@@ -199,6 +206,25 @@ void __ubsan_handle_out_of_bounds(out_of_bounds_data* data,
                  data->array_type->name);
 }
 
+void __ubsan_handle_builtin_unreachable(source_location* location) {
+    error_printf("!!! %s:%d: execution reached a __builtin_unreachable() call\n",
+                 location->file, location->line);
+}
+
+void __ubsan_handle_missing_return(source_location* location) {
+    error_printf("!!! %s:%d: execution reached the end of a value-returning function\n"
+                 "!!!   without returning a value\n",
+                 location->file, location->line);
+}
+
+void __ubsan_handle_vla_bound_not_positive(vla_bound_data* data,
+					   unsigned long bound) {
+    char buf[NUMBUFSZ];
+    error_printf("!!! %s:%d: variable length array bound evaluates to non-positive %s\n",
+                 data->location.file, data->location.line,
+                 data->type->unparse_value(buf, sizeof(buf), bound));
+}
+
 void __ubsan_handle_load_invalid_value(invalid_value_data* data,
                                        unsigned long val) {
     char buf[NUMBUFSZ];
@@ -206,6 +232,23 @@ void __ubsan_handle_load_invalid_value(invalid_value_data* data,
                  data->location.file, data->location.line,
                  data->type->unparse_value(buf, sizeof(buf), val),
                  data->type->name);
+}
+
+void __ubsan_handle_nonnull_arg(nonnull_arg_data* data) {
+    error_printf("!!! %s:%d: null pointer passed as argument %d,\n"
+                 "!!!   which is declared to never be null\n",
+                 data->location.file, data->location.line,
+                 data->arg_index);
+    if (data->attr_location.valid()) {
+        error_printf("!!! %s:%d: attribute or annotation here\n",
+                     data->attr_location.file, data->attr_location.line);
+    }
+}
+
+void __ubsan_handle_nonnull_return(source_location* location) {
+    error_printf("!!! %s:%d: null pointer returned from function\n"
+                 "!!!   which is declared to never be null\n",
+                 location->file, location->line);
 }
 
 }
