@@ -6,6 +6,21 @@ This is Chickadee, a teaching operating system built for Harvard’s
 
 Quickstart: `make run`
 
+Make targets
+------------
+
+Run `make NCPU=N run` to run with `N` virtual CPUs (default is 2).
+
+Run `make SAN=1 run` to run with sanitizers.
+
+Normally Chickadee’s debug log is written to `log.txt`. Run `make LOG=stdio
+run` to redirect the debug log to the standard output, or `make
+LOG=file:FILENAME run` to redirect it to `FILENAME`.
+
+Run `make D=1 run` to ask QEMU to print verbose information about interrupts
+and CPU resets to the standard error. This setting will also cause QEMU to
+quit after encountering a [triple fault] (normally it will reboot).
+
 Source files
 ------------
 
@@ -65,10 +80,11 @@ The main output of the build process is a disk image,
 could conceivably boot on real hardware! The build process also
 produces other files that can be useful to examine.
 
-| File                        | Description                          |
-| --------------------------- | ------------------------------------ |
-| `obj/kernel.asm`            | Kernel assembly (with addresses)     |
-| `obj/kernel.sym`            | Kernel defined symbols               |
-| `obj/p-allocator.asm/sym`   | Same for process binaries            |
+| File                         | Description                          |
+| ---------------------------- | ------------------------------------ |
+| `obj/kernel.asm`             | Kernel assembly (with addresses)     |
+| `obj/kernel.sym`             | Kernel defined symbols               |
+| `obj/p-allocator.asm`, `sym` | Same for process binaries            |
 
 [CS 161]: https://read.seas.harvard.edu/cs161-18/
+[triple fault]: https://en.wikipedia.org/wiki/Triple_fault
