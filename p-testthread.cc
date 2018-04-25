@@ -129,7 +129,7 @@ static void test2() {
     int r = sys_page_alloc(stack1);
     assert_eq(r, 0);
 
-    pid_t t = sys_clone(thread1a, pfd, stack1 + PAGESIZE);
+    pid_t t = sys_clone(thread2a, pfd, stack1 + PAGESIZE);
     assert_gt(t, 0);
 
     // this should quit the `thread2a` thread too
