@@ -12,12 +12,12 @@ all: $(QEMUIMAGEFILES)
 V = 0
 ifeq ($(V),1)
 cxxcompile = $(CXX) $(CPPFLAGS) $(DEPCFLAGS) $(1)
-assemble = $(CC) $(CPPFLAGS) $(DEPCFLAGS) $(ASFLAGS) $(1)
+assemble = $(CXX) $(CPPFLAGS) $(DEPCFLAGS) $(ASFLAGS) $(1)
 link = $(LD) $(LDFLAGS) $(1)
 run = $(1) $(3)
 else
 cxxcompile = @/bin/echo " " $(2) && $(CXX) $(CPPFLAGS) $(DEPCFLAGS) $(1)
-assemble = @/bin/echo " " $(2) && $(CC) $(CPPFLAGS) $(DEPCFLAGS) $(ASFLAGS) $(1)
+assemble = @/bin/echo " " $(2) && $(CXX) $(CPPFLAGS) $(DEPCFLAGS) $(ASFLAGS) $(1)
 link = @/bin/echo " " $(2) $(patsubst %.full,%,$@) && $(LD) $(LDFLAGS) $(1)
 run = @$(if $(2),/bin/echo " " $(2) $(3) &&,) $(1) $(3)
 endif

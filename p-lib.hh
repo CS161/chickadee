@@ -67,11 +67,11 @@ inline uintptr_t syscall0(int syscallno, uintptr_t arg0,
 }
 
 inline void clobber_memory(void* ptr) {
-    asm volatile ("" : "+m" (*(char (*)[]) ptr));
+    asm volatile ("" : "+m" (*(char*) ptr));
 }
 
 inline void access_memory(const void* ptr) {
-    asm volatile ("" : : "m" (*(const char (*)[]) ptr));
+    asm volatile ("" : : "m" (*(const char*) ptr));
 }
 
 

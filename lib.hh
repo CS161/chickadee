@@ -46,24 +46,29 @@ int rand(int min, int max);
 
 // Type information
 
-// printfmt<T>
-//    `printfmt<T>::spec` defines a printf specifier for type T.
-//    E.g., `printfmt<int>::spec` is `"d"`.
+// printfmt<T>::spec()
+//    `printfmt<T>::spec()` returns a printf specifier for type T.
+//    E.g., `printfmt<int>::spec()` is `"d"`.
 
 template <typename T> struct printfmt {};
-template <> struct printfmt<bool>           { static constexpr char spec[] = "d"; };
-template <> struct printfmt<char>           { static constexpr char spec[] = "c"; };
-template <> struct printfmt<signed char>    { static constexpr char spec[] = "d"; };
-template <> struct printfmt<unsigned char>  { static constexpr char spec[] = "u"; };
-template <> struct printfmt<short>          { static constexpr char spec[] = "d"; };
-template <> struct printfmt<unsigned short> { static constexpr char spec[] = "u"; };
-template <> struct printfmt<int>            { static constexpr char spec[] = "d"; };
-template <> struct printfmt<unsigned>       { static constexpr char spec[] = "u"; };
-template <> struct printfmt<long>           { static constexpr char spec[] = "ld"; };
-template <> struct printfmt<unsigned long>  { static constexpr char spec[] = "lu"; };
-template <typename T> struct printfmt<T*>   { static constexpr char spec[] = "p"; };
+#define MAKE_PRINTFMT(T, str)                                   \
+    template <> struct printfmt<T> {                            \
+        static constexpr const char* spec() { return str; } }
 
-template <typename T> constexpr char printfmt<T*>::spec[];
+MAKE_PRINTFMT(bool, "d");
+MAKE_PRINTFMT(char, "c");
+MAKE_PRINTFMT(signed char, "d");
+MAKE_PRINTFMT(unsigned char, "u");
+MAKE_PRINTFMT(short, "d");
+MAKE_PRINTFMT(unsigned short, "u");
+MAKE_PRINTFMT(int, "d");
+MAKE_PRINTFMT(unsigned, "u");
+MAKE_PRINTFMT(long, "ld");
+MAKE_PRINTFMT(unsigned long, "u");
+
+template <typename T> struct printfmt<T*> {
+    static constexpr const char* spec() { return "p"; }
+};
 
 
 // Min, max, and rounding operations
@@ -361,7 +366,7 @@ assert_op_fail(const char* file, int line, const char* msg,
                const T& x, const char* op, const T& y) {
     char fmt[48];
     snprintf(fmt, sizeof(fmt), "%%s:%%d: expected %%%s %s %%%s\n",
-             printfmt<T>::spec, op, printfmt<T>::spec);
+             printfmt<T>::spec(), op, printfmt<T>::spec());
     error_printf(CPOS(22, 0), COLOR_ERROR, fmt, file, line, x, y);
     assert_fail(file, line, msg);
 }

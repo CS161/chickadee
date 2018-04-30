@@ -37,11 +37,13 @@ CPPFLAGS := $(DEFS) -I.
 
 CCOMMONFLAGS := -m64 -mno-red-zone -mno-mmx -mno-sse -mno-sse2 -mno-sse3 \
 	-mno-3dnow -ffreestanding -fno-omit-frame-pointer -fno-pic \
-	-Wall -W -Wshadow -Wno-format -Wno-unused
+	-Wall -W -Wshadow -Wno-format -Wno-unused -Wno-unused-parameter \
+	-Wno-inline-new-delete
 # Include -fno-stack-protector if the option exists.
-CCOMMONFLAGS += $(shell $(CC) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
+CCOMMONFLAGS += $(shell $(CXX) -fno-stack-protector -E -x c /dev/null >/dev/null 2>&1 && echo -fno-stack-protector)
 
 ASFLAGS := $(CCOMMONFLAGS)
+ASFLAGS += $(shell $(CXX) -no-integrated-as -E -x c /dev/null >/dev/null 2>&1 && echo -no-integrated-as)
 CFLAGS := $(CFLAGS) $(CCOMMONFLAGS) -std=gnu11 -gdwarf
 CXXFLAGS := $(CXXFLAGS) $(CCOMMONFLAGS) -std=gnu++1z \
 	-fno-exceptions -fno-rtti -gdwarf -ffunction-sections

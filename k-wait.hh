@@ -89,7 +89,7 @@ inline irqstate waiter::block_until(wait_queue& wq, F predicate,
                                     spinlock& lock) {
     auto irqs = lock.lock();
     block_until(wq, predicate, lock, irqs);
-    return std::move(irqs);
+    return irqs;
 }
 
 // waiter::block_until(wq, predicate, lock, irqs)

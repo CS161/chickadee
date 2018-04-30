@@ -208,11 +208,11 @@ void init_physical_ranges() {
     physical_ranges.set(ktext2pa(console), ktext2pa(console) + PAGESIZE,
                         mem_console);
     // kernel text and data is owned by the kernel
-    extern char _low_data_start[], _low_data_end[];
+    extern unsigned char _low_data_start[], _low_data_end[];
     physical_ranges.set(ROUNDDOWN(ktext2pa(_low_data_start), PAGESIZE),
                         ROUNDUP(ktext2pa(_low_data_end), PAGESIZE),
                         mem_kernel);
-    extern char _kernel_start[], _kernel_end[];
+    extern unsigned char _kernel_start[], _kernel_end[];
     physical_ranges.set(ROUNDDOWN(ktext2pa(_kernel_start), PAGESIZE),
                         ROUNDUP(ktext2pa(_kernel_end), PAGESIZE),
                         mem_kernel);
