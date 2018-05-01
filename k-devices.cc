@@ -377,7 +377,8 @@ void ahcistate::handle_interrupt() {
     auto irqs = lock_.lock();
 
     // check interrupt reason, clear interrupt
-    bool is_error = pr_->interrupt_status & interrupt_fatal_error_mask;
+    bool is_error = (pr_->interrupt_status & interrupt_fatal_error_mask)
+        || (pr_->rstatus & rstatus_error);
     pr_->interrupt_status = ~0U;
     dr_->interrupt_status = ~0U;
 
