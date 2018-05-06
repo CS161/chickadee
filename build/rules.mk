@@ -1,5 +1,6 @@
 OBJDIR := obj
 comma = ,
+export LC_ALL = C
 
 # Compiler toolchain
 CCPREFIX =
