@@ -9,6 +9,7 @@
 #include <vector>
 #include <deque>
 #include <unordered_set>
+#include <algorithm>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -133,6 +134,8 @@ struct inodeinfo {
     void visit_indirect(blocknum_t b, size_t idx, size_t sz);
     void visit_indirect2(blocknum_t b, size_t idx, size_t sz);
     void visit_directory_data(blocknum_t b, size_t pos, size_t sz);
+    unsigned char* get_data_block(unsigned bi);
+    inum_t lookup(const char* name);
 };
 
 std::vector<inodeinfo> inodeinfo::inodes;
@@ -371,6 +374,64 @@ void inodeinfo::visit_indirect2(blocknum_t b, size_t idx, size_t sz) {
 }
 
 
+unsigned char* inodeinfo::get_data_block(unsigned bi) {
+    auto in = get_inode();
+
+    blocknum_t indir;
+    if (bi >= chickadeefs::ndirect + chickadeefs::nindirect) {
+        if (in->indirect2 < sb.data_bn
+            || in->indirect2 >= sb.journal_bn) {
+            return nullptr;
+        }
+        blocknum_t* indir2d = reinterpret_cast<blocknum_t*>
+            (data + in->indirect2 * blocksize);
+        indir = indir2d[chickadeefs::bi_indirect_index(bi)];
+    } else if (bi >= chickadeefs::ndirect) {
+        indir = in->indirect;
+    } else {
+        indir = 0;
+    }
+
+    blocknum_t dir;
+    if (bi >= chickadeefs::ndirect) {
+        if (indir < sb.data_bn
+            || indir >= sb.journal_bn) {
+            return nullptr;
+        }
+        blocknum_t* indird = reinterpret_cast<blocknum_t*>
+            (data + indir * blocksize);
+        dir = indird[chickadeefs::bi_direct_index(bi)];
+    } else {
+        dir = in->direct[bi];
+    }
+
+    if (dir < sb.data_bn
+        || dir >= sb.journal_bn) {
+        return nullptr;
+    } else {
+        return data + dir * blocksize;
+    }
+}
+
+inum_t inodeinfo::lookup(const char* name) {
+    auto in = get_inode();
+    assert(in->type == chickadeefs::type_directory);
+    for (size_t off = 0; off < in->size; off += blocksize) {
+        auto dirsd = get_data_block(off / blocksize);
+        for (unsigned x = 0;
+             x < blocksize && off + x < in->size;
+             x += chickadeefs::direntsize) {
+            auto de = reinterpret_cast<chickadeefs::dirent*>(dirsd + x);
+            if (de->inum
+                && strncmp(de->name, name, chickadeefs::maxnamelen) == 0) {
+                return de->inum;
+            }
+        }
+    }
+    return 0;
+}
+
+
 struct ujournalreplayer : public chickadeefs::journalreplayer {
     unsigned char* disk_;
 
@@ -448,11 +509,12 @@ static void __attribute__((noreturn)) usage() {
 }
 
 static void __attribute__((noreturn)) help() {
-    printf("Usage: chickadeefsck [-V] [-s | --no-journal] [IMAGE]\n\
+    printf("Usage: chickadeefsck [-V] [-s | --no-journal] [-e FILE] [IMAGE]\n\
 Check the ChickadeeFS IMAGE for errors and exit with a status code\n\
 indicating success.\n\
 \n\
   --verbose, -V          print information about IMAGE\n\
+  --extract, e FILE      print FILE to stdout\n\
   --save-journal, -s     replay journal into IMAGE\n\
   --no-journal           do not replay journal before checking image\n\
   --help                 display this help and exit\n");
@@ -464,6 +526,7 @@ static struct option options[] = {
     { "save", no_argument, nullptr, 's' },
     { "save-journal", no_argument, nullptr, 's' },
     { "no-journal", no_argument, nullptr, 'x' },
+    { "extract", required_argument, nullptr, 'e' },
     { "help", no_argument, nullptr, 'h' },
     { nullptr, 0, nullptr, 0 }
 };
@@ -471,9 +534,10 @@ static struct option options[] = {
 int main(int argc, char** argv) {
     bool replay = false;
     bool no_journal = false;
+    const char* extract = nullptr;
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "Vs", options, nullptr)) != -1) {
+    while ((opt = getopt_long(argc, argv, "Vse:", options, nullptr)) != -1) {
         switch (opt) {
         case 'V':
             verbose = true;
@@ -483,6 +547,12 @@ int main(int argc, char** argv) {
             break;
         case 'x':
             no_journal = true;
+            break;
+        case 'e':
+            if (extract) {
+                usage();
+            }
+            extract = optarg;
             break;
         case 'h':
             help();
@@ -660,6 +730,26 @@ int main(int argc, char** argv) {
         if (!(fbb[b / 8] & (1 << (b % 8)))
             && blockinfo::blocks[b].type_ == bunused) {
             ewprintf("block %u: unreferenced block is marked allocated\n", b);
+        }
+    }
+
+    // print file
+    if (extract) {
+        inum_t i = inodeinfo::inodes[1].lookup(extract);
+        if (i > 0 && i < sb.ninodes) {
+            auto& ini = inodeinfo::inodes[i];
+            auto in = ini.get_inode();
+            unsigned char* zeros = new unsigned char[blocksize];
+            memset(zeros, 0, blocksize);
+            for (size_t off = 0; off < in->size; ) {
+                size_t delta = std::min(blocksize, in->size - off);
+                auto d = ini.get_data_block(off / blocksize);
+                fwrite(d ? d : zeros, 1, delta, stdout);
+                off += delta;
+            }
+            delete[] zeros;
+        } else {
+            ewprintf("%s: No such file or directory\n", extract);
         }
     }
 
