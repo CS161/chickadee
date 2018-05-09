@@ -218,14 +218,14 @@ uintptr_t proc::syscall(regstate* regs) {
         // read that line or lines
         size_t n = 0;
         while (kbd.eol_ != 0 && n < sz) {
-            if (kbd.buf_[kbd.pos_] == 0x04) {
+            if (kbd.buff_[kbd.pos_] == 0x04) {
                 // Ctrl-D means EOF
                 if (n == 0) {
                     kbd.consume(1);
                 }
                 break;
             } else {
-                *reinterpret_cast<char*>(addr) = kbd.buf_[kbd.pos_];
+                *reinterpret_cast<char*>(addr) = kbd.buff_[kbd.pos_];
                 ++addr;
                 ++n;
                 kbd.consume(1);
@@ -258,7 +258,7 @@ uintptr_t proc::syscall(regstate* regs) {
 
     case SYSCALL_READDISKFILE: {
         const char* filename = reinterpret_cast<const char*>(regs->reg_rdi);
-        unsigned char* buf = reinterpret_cast<unsigned char*>(regs->reg_rsi);
+        unsigned char* buff = reinterpret_cast<unsigned char*>(regs->reg_rsi);
         uintptr_t sz = regs->reg_rdx;
         uintptr_t off = regs->reg_r10;
 
@@ -266,11 +266,11 @@ uintptr_t proc::syscall(regstate* regs) {
             return E_IO;
         }
 
-        return chickadeefs_read_file_data(filename, buf, sz, off);
+        return chickadeefs_read_file_data(filename, buff, sz, off);
     }
 
     case SYSCALL_SYNC:
-        return bufcache::get().sync(regs->reg_rdi != 0);
+        return buffcache::get().sync(regs->reg_rdi != 0);
 
     default:
         // no such system call

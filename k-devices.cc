@@ -167,9 +167,9 @@ void keyboardstate::handle_interrupt() {
 
         default:
         normal_char:
-            if (len_ < sizeof(buf_)) {
-                unsigned slot = (pos_ + len_) % sizeof(buf_);
-                buf_[slot] = ch;
+            if (len_ < sizeof(buff_)) {
+                unsigned slot = (pos_ + len_) % sizeof(buff_);
+                buff_[slot] = ch;
                 ++len_;
                 if (want_eol) {
                     eol_ = len_;
@@ -208,7 +208,7 @@ void keyboardstate::maybe_echo(int ch) {
 
 void keyboardstate::consume(size_t n) {
     assert(n <= len_);
-    pos_ = (pos_ + n) % sizeof(buf_);
+    pos_ = (pos_ + n) % sizeof(buff_);
     len_ -= n;
     eol_ -= n;
 }
@@ -253,15 +253,15 @@ memfile* memfile::initfs_lookup(const char* name, size_t namelen) {
 //    Prepare `slot` to receive a command.
 inline void ahcistate::clear(int slot) {
     assert(unsigned(slot) < unsigned(nslots_));
-    dma_.ch[slot].nbuf = 0;
-    dma_.ch[slot].buf_byte_pos = 0;
+    dma_.ch[slot].nbuff = 0;
+    dma_.ch[slot].buff_byte_pos = 0;
 }
 
-// ahcistate::push_buffer(slot, buf, sz)
+// ahcistate::push_buffer(slot, buff, sz)
 //    Append a data buffer to the buffers relevant for the next command.
-inline void ahcistate::push_buffer(int slot, void* buf, size_t sz) {
+inline void ahcistate::push_buffer(int slot, void* buff, size_t sz) {
     // check requirements on address and size
-    uint64_t pa = kptr2pa(buf);
+    uint64_t pa = kptr2pa(buff);
     assert((pa & 1) == 0 && (sz & 1) == 0);       // word-aligned
     assert(sz > 0 && sz <= (64U << 10));          // >0, <64KiB
     assert(pa <= 0x100000000UL);                  // low physical memory
@@ -269,13 +269,13 @@ inline void ahcistate::push_buffer(int slot, void* buf, size_t sz) {
 
     // check slot availability
     assert(unsigned(slot) < unsigned(nslots_));
-    assert(dma_.ch[slot].nbuf < arraysize(dma_.ct[slot].buf));
+    assert(dma_.ch[slot].nbuff < arraysize(dma_.ct[slot].buff));
 
-    int nbuf = dma_.ch[slot].nbuf;
-    dma_.ct[slot].buf[nbuf].pa = pa;
-    dma_.ct[slot].buf[nbuf].maxbyte = sz - 1;
-    dma_.ch[slot].nbuf = nbuf + 1;
-    dma_.ch[slot].buf_byte_pos += sz;
+    int nbuff = dma_.ch[slot].nbuff;
+    dma_.ct[slot].buff[nbuff].pa = pa;
+    dma_.ct[slot].buff[nbuff].maxbyte = sz - 1;
+    dma_.ch[slot].nbuff = nbuff + 1;
+    dma_.ch[slot].buff_byte_pos += sz;
 }
 
 // ahcistate::issue_ncq(slot, cmd, sector, fua = false, priority = 0)
@@ -290,8 +290,8 @@ void ahcistate::issue_ncq(int slot, idecommand cmd, size_t sector,
     assert(!(slots_outstanding_mask_ & (1U << slot)));
     assert(cmd == cmd_read_fpdma_queued || cmd == cmd_write_fpdma_queued);
     assert(unsigned(priority) < 3);
-    assert(dma_.ch[slot].buf_byte_pos > 0);
-    size_t nsectors = dma_.ch[slot].buf_byte_pos / sectorsize;
+    assert(dma_.ch[slot].buff_byte_pos > 0);
+    size_t nsectors = dma_.ch[slot].buff_byte_pos / sectorsize;
 
     dma_.ct[slot].cfis[0] = cfis_command | (unsigned(cmd) << 16)
         | ((nsectors & 0xFF) << 24);
@@ -303,7 +303,7 @@ void ahcistate::issue_ncq(int slot, idecommand cmd, size_t sector,
     dma_.ch[slot].flags = 4 /* # words in `cfis` */
         | ch_clear_flag
         | (cmd == cmd_write_fpdma_queued ? ch_write_flag : 0);
-    dma_.ch[slot].buf_byte_pos = 0;
+    dma_.ch[slot].buff_byte_pos = 0;
 
     // ensure all previous writes have made it out to memory
     std::atomic_thread_fence(std::memory_order_release);
@@ -332,14 +332,14 @@ inline void ahcistate::acknowledge(int slot, int result) {
 
 // FUNCTIONS FOR READING AND WRITING BLOCKS
 
-// ahcistate::read_or_write(command, buf, sz, off)
+// ahcistate::read_or_write(command, buff, sz, off)
 //    Issue an NCQ read or write command `command`. Read or write
-//    `sz` bytes of data to or from `buf`, starting at disk offset
+//    `sz` bytes of data to or from `buff`, starting at disk offset
 //    `off`. `sz` and `off` are measured in bytes, but must be
 //    sector-aligned (i.e., multiples of `ahcistate::sectorsize`).
 //    Can block. Returns 0 on success and an error code on failure.
 
-int ahcistate::read_or_write(idecommand command, void* buf, size_t sz,
+int ahcistate::read_or_write(idecommand command, void* buff, size_t sz,
                              size_t off) {
     // `sz` and `off` must be sector-aligned
     assert(sz % sectorsize == 0 && off % sectorsize == 0);
@@ -356,7 +356,7 @@ int ahcistate::read_or_write(idecommand command, void* buf, size_t sz,
     // send command, record buffer and status storage
     volatile int r = E_AGAIN;
     clear(0);
-    push_buffer(0, buf, sz);
+    push_buffer(0, buff, sz);
     issue_ncq(0, command, off / sectorsize);
     slot_status_[0] = &r;
 
@@ -428,7 +428,7 @@ void ahcistate::issue_meta(int slot, idecommand cmd, int features,
     assert(unsigned(features) < 0x10000);
     assert(!(slots_outstanding_mask_ & (1U << slot)));
     assert(cmd == cmd_identify_device || cmd == cmd_set_features);
-    size_t nsectors = dma_.ch[slot].buf_byte_pos / sectorsize;
+    size_t nsectors = dma_.ch[slot].buff_byte_pos / sectorsize;
     if (cmd == cmd_set_features && count != -1) {
         nsectors = count;
     }
@@ -440,7 +440,7 @@ void ahcistate::issue_meta(int slot, idecommand cmd, int features,
     dma_.ct[slot].cfis[3] = nsectors;
 
     dma_.ch[slot].flags = 4 /* # words in `cfis` */ | ch_clear_flag;
-    dma_.ch[slot].buf_byte_pos = 0;
+    dma_.ch[slot].buff_byte_pos = 0;
 
     // ensure all previous writes have made it out to memory
     std::atomic_thread_fence(std::memory_order_release);

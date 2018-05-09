@@ -145,20 +145,20 @@ static inline pid_t sys_waitpid(pid_t pid,
     return E_NOSYS;
 }
 
-// sys_read(fd, buf, sz)
-//    Read bytes from `fd` into `buf`. Read at most `sz` bytes. Return
+// sys_read(fd, buff, sz)
+//    Read bytes from `fd` into `buff`. Read at most `sz` bytes. Return
 //    the number of bytes read, which is 0 at EOF.
-inline ssize_t sys_read(int fd, char* buf, size_t sz) {
-    clobber_memory(buf);
-    return syscall0(SYSCALL_READ, fd, reinterpret_cast<uintptr_t>(buf), sz);
+inline ssize_t sys_read(int fd, char* buff, size_t sz) {
+    clobber_memory(buff);
+    return syscall0(SYSCALL_READ, fd, reinterpret_cast<uintptr_t>(buff), sz);
 }
 
-// sys_write(fd, buf, sz)
-//    Write bytes to `fd` from `buf`. Write at most `sz` bytes. Return
+// sys_write(fd, buff, sz)
+//    Write bytes to `fd` from `buff`. Write at most `sz` bytes. Return
 //    the number of bytes written.
-inline ssize_t sys_write(int fd, const char* buf, size_t sz) {
-    access_memory(buf);
-    return syscall0(SYSCALL_WRITE, fd, reinterpret_cast<uintptr_t>(buf), sz);
+inline ssize_t sys_write(int fd, const char* buff, size_t sz) {
+    access_memory(buff);
+    return syscall0(SYSCALL_WRITE, fd, reinterpret_cast<uintptr_t>(buff), sz);
 }
 
 // sys_dup2(oldfd, newfd)
@@ -226,16 +226,16 @@ inline int sys_unlink(const char* pathname) {
     return syscall0(SYSCALL_UNLINK, reinterpret_cast<uintptr_t>(pathname));
 }
 
-// sys_readdiskfile(filename, buf, sz, off)
-//    Read bytes from disk file `filename` into `buf`. Read at most `sz`
+// sys_readdiskfile(filename, buff, sz, off)
+//    Read bytes from disk file `filename` into `buff`. Read at most `sz`
 //    bytes starting at file offset `off`. Return the number of bytes
 //    read, which is 0 at EOF.
 inline ssize_t sys_readdiskfile(const char* filename,
-                                char* buf, size_t sz, size_t off) {
-    clobber_memory(buf);
+                                char* buff, size_t sz, size_t off) {
+    clobber_memory(buff);
     return syscall0(SYSCALL_READDISKFILE,
                     reinterpret_cast<uintptr_t>(filename),
-                    reinterpret_cast<uintptr_t>(buf), sz, off);
+                    reinterpret_cast<uintptr_t>(buff), sz, off);
 }
 
 // sys_sync(drop)

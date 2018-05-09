@@ -1,6 +1,6 @@
 #include "kernel.hh"
 
-#define NUMBUFSZ 22
+#define NUMbuffSZ 22
 
 // UNDEFINED BEHAVIOR SANITIZERS
 
@@ -44,16 +44,16 @@ struct type_descriptor {
             }
         }
     }
-    inline char* unparse_value(char* buf, size_t bufsz,
+    inline char* unparse_value(char* buff, size_t buffsz,
                                          unsigned long x) const {
         if (kind != 0 || info >= 14) {
-            snprintf(buf, bufsz, "???");
+            snprintf(buff, buffsz, "???");
         } else if (is_signed()) {
-            snprintf(buf, bufsz, "%ld", value(x));
+            snprintf(buff, buffsz, "%ld", value(x));
         } else {
-            snprintf(buf, bufsz, "%lu", value(x));
+            snprintf(buff, buffsz, "%lu", value(x));
         }
-        return buf;
+        return buff;
     }
 };
 
@@ -104,13 +104,13 @@ extern "C" {
 
 static void handle_overflow(overflow_data* data, unsigned long lhs,
                             unsigned long rhs, char op) {
-    char buf1[NUMBUFSZ], buf2[NUMBUFSZ];
+    char buff1[NUMbuffSZ], buff2[NUMbuffSZ];
     error_printf("!!! %s:%u: %s integer overflow\n"
                  "!!!  %s %c %s cannot be represented in type %s\n",
                  data->location.file, data->location.line,
                  data->type->is_signed() ? "signed" : "unsigned",
-                 data->type->unparse_value(buf1, sizeof(buf1), lhs), op,
-                 data->type->unparse_value(buf2, sizeof(buf2), rhs),
+                 data->type->unparse_value(buff1, sizeof(buff1), lhs), op,
+                 data->type->unparse_value(buff2, sizeof(buff2), rhs),
                  data->type->name);
 }
 
@@ -131,22 +131,22 @@ void __ubsan_handle_mul_overflow(overflow_data* data,
 
 void __ubsan_handle_negate_overflow(overflow_data* data,
                                     unsigned long a) {
-    char buf[NUMBUFSZ];
+    char buff[NUMbuffSZ];
     error_printf("!!! %s:%u: %s integer overflow\n"
                  "!!!   -(%s) cannot be represented in type %s\n",
                  data->location.file, data->location.line,
                  data->type->is_signed() ? "signed" : "unsigned",
-                 data->type->unparse_value(buf, sizeof(buf), a),
+                 data->type->unparse_value(buff, sizeof(buff), a),
                  data->type->name);
 }
 
 void __ubsan_handle_divrem_overflow(overflow_data* data,
                                     unsigned long a, unsigned long b) {
-    char buf[NUMBUFSZ];
+    char buff[NUMbuffSZ];
     if (data->type->is_signed() && long(data->type->value(b)) == -1L) {
         error_printf("!!! %s:%d: division of %s by -1 cannot be represented in type %s\n",
                      data->location.file, data->location.line,
-                     data->type->unparse_value(buf, sizeof(buf), a),
+                     data->type->unparse_value(buff, sizeof(buff), a),
                      data->type->name);
     } else {
         error_printf("!!! %s:%d: division by zero\n",
@@ -156,21 +156,21 @@ void __ubsan_handle_divrem_overflow(overflow_data* data,
 
 void __ubsan_handle_shift_out_of_bounds(shift_out_of_bounds_data* data,
                                         unsigned long a, unsigned long b) {
-    char buf1[NUMBUFSZ], buf2[NUMBUFSZ];
+    char buff1[NUMbuffSZ], buff2[NUMbuffSZ];
     error_printf("!!! %s:%u: shift out of bounds\n",
                  data->location.file, data->location.line);
     if (data->rhs_type->is_signed()
         && long(data->rhs_type->value(b)) < 0) {
         error_printf("!!!   shift amount %s is negative\n",
-                     data->rhs_type->unparse_value(buf2, sizeof(buf2), b));
+                     data->rhs_type->unparse_value(buff2, sizeof(buff2), b));
     } else if (data->rhs_type->value(b) >= data->lhs_type->bit_width()) {
         error_printf("!!!   shift amount %s too large for type %s\n",
-                     data->rhs_type->unparse_value(buf2, sizeof(buf2), b),
+                     data->rhs_type->unparse_value(buff2, sizeof(buff2), b),
                      data->lhs_type->name);
     } else {
         error_printf("!!!   %s << %s cannot be represented in type %s\n",
-                     data->lhs_type->unparse_value(buf1, sizeof(buf1), a),
-                     data->rhs_type->unparse_value(buf2, sizeof(buf2), b),
+                     data->lhs_type->unparse_value(buff1, sizeof(buff1), a),
+                     data->rhs_type->unparse_value(buff2, sizeof(buff2), b),
                      data->lhs_type->name);
     }
 }
@@ -199,10 +199,10 @@ void __ubsan_handle_type_mismatch(type_mismatch_data* data,
 
 void __ubsan_handle_out_of_bounds(out_of_bounds_data* data,
                                   unsigned long index) {
-    char buf[NUMBUFSZ];
+    char buff[NUMbuffSZ];
     error_printf("!!! %s:%d: index %s out of range for type %s\n",
                  data->location.file, data->location.line,
-                 data->index_type->unparse_value(buf, sizeof(buf), index),
+                 data->index_type->unparse_value(buff, sizeof(buff), index),
                  data->array_type->name);
 }
 
@@ -219,18 +219,18 @@ void __ubsan_handle_missing_return(source_location* location) {
 
 void __ubsan_handle_vla_bound_not_positive(vla_bound_data* data,
 					   unsigned long bound) {
-    char buf[NUMBUFSZ];
+    char buff[NUMbuffSZ];
     error_printf("!!! %s:%d: variable length array bound evaluates to non-positive %s\n",
                  data->location.file, data->location.line,
-                 data->type->unparse_value(buf, sizeof(buf), bound));
+                 data->type->unparse_value(buff, sizeof(buff), bound));
 }
 
 void __ubsan_handle_load_invalid_value(invalid_value_data* data,
                                        unsigned long val) {
-    char buf[NUMBUFSZ];
+    char buff[NUMbuffSZ];
     error_printf("!!! %s:%d: load value %s is not valid for type %s\n",
                  data->location.file, data->location.line,
-                 data->type->unparse_value(buf, sizeof(buf), val),
+                 data->type->unparse_value(buff, sizeof(buff), val),
                  data->type->name);
 }
 

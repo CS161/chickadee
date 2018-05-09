@@ -227,7 +227,7 @@ constexpr char printfmt<unsigned long>::spec[];
 // snprintf, vsnprintf
 //    Format a string into a buffer.
 
-static char* fill_numbuf(char* numbuf_end, unsigned long val, int base) {
+static char* fill_numbuff(char* numbuff_end, unsigned long val, int base) {
     static const char upper_digits[] = "0123456789ABCDEF";
     static const char lower_digits[] = "0123456789abcdef";
 
@@ -237,12 +237,12 @@ static char* fill_numbuf(char* numbuf_end, unsigned long val, int base) {
         base = -base;
     }
 
-    *--numbuf_end = '\0';
+    *--numbuff_end = '\0';
     do {
-        *--numbuf_end = digits[val % base];
+        *--numbuff_end = digits[val % base];
         val /= base;
     } while (val != 0);
-    return numbuf_end;
+    return numbuff_end;
 }
 
 #define FLAG_ALT                (1<<0)
@@ -258,8 +258,8 @@ static const char flag_chars[] = "#0- +";
 #define FLAG_ALT2               (1<<8)
 
 void printer_vprintf(printer* p, int color, const char* format, va_list val) {
-#define NUMBUFSIZ 24
-    char numbuf[NUMBUFSIZ];
+#define NUMbuffSIZ 24
+    char numbuff[NUMbuffSIZ];
 
     for (; *format; ++format) {
         if (*format != '%') {
@@ -350,14 +350,14 @@ void printer_vprintf(printer* p, int color, const char* format, va_list val) {
             color = va_arg(val, int);
             continue;
         case 'c':
-            data = numbuf;
-            numbuf[0] = va_arg(val, int);
-            numbuf[1] = '\0';
+            data = numbuff;
+            numbuff[0] = va_arg(val, int);
+            numbuff[1] = '\0';
             break;
         default:
-            data = numbuf;
-            numbuf[0] = (*format ? *format : '%');
-            numbuf[1] = '\0';
+            data = numbuff;
+            numbuff[0] = (*format ? *format : '%');
+            numbuff[1] = '\0';
             if (!*format) {
                 format--;
             }
@@ -365,7 +365,7 @@ void printer_vprintf(printer* p, int color, const char* format, va_list val) {
         }
 
         if (flags & FLAG_NUMERIC) {
-            data = fill_numbuf(numbuf + NUMBUFSIZ, num, base);
+            data = fill_numbuff(numbuff + NUMbuffSIZ, num, base);
         }
 
         const char* prefix = "";

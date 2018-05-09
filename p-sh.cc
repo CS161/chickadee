@@ -6,7 +6,7 @@ static pid_t create_child(char** words, char nextch,
                           char** redir, int* pipein);
 
 void process_main() {
-    static char buf[4096];      // static so stack size is small
+    static char buff[4096];      // static so stack size is small
     static char* words[256];
 
     sys_kdisplay(KDISPLAY_NONE);
@@ -16,14 +16,14 @@ void process_main() {
         ssize_t n = sys_write(1, "sh$ ", 4);
         assert(n == 4);
 
-        n = sys_read(0, buf, sizeof(buf) - 1);
+        n = sys_read(0, buff, sizeof(buff) - 1);
         if (n <= 0) {
             break;
         }
-        buf[n] = 0;
+        buff[n] = 0;
 
-        char* s = buf;
-        char* end = buf + n;
+        char* s = buff;
+        char* end = buff + n;
         char** word = words;
 
         int pipein = 0;

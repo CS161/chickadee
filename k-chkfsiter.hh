@@ -7,7 +7,7 @@ class chkfs_fileiter {
     using blocknum_t = chickadeefs::blocknum_t;
     using inode = chickadeefs::inode;
     static constexpr size_t blocksize = chickadeefs::blocksize;
-    static constexpr blocknum_t emptyblock = bufentry::emptyblock;
+    static constexpr blocknum_t emptyblock = buffentry::emptyblock;
 
 
     // Initialize an iterator for `ino` at file offset `off`.
@@ -47,8 +47,8 @@ class chkfs_fileiter {
     //
     // This function can call:
     // * `chkfsstate::allocate_block`, to allocate indirect[2] blocks
-    // * `bufcache::get_disk_entry(blocknum_t)`, to find indirect[2] bufentries
-    // * `bufcache::get_write(bufentry*)` and `bufcache::put_write(bufentry*)`,
+    // * `buffcache::get_disk_entry(blocknum_t)`, to find indirect[2] buffentries
+    // * `buffcache::get_write(buffentry*)` and `buffcache::put_write(buffentry*)`,
     //   to obtain write references to indirect[2] blocks and/or the inode
     //   block
     int map(blocknum_t bn);
@@ -60,28 +60,28 @@ class chkfs_fileiter {
     blocknum_t* dptr_;              // pointer into buffer cache to
                                     // data block number for `off_`
 
-    // bufentries for inode, indirect2 block, current indirect block
-    bufentry* ino_entry_;
-    bufentry* indirect2_entry_ = nullptr;
-    bufentry* indirect_entry_ = nullptr;
+    // buffentries for inode, indirect2 block, current indirect block
+    buffentry* ino_entry_;
+    buffentry* indirect2_entry_ = nullptr;
+    buffentry* indirect_entry_ = nullptr;
 
     static inline constexpr unsigned iclass(unsigned bi);
     inline blocknum_t* get_iptr(unsigned bi) const;
     inline blocknum_t* get_dptr(unsigned bi) const;
-    blocknum_t allocate_metablock_entry(bufentry** eptr) const;
+    blocknum_t allocate_metablock_entry(buffentry** eptr) const;
 };
 
 
 inline chkfs_fileiter::chkfs_fileiter(inode* ino, size_t off)
     : ino_(ino), off_(0), dptr_(&ino->direct[0]) {
-    ino_entry_ = bufcache::get().find_entry(ino);
+    ino_entry_ = buffcache::get().find_entry(ino);
     if (off != 0) {
         find(off);
     }
 }
 
 inline chkfs_fileiter::~chkfs_fileiter() {
-    auto& bc = bufcache::get();
+    auto& bc = buffcache::get();
     if (indirect_entry_) {
         bc.put_entry(indirect_entry_);
     }

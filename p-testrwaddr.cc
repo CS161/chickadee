@@ -7,8 +7,8 @@ void process_main() {
     ssize_t w = sys_write(1, msg1, strlen(msg1));
     assert_eq(static_cast<size_t>(w), strlen(msg1));
 
-    char buf[200];
-    ssize_t r = sys_read(0, buf, sizeof(buf));
+    char buff[200];
+    ssize_t r = sys_read(0, buff, sizeof(buff));
     assert_gt(r, 0);
 
 
@@ -35,7 +35,7 @@ void process_main() {
     r = sys_read(0, reinterpret_cast<char*>(VA_LOWEND), 0);
     assert_eq(r, 0);
 
-    r = sys_read(0, buf, 0xFFFFFFFFFFFFFFFFUL);
+    r = sys_read(0, buff, 0xFFFFFFFFFFFFFFFFUL);
     assert_eq(r, E_FAULT);
 
     r = sys_read(0, reinterpret_cast<char*>(10), 1);

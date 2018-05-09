@@ -1,7 +1,7 @@
 #include "p-lib.hh"
 
 void process_main(int argc, char** argv) {
-    char buf[1];
+    char buff[1];
 
     sys_kdisplay(KDISPLAY_NONE);
 
@@ -12,14 +12,14 @@ void process_main(int argc, char** argv) {
 
     size_t off = 0;
     while (1) {
-        ssize_t n = sys_readdiskfile(filename, buf, sizeof(buf), off);
+        ssize_t n = sys_readdiskfile(filename, buff, sizeof(buff), off);
         if (n < 0) {
             dprintf(2, "%s: error %d\n", filename, int(n));
             sys_exit(1);
         } else if (n == 0) {
             break;
         }
-        sys_write(1, buf, n);
+        sys_write(1, buff, n);
         off += n;
     }
 

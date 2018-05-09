@@ -6,30 +6,30 @@ void process_main() {
     int f = sys_open("emerson.txt", OF_READ);
     assert_gt(f, 2);
 
-    char buf[200];
-    ssize_t n = sys_read(f, buf, 1);
+    char buff[200];
+    ssize_t n = sys_read(f, buff, 1);
     assert_eq(n, 1);
-    assert_memeq(buf, "W", 1);
+    assert_memeq(buff, "W", 1);
 
-    n = sys_read(f, buf, 2);
+    n = sys_read(f, buff, 2);
     assert_eq(n, 2);
-    assert_memeq(buf, "he", 2);
+    assert_memeq(buff, "he", 2);
 
-    n = sys_read(f, buf, 3);
+    n = sys_read(f, buff, 3);
     assert_eq(n, 3);
-    assert_memeq(buf, "n p", 3);
+    assert_memeq(buff, "n p", 3);
 
 
     int f2 = sys_open("emerson.txt", OF_READ);
     assert(f2 > 2 && f2 != f);
 
-    n = sys_read(f2, buf, 5);
+    n = sys_read(f2, buff, 5);
     assert_eq(n, 5);
-    assert_memeq(buf, "When ", 5);
+    assert_memeq(buff, "When ", 5);
 
-    n = sys_read(f, buf, 5);
+    n = sys_read(f, buff, 5);
     assert_eq(n, 5);
-    assert_memeq(buf, "iped ", 5);
+    assert_memeq(buff, "iped ", 5);
 
 
     int f3 = 3;
@@ -39,42 +39,42 @@ void process_main() {
     int r = sys_dup2(f, f3);
     assert_ge(r, 0);
 
-    n = sys_read(f, buf, 10);
+    n = sys_read(f, buff, 10);
     assert_eq(n, 10);
-    assert_memeq(buf, "a tiny voi", 10);
+    assert_memeq(buff, "a tiny voi", 10);
 
-    n = sys_read(f3, buf, 10);
+    n = sys_read(f3, buff, 10);
     assert_eq(n, 10);
-    assert_memeq(buf, "ce hard by", 10);
+    assert_memeq(buff, "ce hard by", 10);
 
-    n = sys_read(f, buf, 10);
+    n = sys_read(f, buff, 10);
     assert_eq(n, 10);
-    assert_memeq(buf, ",\nGay and ", 10);
+    assert_memeq(buff, ",\nGay and ", 10);
 
     r = sys_close(f);
     assert_eq(r, 0);
 
-    n = sys_read(f, buf, 10);
+    n = sys_read(f, buff, 10);
     assert_eq(n, E_BADF);
 
-    n = sys_read(f2, buf, 10);
+    n = sys_read(f2, buff, 10);
     assert_eq(n, 10);
-    assert_memeq(buf, "piped a ti", 10);
+    assert_memeq(buff, "piped a ti", 10);
 
-    n = sys_read(f3, buf, 10);
+    n = sys_read(f3, buff, 10);
     assert_eq(n, 10);
-    assert_memeq(buf, "polite, a ", 10);
+    assert_memeq(buff, "polite, a ", 10);
 
 
-    n = sys_read(f3, buf, sizeof(buf));
+    n = sys_read(f3, buff, sizeof(buff));
     assert_eq(n, 79);
-    assert_memeq(buf, "cheerful cry,\n", 14);
-    assert_memeq(buf + 72, "throat\n", 7);
+    assert_memeq(buff, "cheerful cry,\n", 14);
+    assert_memeq(buff + 72, "throat\n", 7);
 
-    n = sys_read(f3, buf, sizeof(buf));
+    n = sys_read(f3, buff, sizeof(buff));
     assert_eq(n, 0);
 
-    n = sys_read(f3, buf, sizeof(buf));
+    n = sys_read(f3, buff, sizeof(buff));
     assert_eq(n, 0);
 
 
@@ -97,9 +97,9 @@ void process_main() {
     f = sys_open(page, OF_READ);
     assert_gt(f, 2);
 
-    n = sys_read(f, buf, 4);
+    n = sys_read(f, buff, 4);
     assert_eq(n, 4);
-    assert_memeq(buf, "When", 4);
+    assert_memeq(buff, "When", 4);
 
     memcpy(page + PAGESIZE - 11, "emerson.txt", 11);
     f2 = sys_open(page + PAGESIZE - 11, OF_READ);

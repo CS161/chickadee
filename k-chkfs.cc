@@ -2,20 +2,20 @@
 #include "k-devices.hh"
 #include "k-chkfsiter.hh"
 
-bufcache bufcache::bc;
+buffcache buffcache::bc;
 
-bufcache::bufcache() {
+buffcache::buffcache() {
 }
 
 
-// bufcache::get_disk_entry(bn, cleaner)
+// buffcache::get_disk_entry(bn, cleaner)
 //    Read disk block `bn` into the buffer cache, obtain a reference to it,
-//    and return a pointer to its bufentry. The function may block. If this
+//    and return a pointer to its buffentry. The function may block. If this
 //    function reads the disk block from disk, and `cleaner != nullptr`,
 //    then `cleaner` is called on the block data. Returns `nullptr` if
 //    there's no room for the block.
 
-bufentry* bufcache::get_disk_entry(chickadeefs::blocknum_t bn,
+buffentry* buffcache::get_disk_entry(chickadeefs::blocknum_t bn,
                                    clean_block_function cleaner) {
     assert(chickadeefs::blocksize == PAGESIZE);
     auto irqs = lock_.lock();
@@ -35,7 +35,7 @@ bufentry* bufcache::get_disk_entry(chickadeefs::blocknum_t bn,
         if (i == ne) {
             // cache full!
             lock_.unlock(irqs);
-            log_printf("bufcache: no room for block %u\n", bn);
+            log_printf("buffcache: no room for block %u\n", bn);
             return nullptr;
         }
         e_[i].bn_ = bn;
@@ -49,30 +49,30 @@ bufentry* bufcache::get_disk_entry(chickadeefs::blocknum_t bn,
     lock_.unlock_noirq();
 
     // load block, or wait for concurrent reader to load it
-    while (!(e_[i].flags_ & bufentry::f_loaded)) {
-        if (!(e_[i].flags_ & bufentry::f_loading)) {
-            if (!e_[i].buf_) {
-                e_[i].buf_ = kalloc(chickadeefs::blocksize);
-                if (!e_[i].buf_) {
+    while (!(e_[i].flags_ & buffentry::f_loaded)) {
+        if (!(e_[i].flags_ & buffentry::f_loading)) {
+            if (!e_[i].buff_) {
+                e_[i].buff_ = kalloc(chickadeefs::blocksize);
+                if (!e_[i].buff_) {
                     --e_[i].ref_;
                     e_[i].lock_.unlock(irqs);
                     return nullptr;
                 }
             }
-            e_[i].flags_ |= bufentry::f_loading;
+            e_[i].flags_ |= buffentry::f_loading;
             e_[i].lock_.unlock(irqs);
-            sata_disk->read(e_[i].buf_, chickadeefs::blocksize,
+            sata_disk->read(e_[i].buff_, chickadeefs::blocksize,
                             bn * chickadeefs::blocksize);
             irqs = e_[i].lock_.lock();
-            e_[i].flags_ = (e_[i].flags_ & ~bufentry::f_loading)
-                | bufentry::f_loaded;
+            e_[i].flags_ = (e_[i].flags_ & ~buffentry::f_loading)
+                | buffentry::f_loaded;
             if (cleaner) {
-                cleaner(e_[i].buf_);
+                cleaner(e_[i].buff_);
             }
             read_wq_.wake_all();
         } else {
             waiter(current()).block_until(read_wq_, [&] () {
-                    return (e_[i].flags_ & bufentry::f_loading) == 0;
+                    return (e_[i].flags_ & buffentry::f_loading) == 0;
                 }, e_[i].lock_, irqs);
         }
     }
@@ -83,22 +83,22 @@ bufentry* bufcache::get_disk_entry(chickadeefs::blocknum_t bn,
 }
 
 
-// bufcache::find_entry(buf)
-//    Return the `bufentry` containing pointer `buf`. This entry
+// buffcache::find_entry(buff)
+//    Return the `buffentry` containing pointer `buff`. This entry
 //    must have a nonzero `ref_`.
 
-bufentry* bufcache::find_entry(void* buf) {
-    if (buf) {
-        buf = ROUNDDOWN(buf, chickadeefs::blocksize);
+buffentry* buffcache::find_entry(void* buff) {
+    if (buff) {
+        buff = ROUNDDOWN(buff, chickadeefs::blocksize);
 
         // Synchronization is not necessary!
-        // 1. The relevant entry has nonzero `ref_`, so its `buf_`
+        // 1. The relevant entry has nonzero `ref_`, so its `buff_`
         //    will not change.
-        // 2. No other entry has the same `buf_` because nonempty
-        //    entries have unique `buf_`s.
-        // (XXX Really, though, `buf_` should be std::atomic<void*>.)
+        // 2. No other entry has the same `buff_` because nonempty
+        //    entries have unique `buff_`s.
+        // (XXX Really, though, `buff_` should be std::atomic<void*>.)
         for (size_t i = 0; i != ne; ++i) {
-            if (e_[i].buf_ == buf) {
+            if (e_[i].buff_ == buff) {
                 return &e_[i];
             }
         }
@@ -108,15 +108,15 @@ bufentry* bufcache::find_entry(void* buf) {
 }
 
 
-// bufcache::put_entry(e)
+// buffcache::put_entry(e)
 //    Decrement the reference count for buffer cache entry `e`.
 
-void bufcache::put_entry(bufentry* e) {
+void buffcache::put_entry(buffentry* e) {
     if (e) {
         auto irqs = e->lock_.lock();
         --e->ref_;
         if (e->ref_ == 0) {
-            kfree(e->buf_);
+            kfree(e->buff_);
             e->clear();
         }
         e->lock_.unlock(irqs);
@@ -124,37 +124,37 @@ void bufcache::put_entry(bufentry* e) {
 }
 
 
-// bufcache::get_write(e)
+// buffcache::get_write(e)
 //    Obtain a write reference for `e`.
 
-void bufcache::get_write(bufentry* e) {
+void buffcache::get_write(buffentry* e) {
     // Your code here
     assert(false);
 }
 
 
-// bufcache::put_write(e)
+// buffcache::put_write(e)
 //    Release a write reference for `e`.
 
-void bufcache::put_write(bufentry* e) {
+void buffcache::put_write(buffentry* e) {
     // Your code here
     assert(false);
 }
 
 
-// bufcache::sync(drop)
+// buffcache::sync(drop)
 //    Write all dirty buffers to disk (blocking until complete).
 //    Additionally free all buffer cache contents, except referenced
 //    blocks, if `drop` is true.
 
-int bufcache::sync(bool drop) {
+int buffcache::sync(bool drop) {
     // Write dirty buffers to disk: your code here!
 
     if (drop) {
         auto irqs = lock_.lock();
         for (size_t i = 0; i != ne; ++i) {
             if (e_[i].bn_ != emptyblock && !e_[i].ref_) {
-                kfree(e_[i].buf_);
+                kfree(e_[i].buff_);
                 e_[i].clear();
             }
         }
@@ -165,12 +165,12 @@ int bufcache::sync(bool drop) {
 }
 
 
-// clean_inode_block(buf)
+// clean_inode_block(buff)
 //    This function is called when loading an inode block into the
 //    buffer cache. It clears values that are only used in memory.
 
-static void clean_inode_block(void* buf) {
-    auto is = reinterpret_cast<chickadeefs::inode*>(buf);
+static void clean_inode_block(void* buff) {
+    auto is = reinterpret_cast<chickadeefs::inode*>(buff);
     for (unsigned i = 0; i != chickadeefs::inodesperblock; ++i) {
         is[i].mlock = is[i].mref = 0;
     }
@@ -245,7 +245,7 @@ chkfsstate::chkfsstate() {
 //    Return inode number `inum`, or `nullptr` if there's no such inode.
 //    The returned pointer should eventually be passed to `put_inode`.
 chickadeefs::inode* chkfsstate::get_inode(inum_t inum) {
-    auto& bc = bufcache::get();
+    auto& bc = buffcache::get();
 
     unsigned char* superblock_data = reinterpret_cast<unsigned char*>
         (bc.get_disk_block(0));
@@ -273,7 +273,7 @@ chickadeefs::inode* chkfsstate::get_inode(inum_t inum) {
 //    Drop the reference to `ino`.
 void chkfsstate::put_inode(inode* ino) {
     if (ino) {
-        bufcache::get().put_block(ROUNDDOWN(ino, PAGESIZE));
+        buffcache::get().put_block(ROUNDDOWN(ino, PAGESIZE));
     }
 }
 
@@ -286,13 +286,13 @@ void chkfsstate::put_inode(inode* ino) {
 //    in the returned page are valid.
 unsigned char* chkfsstate::get_data_block(inode* ino, size_t off) {
     assert(off % blocksize == 0);
-    auto& bc = bufcache::get();
+    auto& bc = buffcache::get();
 
-    bufentry* i2e = nullptr;       // bufentry for indirect2 block (if needed)
+    buffentry* i2e = nullptr;       // buffentry for indirect2 block (if needed)
     blocknum_t* iptr = nullptr;    // pointer to indirect block # (if needed)
-    bufentry* ie = nullptr;        // bufentry for indirect block (if needed)
+    buffentry* ie = nullptr;        // buffentry for indirect block (if needed)
     blocknum_t* dptr = nullptr;    // pointer to direct block #
-    bufentry* de = nullptr;        // bufentry for direct block
+    buffentry* de = nullptr;        // buffentry for direct block
 
     unsigned bi = off / blocksize;
 
@@ -306,7 +306,7 @@ unsigned char* chkfsstate::get_data_block(inode* ino, size_t off) {
         if (!i2e) {
             goto done;
         }
-        iptr = reinterpret_cast<blocknum_t*>(i2e->buf_)
+        iptr = reinterpret_cast<blocknum_t*>(i2e->buff_)
             + chickadeefs::bi_indirect_index(bi);
     } else if (bi >= chickadeefs::ndirect) {
         iptr = &ino->indirect;
@@ -322,7 +322,7 @@ unsigned char* chkfsstate::get_data_block(inode* ino, size_t off) {
         if (!ie) {
             goto done;
         }
-        dptr = reinterpret_cast<blocknum_t*>(ie->buf_)
+        dptr = reinterpret_cast<blocknum_t*>(ie->buff_)
             + chickadeefs::bi_direct_index(bi);
     } else {
         dptr = &ino->direct[chickadeefs::bi_direct_index(bi)];
@@ -337,7 +337,7 @@ unsigned char* chkfsstate::get_data_block(inode* ino, size_t off) {
     // We don't need the indirect and doubly-indirect entries.
     bc.put_entry(ie);
     bc.put_entry(i2e);
-    return de ? reinterpret_cast<unsigned char*>(de->buf_) : nullptr;
+    return de ? reinterpret_cast<unsigned char*>(de->buff_) : nullptr;
 }
 
 
@@ -347,20 +347,20 @@ unsigned char* chkfsstate::get_data_block(inode* ino, size_t off) {
 //    eventually call `put_inode` on the returned inode pointer.
 chickadeefs::inode* chkfsstate::lookup_inode(inode* dirino,
                                              const char* filename) {
-    auto& bc = bufcache::get();
+    auto& bc = buffcache::get();
     chkfs_fileiter it(dirino);
 
     // read directory to find file inode
     chickadeefs::inum_t in = 0;
     for (size_t diroff = 0; !in; diroff += blocksize) {
-        bufentry* e;
+        buffentry* e;
         if (!(it.find(diroff).present()
               && (e = bc.get_disk_entry(it.blocknum())))) {
             break;
         }
 
         size_t bsz = min(dirino->size - diroff, blocksize);
-        auto dirent = reinterpret_cast<chickadeefs::dirent*>(e->buf_);
+        auto dirent = reinterpret_cast<chickadeefs::dirent*>(e->buff_);
         for (unsigned i = 0; i * sizeof(*dirent) < bsz; ++i, ++dirent) {
             if (dirent->inum && strcmp(dirent->name, filename) == 0) {
                 in = dirent->inum;
@@ -388,14 +388,14 @@ auto chkfsstate::allocate_block() -> blocknum_t {
 }
 
 
-// chickadeefs_read_file_data(filename, buf, sz, off)
+// chickadeefs_read_file_data(filename, buff, sz, off)
 //    Read up to `sz` bytes, from the file named `filename` in the
-//    disk's root directory, into `buf`, starting at file offset `off`.
+//    disk's root directory, into `buff`, starting at file offset `off`.
 //    Returns the number of bytes read.
 
 size_t chickadeefs_read_file_data(const char* filename,
-                                  void* buf, size_t sz, size_t off) {
-    auto& bc = bufcache::get();
+                                  void* buff, size_t sz, size_t off) {
+    auto& bc = buffcache::get();
     auto& fs = chkfsstate::get();
 
     // read directory to find file inode number
@@ -421,7 +421,7 @@ size_t chickadeefs_read_file_data(const char* filename,
         size_t ncopy = 0;
 
         // read inode contents, copy data
-        bufentry* e;
+        buffentry* e;
         if (it.find(off).present()
             && (e = bc.get_disk_entry(it.blocknum()))) {
             size_t blockoff = ROUNDDOWN(off, fs.blocksize);
@@ -432,8 +432,8 @@ size_t chickadeefs_read_file_data(const char* filename,
                 if (ncopy > sz) {
                     ncopy = sz;
                 }
-                memcpy(reinterpret_cast<unsigned char*>(buf) + nread,
-                       reinterpret_cast<unsigned char*>(e->buf_) + boff,
+                memcpy(reinterpret_cast<unsigned char*>(buff) + nread,
+                       reinterpret_cast<unsigned char*>(e->buff_) + boff,
                        ncopy);
             }
             bc.put_entry(e);

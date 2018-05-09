@@ -11,11 +11,11 @@ void process_main() {
     int f = sys_open("emerson.txt", OF_READ);
     assert_gt(f, 2);
 
-    char buf[200];
-    memset(buf, 0, sizeof(buf));
-    ssize_t n = sys_read(f, buf, 200);
+    char buff[200];
+    memset(buff, 0, sizeof(buff));
+    ssize_t n = sys_read(f, buff, 200);
     assert_eq(n, 130);
-    assert_memeq(buf, "When piped a tiny voice hard by,\n"
+    assert_memeq(buff, "When piped a tiny voice hard by,\n"
                  "Gay and polite, a cheerful cry,\n"
                  "Chic-chicadeedee", 81);
 
@@ -45,10 +45,10 @@ void process_main() {
     f = sys_open("geisel.txt", OF_READ);
     assert_gt(f, 2);
 
-    memset(buf, 0, sizeof(buf));
-    n = sys_read(f, buf, 200);
+    memset(buff, 0, sizeof(buff));
+    n = sys_read(f, buff, 200);
     assert_eq(n, 64);
-    assert_memeq(buf, "Why, girl, you're insane!\n"
+    assert_memeq(buff, "Why, girl, you're insane!\n"
                  "Elephants don't hatch chickadee eggs!\n", 64);
 
     sys_close(f);
@@ -67,10 +67,10 @@ void process_main() {
     f = sys_open("geisel.txt", OF_READ);
     assert_gt(f, 2);
 
-    memset(buf, 0, sizeof(buf));
-    n = sys_read(f, buf, 200);
+    memset(buff, 0, sizeof(buff));
+    n = sys_read(f, buff, 200);
     assert_eq(n, 64);
-    assert_memeq(buf, "Why, girl, you're insane!\n"
+    assert_memeq(buff, "Why, girl, you're insane!\n"
                  "Elephants don't hatch chickadee eggs!\n", 64);
 
     sys_close(f);
@@ -84,26 +84,26 @@ void process_main() {
     assert_gt(wf, 2);
     assert_ne(wf, f);
 
-    memset(buf, 0, sizeof(buf));
-    n = sys_read(f, buf, 4);
+    memset(buff, 0, sizeof(buff));
+    n = sys_read(f, buff, 4);
     assert_eq(n, 4);
-    assert_memeq(buf, "Why,", 4);
+    assert_memeq(buff, "Why,", 4);
 
     n = sys_write(wf, "Am I scaring you tonight?", 25);
     assert_eq(n, 25);
 
-    memset(buf, 0, sizeof(buf));
-    n = sys_read(f, buf, 25);
+    memset(buff, 0, sizeof(buff));
+    n = sys_read(f, buff, 25);
     assert_eq(n, 25);
-    assert_memeq(buf, " scaring you tonight?\nEle", 25);
+    assert_memeq(buff, " scaring you tonight?\nEle", 25);
 
     n = sys_write(wf, "!", 1);
     assert_eq(n, 1);
 
-    memset(buf, 0, sizeof(buf));
-    n = sys_read(f, buf, 5);
+    memset(buff, 0, sizeof(buff));
+    n = sys_read(f, buff, 5);
     assert_eq(n, 5);
-    assert_memeq(buf, "phant", 5);
+    assert_memeq(buff, "phant", 5);
 
     sys_close(f);
     sys_close(wf);

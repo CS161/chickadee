@@ -4,7 +4,7 @@
 // MAIN CHICKADEEFS ITERATOR FUNCTIONS
 
 chkfs_fileiter& chkfs_fileiter::find(size_t off) {
-    auto& bc = bufcache::get();
+    auto& bc = buffcache::get();
     unsigned bi = min(off, chickadeefs::maxsize) / blocksize;
 
     // clear prior indirect_entry_ if we're in a different indirect class
@@ -70,7 +70,7 @@ void chkfs_fileiter::next() {
 
 int chkfs_fileiter::map(blocknum_t bn) {
     assert(ino_->has_write_lock());
-    auto& bc = bufcache::get();
+    auto& bc = buffcache::get();
     unsigned bi = off_ / blocksize;
 
     // simple cases: clearing empty mapping, beyond file size limit
@@ -102,7 +102,7 @@ int chkfs_fileiter::map(blocknum_t bn) {
             return ibn;
         }
 
-        bufentry* iptr_entry =
+        buffentry* iptr_entry =
             bi >= chickadeefs::ndirect + chickadeefs::nindirect
             ? indirect2_entry_ : ino_entry_;
         bc.get_write(iptr_entry);
@@ -111,7 +111,7 @@ int chkfs_fileiter::map(blocknum_t bn) {
     }
 
     // store data block pointer
-    bufentry* entry = bi >= chickadeefs::ndirect ? indirect_entry_ : ino_entry_;
+    buffentry* entry = bi >= chickadeefs::ndirect ? indirect_entry_ : ino_entry_;
     bc.get_write(entry);
     dptr_ = get_dptr(bi);
     *dptr_ = bn;
@@ -137,7 +137,7 @@ inline constexpr unsigned chkfs_fileiter::iclass(unsigned bi) {
 inline auto chkfs_fileiter::get_iptr(unsigned bi) const -> blocknum_t* {
     unsigned bi_ix = iclass(bi);
     if (bi_ix > 1) {
-        auto iptrs = reinterpret_cast<blocknum_t*>(indirect2_entry_->buf_);
+        auto iptrs = reinterpret_cast<blocknum_t*>(indirect2_entry_->buff_);
         return &iptrs[bi_ix - 2];
     } else if (bi_ix > 0) {
         return &ino_->indirect;
@@ -150,7 +150,7 @@ inline auto chkfs_fileiter::get_iptr(unsigned bi) const -> blocknum_t* {
 // data block number for block index `bi` is stored.
 inline auto chkfs_fileiter::get_dptr(unsigned bi) const -> blocknum_t* {
     if (bi >= chickadeefs::ndirect) {
-        return reinterpret_cast<blocknum_t*>(indirect_entry_->buf_)
+        return reinterpret_cast<blocknum_t*>(indirect_entry_->buff_)
             + chickadeefs::bi_direct_index(bi);
     } else {
         return &ino_->direct[bi];
@@ -158,12 +158,12 @@ inline auto chkfs_fileiter::get_dptr(unsigned bi) const -> blocknum_t* {
 }
 
 // Allocate and initialize a pointer block (i.e., an indirect or
-// doubly-indirect block). Store a pointer to the bufentry in `*eptr`.
+// doubly-indirect block). Store a pointer to the buffentry in `*eptr`.
 // Return the block number or an error code.
-auto chkfs_fileiter::allocate_metablock_entry(bufentry** eptr) const
+auto chkfs_fileiter::allocate_metablock_entry(buffentry** eptr) const
     -> blocknum_t {
     auto& chkfs = chkfsstate::get();
-    auto& bc = bufcache::get();
+    auto& bc = buffcache::get();
 
     blocknum_t new_bn = chkfs.allocate_block();
     if (new_bn >= blocknum_t(E_MINERROR)) {
@@ -176,7 +176,7 @@ auto chkfs_fileiter::allocate_metablock_entry(bufentry** eptr) const
     }
 
     bc.get_write(*eptr);
-    memset((*eptr)->buf_, 0, blocksize);
+    memset((*eptr)->buff_, 0, blocksize);
     bc.put_write(*eptr);
     return new_bn;
 }

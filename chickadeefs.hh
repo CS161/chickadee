@@ -188,14 +188,14 @@ struct journalreplayer {
     virtual void message(unsigned bi, const char* format, ...);
     // Report an error at journal block index `bi`.
     virtual void error(unsigned bi, const char* format, ...);
-    // Write the data in `buf` to block number `bn` (txn was `tid`).
-    virtual void write_block(tid_t tid, blocknum_t bn, unsigned char* buf);
+    // Write the data in `buff` to block number `bn` (txn was `tid`).
+    virtual void write_block(tid_t tid, blocknum_t bn, unsigned char* buff);
     // Called at the end of `run()`.
     virtual void write_replay_complete();
 
 
  private:
-    static inline bool is_potential_metablock(const unsigned char* buf);
+    static inline bool is_potential_metablock(const unsigned char* buff);
     void analyze_block(unsigned bi);
     unsigned analyze_block_reference(jmetablock* jmb, const jblockref& ref,
                                      unsigned bi, unsigned delta);

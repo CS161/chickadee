@@ -37,11 +37,11 @@ static int thread1a(void* x) {
     }
 
     // read from pipe, write to pipe
-    char buf[100];
-    memset(buf, 0, sizeof(buf));
-    ssize_t n = sys_read(pfd[0], buf, sizeof(buf));
+    char buff[100];
+    memset(buff, 0, sizeof(buff));
+    ssize_t n = sys_read(pfd[0], buff, sizeof(buff));
     assert_eq(n, 2);
-    assert_memeq(buf, "Yo", 2);
+    assert_memeq(buff, "Yo", 2);
 
     phase = 4;
     message("piping to main");
@@ -95,11 +95,11 @@ static void test1() {
     while (phase != 4) {
         sys_yield();
     }
-    char buf[100];
-    memset(buf, 0, sizeof(buf));
-    r = sys_read(pfd[0], buf, sizeof(buf));
+    char buff[100];
+    memset(buff, 0, sizeof(buff));
+    r = sys_read(pfd[0], buff, sizeof(buff));
     assert_eq(r, 2);
-    assert_memeq(buf, "Hi", 2);
+    assert_memeq(buff, "Hi", 2);
 
     // wait for thread to exit
     sys_msleep(10);
@@ -115,8 +115,8 @@ static void test1() {
 
 static int thread2a(void*) {
     // this blocks forever
-    char buf[20];
-    ssize_t n = sys_read(pfd[0], buf, sizeof(buf));
+    char buff[20];
+    ssize_t n = sys_read(pfd[0], buff, sizeof(buff));
     assert_ne(n, 0);
     sys_yield();
     assert(false);
@@ -190,8 +190,8 @@ void process_main() {
     // the read end of the pipe will still be open (because `thread2a`
     // has the write end open)
     sys_close(pfd[1]);
-    char buf[20];
-    ssize_t n = sys_read(pfd[0], buf, sizeof(buf));
+    char buff[20];
+    ssize_t n = sys_read(pfd[0], buff, sizeof(buff));
     assert_eq(n, 0);
 
 

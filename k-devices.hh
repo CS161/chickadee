@@ -24,7 +24,7 @@ void console_show_cursor(int cpos);
 
 struct keyboardstate {
     spinlock lock_;
-    char buf_[256];
+    char buff_[256];
     unsigned pos_;      // next position to read
     unsigned len_;      // number of characters in buffer
     unsigned eol_;      // position in buffer of most recent \n
@@ -36,8 +36,8 @@ struct keyboardstate {
     }
 
     void check_invariants() {
-        assert(pos_ < sizeof(buf_));
-        assert(len_ <= sizeof(buf_));
+        assert(pos_ < sizeof(buff_));
+        assert(len_ <= sizeof(buff_));
         assert(eol_ <= len_);
     }
 
@@ -166,7 +166,7 @@ struct ahcistate {
     //    Contains data buffers and commands for disk communication.
     //    This structure lives in host memory; the device finds it via
     //    physical-memory pointers in `portregs`.
-    struct bufstate {             // initialized by `push_buffer`
+    struct buffstate {             // initialized by `push_buffer`
         uint64_t pa;
         uint32_t reserved;
         uint32_t maxbyte;         // size of buffer minus 1
@@ -175,12 +175,12 @@ struct ahcistate {
         uint32_t cfis[16];        // command definition; set by `issue_*`
         uint32_t acmd[4];
         uint32_t reserved[12];
-        bufstate buf[16];         // called PRD in specifications
+        buffstate buff[16];         // called PRD in specifications
     };
     struct cmdheader {
         uint16_t flags;
-        uint16_t nbuf;
-        uint32_t buf_byte_pos;
+        uint16_t nbuff;
+        uint32_t buff_byte_pos;
         uint64_t cmdtable_pa;     // physical address of `cmdtable`
         uint64_t reserved[2];
     };
@@ -227,9 +227,9 @@ struct ahcistate {
     static ahcistate* find(int pci_addr = 0, int sata_port = 0);
 
     // high-level functions (they block)
-    inline int read(void* buf, size_t sz, size_t off);
-    inline int write(const void* buf, size_t sz, size_t off);
-    int read_or_write(idecommand cmd, void* buf, size_t sz, size_t off);
+    inline int read(void* buff, size_t sz, size_t off);
+    inline int write(const void* buff, size_t sz, size_t off);
+    int read_or_write(idecommand cmd, void* buff, size_t sz, size_t off);
 
     // interrupt handlers
     void handle_interrupt();
@@ -274,11 +274,11 @@ inline memfile* memfile::initfs_lookup(const char* name) {
 }
 
 
-inline int ahcistate::read(void* buf, size_t sz, size_t off) {
-    return read_or_write(cmd_read_fpdma_queued, buf, sz, off);
+inline int ahcistate::read(void* buff, size_t sz, size_t off) {
+    return read_or_write(cmd_read_fpdma_queued, buff, sz, off);
 }
-inline int ahcistate::write(const void* buf, size_t sz, size_t off) {
-    return read_or_write(cmd_write_fpdma_queued, const_cast<void*>(buf),
+inline int ahcistate::write(const void* buff, size_t sz, size_t off) {
+    return read_or_write(cmd_write_fpdma_queued, const_cast<void*>(buff),
                          sz, off);
 }
 

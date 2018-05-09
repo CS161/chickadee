@@ -31,18 +31,18 @@ void process_main() {
     n = sys_write(qfd[1], "qfd1", 4);
     assert_eq(n, 4);
 
-    char buf[400];
-    n = sys_read(pfd[0], buf, 2);
+    char buff[400];
+    n = sys_read(pfd[0], buff, 2);
     assert_eq(n, 2);
-    assert_memeq(buf, "pf", 2);
+    assert_memeq(buff, "pf", 2);
 
-    n = sys_read(pfd[0], buf, 8);
+    n = sys_read(pfd[0], buff, 8);
     assert_eq(n, 2);
-    assert_memeq(buf, "d1", 2);
+    assert_memeq(buff, "d1", 2);
 
-    n = sys_read(qfd[0], buf, 100);
+    n = sys_read(qfd[0], buff, 100);
     assert_eq(n, 4);
-    assert_memeq(buf, "qfd1", 4);
+    assert_memeq(buff, "qfd1", 4);
 
 
     // interleaving tests
@@ -72,22 +72,22 @@ void process_main() {
     n = sys_write(qfd[1], "w4!!!", 5);
     assert_eq(n, 5);
 
-    n = sys_read(pfd[0], buf, 100);
+    n = sys_read(pfd[0], buff, 100);
     assert_eq(n, 12);
-    assert_memeq(buf, "W1W2W3!W4!!!", 12);
+    assert_memeq(buff, "W1W2W3!W4!!!", 12);
 
-    n = sys_read(qfd[0], buf, 100);
+    n = sys_read(qfd[0], buff, 100);
     assert_eq(n, 12);
-    assert_memeq(buf, "w1w2w3!w4!!!", 12);
+    assert_memeq(buff, "w1w2w3!w4!!!", 12);
 
 
     // can't read from write end or write to read end
     console_printf("read/write error tests...\n");
 
-    n = sys_read(pfd[1], buf, 8);
+    n = sys_read(pfd[1], buff, 8);
     assert_eq(n, E_BADF);
 
-    n = sys_write(qfd[0], buf, 1);
+    n = sys_write(qfd[0], buff, 1);
     assert_eq(n, E_BADF);
 
 
@@ -110,13 +110,13 @@ void process_main() {
         n = sys_write(qfd[1], "hello mom", 9);
         assert_eq(n, 9);
 
-        n = sys_read(pfd[0], buf, 100);
+        n = sys_read(pfd[0], buff, 100);
         assert_eq(n, 5);
-        assert_memeq(buf, "hello", 5);
+        assert_memeq(buff, "hello", 5);
 
-        n = sys_read(pfd[0], buf, 100);
+        n = sys_read(pfd[0], buff, 100);
         assert_eq(n, 5);
-        assert_memeq(buf, " babe", 5);
+        assert_memeq(buff, " babe", 5);
 
         x = sys_msleep(300);
         assert_eq(x, 0);
@@ -136,9 +136,9 @@ void process_main() {
     x = sys_close(qfd[1]);
     assert_eq(x, 0);
 
-    n = sys_read(qfd[0], buf, 100);
+    n = sys_read(qfd[0], buff, 100);
     assert_eq(n, 9);
-    assert_memeq(buf, "hello mom", 9);
+    assert_memeq(buff, "hello mom", 9);
 
     n = sys_write(pfd[1], "hello", 5);
     assert_eq(n, 5);
@@ -148,7 +148,7 @@ void process_main() {
     n = sys_write(pfd[1], " babe", 5);
     assert_eq(n, 5);
 
-    n = sys_read(qfd[0], buf, 100);
+    n = sys_read(qfd[0], buff, 100);
     assert_eq(n, 0);
 
     n = sys_write(pfd[1], "wharg", 5);
@@ -174,9 +174,9 @@ void process_main() {
     assert_ge(p, 0);
 
     if (p == 0) {
-        n = sys_read(pfd[0], buf, 100);
+        n = sys_read(pfd[0], buff, 100);
         assert_eq(n, 5);
-        assert_memeq(buf, "hello", 5);
+        assert_memeq(buff, "hello", 5);
 
         x = sys_msleep(400);
         assert_eq(x, 0);
@@ -190,7 +190,7 @@ void process_main() {
     x = sys_close(pfd[1]);
     assert_eq(x, 0);
 
-    n = sys_read(pfd[0], buf, 100);
+    n = sys_read(pfd[0], buff, 100);
     assert_eq(n, 0);
 
 

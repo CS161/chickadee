@@ -1,10 +1,10 @@
 #include "p-lib.hh"
 
-char bigbuf[4096];
+char bigbuff[4096];
 
-size_t prepare_bigbuf() {
+size_t prepare_bigbuff() {
     for (unsigned i = 0; i != 46; ++i) {
-        memcpy(&bigbuf[i * 88], "I should not talk so much about myself if there were any body else whom I knew as well.\n", 88);
+        memcpy(&bigbuff[i * 88], "I should not talk so much about myself if there were any body else whom I knew as well.\n", 88);
     }
     return 46 * 88;
 }
@@ -20,11 +20,11 @@ void process_main() {
     int f = sys_open("emerson.txt", OF_READ);
     assert_gt(f, 2);
 
-    char buf[200];
-    memset(buf, 0, sizeof(buf));
-    ssize_t n = sys_read(f, buf, 200);
+    char buff[200];
+    memset(buff, 0, sizeof(buff));
+    ssize_t n = sys_read(f, buff, 200);
     assert_eq(n, 130);
-    assert_memeq(buf, "When piped a tiny voice hard by,\n"
+    assert_memeq(buff, "When piped a tiny voice hard by,\n"
                  "Gay and polite, a cheerful cry,\n"
                  "Chic-chicadeedee", 81);
 
@@ -46,10 +46,10 @@ void process_main() {
     f = sys_open("emerson.txt", OF_READ);
     assert_gt(f, 2);
 
-    memset(buf, 0, sizeof(buf));
-    n = sys_read(f, buf, 200);
+    memset(buff, 0, sizeof(buff));
+    n = sys_read(f, buff, 200);
     assert_eq(n, 20);
-    assert_memeq(buf, "CLARE ROJAS WAS HERE", 20);
+    assert_memeq(buff, "CLARE ROJAS WAS HERE", 20);
 
     sys_close(f);
 
@@ -67,10 +67,10 @@ void process_main() {
     f = sys_open("emerson.txt", OF_READ);
     assert_gt(f, 2);
 
-    memset(buf, 0, sizeof(buf));
-    n = sys_read(f, buf, 200);
+    memset(buff, 0, sizeof(buff));
+    n = sys_read(f, buff, 200);
     assert_eq(n, 20);
-    assert_memeq(buf, "CLARE ROJAS WAS HERE", 20);
+    assert_memeq(buff, "CLARE ROJAS WAS HERE", 20);
 
     sys_close(f);
 
@@ -81,30 +81,30 @@ void process_main() {
     f = sys_open("thoreau.txt", OF_READ);
     assert_gt(f, 2);
 
-    n = sys_read(f, buf, 4);
+    n = sys_read(f, buff, 4);
     assert_eq(n, 4);
-    assert_memeq(buf, "The ", 4);
+    assert_memeq(buff, "The ", 4);
 
     ssize_t sz = sys_lseek(f, 0, LSEEK_SIZE);
     assert_eq(sz, 685);
 
-    n = sys_read(f, buf, 4);
+    n = sys_read(f, buff, 4);
     assert_eq(n, 4);
-    assert_memeq(buf, "moon", 4);
+    assert_memeq(buff, "moon", 4);
 
     sz = sys_lseek(f, 0, LSEEK_SET);
     assert_eq(sz, 0);
 
-    n = sys_read(f, buf, 8);
+    n = sys_read(f, buff, 8);
     assert_eq(n, 8);
-    assert_memeq(buf, "The moon", 8);
+    assert_memeq(buff, "The moon", 8);
 
     sz = sys_lseek(f, -4, LSEEK_CUR);
     assert_eq(sz, 4);
 
-    n = sys_read(f, buf, 4);
+    n = sys_read(f, buff, 4);
     assert_eq(n, 4);
-    assert_memeq(buf, "moon", 4);
+    assert_memeq(buff, "moon", 4);
 
     sys_close(f);
 
@@ -122,24 +122,24 @@ void process_main() {
     f = sys_open("thoreau.txt", OF_READ);
     assert_gt(f, 2);
 
-    memset(buf, 'X', sizeof(buf));
-    n = sys_read(f, buf, 9);
+    memset(buff, 'X', sizeof(buff));
+    n = sys_read(f, buff, 9);
     assert_eq(n, 9);
-    assert_memeq(buf, "I should X", 10);
+    assert_memeq(buff, "I should X", 10);
 
     sz = sys_lseek(f, 4000, LSEEK_SET);
     assert_eq(sz, 4000);
 
-    n = sys_read(f, buf, 9);
+    n = sys_read(f, buff, 9);
     assert_eq(n, 9);
-    assert_memeq(buf, "f there wX", 10);
+    assert_memeq(buff, "f there wX", 10);
 
     sz = sys_lseek(f, 4090, LSEEK_SET);
     assert_eq(sz, 4090);
 
-    n = sys_read(f, buf, 40);
+    n = sys_read(f, buff, 40);
     assert_eq(n, 40);
-    assert_memeq(buf, "there were any body else whom I knew as ", 40);
+    assert_memeq(buff, "there were any body else whom I knew as ", 40);
 
     sys_close(f);
 
@@ -165,24 +165,24 @@ void process_main() {
     sz = sys_lseek(f, 0, LSEEK_SIZE);
     assert_eq(sz, 8800);
 
-    memset(buf, 'X', sizeof(buf));
-    n = sys_read(f, buf, 9);
+    memset(buff, 'X', sizeof(buff));
+    n = sys_read(f, buff, 9);
     assert_eq(n, 9);
-    assert_memeq(buf, "I should X", 10);
+    assert_memeq(buff, "I should X", 10);
 
     sz = sys_lseek(f, 4000, LSEEK_SET);
     assert_eq(sz, 4000);
 
-    n = sys_read(f, buf, 9);
+    n = sys_read(f, buff, 9);
     assert_eq(n, 9);
-    assert_memeq(buf, "f there wX", 10);
+    assert_memeq(buff, "f there wX", 10);
 
     sz = sys_lseek(f, 4090, LSEEK_SET);
     assert_eq(sz, 4090);
 
-    n = sys_read(f, buf, 40);
+    n = sys_read(f, buff, 40);
     assert_eq(n, 40);
-    assert_memeq(buf, "there were any body else whom I knew as ", 40);
+    assert_memeq(buff, "there were any body else whom I knew as ", 40);
 
     sys_close(f);
 
@@ -190,14 +190,14 @@ void process_main() {
     // extend the file to use an indirect block
     printf("%s:%d: extend to indirect", __FILE__, __LINE__);
 
-    size_t bbsz = prepare_bigbuf();
+    size_t bbsz = prepare_bigbuff();
 
     wf = sys_open("thoreau.txt", OF_WRITE);
     assert_gt(f, 2);
 
     for (int i = 0; i != 100; ++i) {
         dprintf(wf, "Chick%ddee\n", i);
-        n = sys_write(wf, bigbuf, bbsz);
+        n = sys_write(wf, bigbuff, bbsz);
         assert_eq(size_t(n), bbsz);
         if (i % 10 == 0) {
             printf(".");
@@ -220,8 +220,8 @@ void process_main() {
     uint32_t crc = 0;
     sz = 0;
     ssize_t printsz = 0;
-    while ((n = sys_read(f, bigbuf, sizeof(bigbuf))) > 0) {
-        crc = crc32c(crc, bigbuf, n);
+    while ((n = sys_read(f, bigbuff, sizeof(bigbuff))) > 0) {
+        crc = crc32c(crc, bigbuff, n);
         sz += n;
         while (sz > printsz + 40000) {
             printf(".");
@@ -249,8 +249,8 @@ void process_main() {
     crc = 0;
     sz = 0;
     printsz = 0;
-    while ((n = sys_read(f, bigbuf, sizeof(bigbuf))) > 0) {
-        crc = crc32c(crc, bigbuf, n);
+    while ((n = sys_read(f, bigbuff, sizeof(bigbuff))) > 0) {
+        crc = crc32c(crc, bigbuff, n);
         sz += n;
         while (sz > printsz + 40000) {
             printf(".");

@@ -168,18 +168,18 @@ static const uint32_t crc32c_lookup[4][256] = {
     }
 };
 
-uint32_t crc32c(uint32_t crc, const void* buf, size_t len) {
-    const unsigned char* cbuf = reinterpret_cast<const unsigned char*>(buf);
+uint32_t crc32c(uint32_t crc, const void* buff, size_t len) {
+    const unsigned char* cbuff = reinterpret_cast<const unsigned char*>(buff);
     uint32_t crc0 = crc ^ 0xffffffff;
 
     // initial unaligned bytes
-    for (; len != 0 && reinterpret_cast<uintptr_t>(cbuf) % 4; ++cbuf, --len) {
-        crc0 = (crc0 >> 8) ^ crc32c_lookup[0][(crc0 & 0xFF) ^ *cbuf];
+    for (; len != 0 && reinterpret_cast<uintptr_t>(cbuff) % 4; ++cbuff, --len) {
+        crc0 = (crc0 >> 8) ^ crc32c_lookup[0][(crc0 & 0xFF) ^ *cbuff];
     }
 
     // four-byte slices
-    for (; len >= 4; cbuf += 4, len -= 4) {
-        uint32_t crc1 = crc0 ^ *reinterpret_cast<const uint32_t*>(cbuf);
+    for (; len >= 4; cbuff += 4, len -= 4) {
+        uint32_t crc1 = crc0 ^ *reinterpret_cast<const uint32_t*>(cbuff);
         crc0 = crc32c_lookup[0][(crc1 >> 24) & 0xFF]
             ^ crc32c_lookup[1][(crc1 >> 16) & 0xFF]
             ^ crc32c_lookup[2][(crc1 >> 8) & 0xFF]
@@ -187,8 +187,8 @@ uint32_t crc32c(uint32_t crc, const void* buf, size_t len) {
     }
 
     // final bytes
-    for (; len != 0; ++cbuf, --len) {
-        crc0 = (crc0 >> 8) ^ crc32c_lookup[0][(crc0 & 0xFF) ^ *cbuf];
+    for (; len != 0; ++cbuff, --len) {
+        crc0 = (crc0 >> 8) ^ crc32c_lookup[0][(crc0 & 0xFF) ^ *cbuff];
     }
 
     return crc0 ^ 0xffffffff;

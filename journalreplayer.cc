@@ -5,9 +5,9 @@
 # include <inttypes.h>
 # include <assert.h>
 # include <memory>
-uint32_t crc32c(uint32_t crc, const void* buf, size_t len);
-inline uint32_t crc32c(const void* buf, size_t len) {
-    return crc32c(0, buf, len);
+uint32_t crc32c(uint32_t crc, const void* buff, size_t len);
+inline uint32_t crc32c(const void* buff, size_t len) {
+    return crc32c(0, buff, len);
 }
 #endif
 #include "cbyteswap.hh"

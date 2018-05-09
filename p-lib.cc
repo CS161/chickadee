@@ -6,12 +6,12 @@
 //    could not be constructed.
 
 int dprintf(int fd, const char* format, ...) {
-    char buf[1025];
+    char buff[1025];
     va_list val;
     va_start(val, format);
-    size_t n = vsnprintf(buf, sizeof(buf), format, val);
-    if (n < sizeof(buf)) {
-        return sys_write(fd, buf, n);
+    size_t n = vsnprintf(buff, sizeof(buff), format, val);
+    if (n < sizeof(buff)) {
+        return sys_write(fd, buff, n);
     } else {
         return E_2BIG;
     }
@@ -22,12 +22,12 @@ int dprintf(int fd, const char* format, ...) {
 //    Like `printf(1, ...)`.
 
 int printf(const char* format, ...) {
-    char buf[1025];
+    char buff[1025];
     va_list val;
     va_start(val, format);
-    size_t n = vsnprintf(buf, sizeof(buf), format, val);
-    if (n < sizeof(buf)) {
-        return sys_write(1, buf, n);
+    size_t n = vsnprintf(buff, sizeof(buff), format, val);
+    if (n < sizeof(buff)) {
+        return sys_write(1, buff, n);
     } else {
         return E_2BIG;
     }
@@ -40,14 +40,14 @@ int printf(const char* format, ...) {
 void panic(const char* format, ...) {
     va_list val;
     va_start(val, format);
-    char buf[160];
-    memcpy(buf, "PANIC: ", 7);
-    int len = vsnprintf(&buf[7], sizeof(buf) - 7, format, val) + 7;
+    char buff[160];
+    memcpy(buff, "PANIC: ", 7);
+    int len = vsnprintf(&buff[7], sizeof(buff) - 7, format, val) + 7;
     va_end(val);
-    if (len > 0 && buf[len - 1] != '\n') {
-        strcpy(buf + len - (len == (int) sizeof(buf) - 1), "\n");
+    if (len > 0 && buff[len - 1] != '\n') {
+        strcpy(buff + len - (len == (int) sizeof(buff) - 1), "\n");
     }
-    (void) console_printf(CPOS(23, 0), 0xC000, "%s", buf);
+    (void) console_printf(CPOS(23, 0), 0xC000, "%s", buff);
     sys_panic(NULL);
 }
 

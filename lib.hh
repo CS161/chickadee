@@ -163,9 +163,9 @@ inline bool isspace(unsigned char ch) {
 
 // Checksums
 
-uint32_t crc32c(uint32_t crc, const void* buf, size_t sz);
-inline uint32_t crc32c(const void* buf, size_t sz) {
-    return crc32c(0, buf, sz);
+uint32_t crc32c(uint32_t crc, const void* buff, size_t sz);
+inline uint32_t crc32c(const void* buff, size_t sz) {
+    return crc32c(0, buff, sz);
 }
 
 

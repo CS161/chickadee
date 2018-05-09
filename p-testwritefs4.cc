@@ -11,11 +11,11 @@ void process_main() {
     int f = sys_open("emerson.txt", OF_READ);
     assert_gt(f, 2);
 
-    char buf[200];
-    memset(buf, 0, sizeof(buf));
-    ssize_t n = sys_read(f, buf, 200);
+    char buff[200];
+    memset(buff, 0, sizeof(buff));
+    ssize_t n = sys_read(f, buff, 200);
     assert_eq(n, 130);
-    assert_memeq(buf, "When piped a tiny voice hard by,\n"
+    assert_memeq(buff, "When piped a tiny voice hard by,\n"
                  "Gay and polite, a cheerful cry,\n"
                  "Chic-chicadeedee", 81);
 
@@ -41,10 +41,10 @@ void process_main() {
     f = sys_open("geisel.txt", OF_READ);
     assert_gt(f, 2);
 
-    memset(buf, 0, sizeof(buf));
-    n = sys_read(f, buf, 200);
+    memset(buff, 0, sizeof(buff));
+    n = sys_read(f, buff, 200);
     assert_eq(n, 64);
-    assert_memeq(buf, "Why, girl, you're insane!\n"
+    assert_memeq(buff, "Why, girl, you're insane!\n"
                  "Elephants don't hatch chickadee eggs!\n", 64);
 
     sys_close(f);
@@ -80,17 +80,17 @@ void process_main() {
     f = sys_open("dickinson.txt", OF_READ);
     assert_gt(f, 2);
 
-    memset(buf, 0, sizeof(buf));
-    n = sys_read(f, buf, 34);
+    memset(buff, 0, sizeof(buff));
+    n = sys_read(f, buff, 34);
     assert_eq(n, 34);
-    assert_memeq(buf, "The Birds begun at Four o'clock -\n", 34);
+    assert_memeq(buff, "The Birds begun at Four o'clock -\n", 34);
 
     r = sys_unlink("dickinson.txt");
     assert_eq(r, 0);
 
-    n = sys_read(f, buf, 24);
+    n = sys_read(f, buff, 24);
     assert_eq(n, 24);
-    assert_memeq(buf, "Their period for Dawn -\n", 24);
+    assert_memeq(buff, "Their period for Dawn -\n", 24);
 
     r = sys_unlink("dickinson.txt");
     assert_eq(r, E_NOENT);
@@ -103,7 +103,7 @@ void process_main() {
     assert_gt(wf, 2);
     assert_ne(f, wf);
 
-    n = sys_read(wf, buf, sizeof(buf));
+    n = sys_read(wf, buff, sizeof(buff));
     assert_eq(n, 0);
 
     n = sys_write(wf, "A Bird, came down the Walk -\n"
@@ -117,13 +117,13 @@ void process_main() {
     // reread
     printf("%s:%d: read both\n", __FILE__, __LINE__);
 
-    n = sys_read(f, buf, 28);
+    n = sys_read(f, buff, 28);
     assert_eq(n, 28);
-    assert_memeq(buf, "A Music numerous as space -\n", 28);
+    assert_memeq(buff, "A Music numerous as space -\n", 28);
 
-    n = sys_read(wf, buf, 29);
+    n = sys_read(wf, buff, 29);
     assert_eq(n, 29);
-    assert_memeq(buf, "A Bird, came down the Walk -\n", 29);
+    assert_memeq(buff, "A Bird, came down the Walk -\n", 29);
 
 
     // synchronize
@@ -136,13 +136,13 @@ void process_main() {
     // keep reading
     printf("%s:%d: continue reading\n", __FILE__, __LINE__);
 
-    n = sys_read(f, buf, 26);
+    n = sys_read(f, buff, 26);
     assert_eq(n, 26);
-    assert_memeq(buf, "But neighboring as Noon -\n", 26);
+    assert_memeq(buff, "But neighboring as Noon -\n", 26);
 
-    n = sys_read(wf, buf, 24);
+    n = sys_read(wf, buff, 24);
     assert_eq(n, 24);
-    assert_memeq(buf, "He did not know I saw -\n", 24);
+    assert_memeq(buff, "He did not know I saw -\n", 24);
 
 
     // close (should free file data)

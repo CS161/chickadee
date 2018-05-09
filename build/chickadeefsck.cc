@@ -101,12 +101,12 @@ struct blockinfo {
         }
     }
     static const char* unparse_blockidx(size_t blockidx) {
-        static char buf[40];
+        static char buff[40];
         if (blockidx == size_t(-1)) {
             return "";
         } else {
-            sprintf(buf, "[%zu]", blockidx);
-            return buf;
+            sprintf(buff, "[%zu]", blockidx);
+            return buff;
         }
     }
 };
@@ -202,13 +202,13 @@ void inodeinfo::finish_visit() {
 
     if (verbose) {
         const char* type;
-        char typebuf[20];
+        char typebuff[20];
         if (from_le(in->type) == chickadeefs::type_directory
             || from_le(in->type) == chickadeefs::type_regular) {
             type = typenames[type_];
         } else {
-            sprintf(typebuf, "<type %d>", from_le(in->type));
-            type = typebuf;
+            sprintf(typebuff, "<type %d>", from_le(in->type));
+            type = typebuff;
         }
         printf("inode %u @%s: size %zu, type %s, nlink %u\n",
                inum, ref_, sz, type, from_le(in->nlink));
@@ -440,7 +440,7 @@ struct ujournalreplayer : public chickadeefs::journalreplayer {
 
     void message(unsigned bi, const char* format, ...) override;
     void error(unsigned bi, const char* format, ...) override;
-    void write_block(uint16_t tid, unsigned bn, unsigned char* buf) override;
+    void write_block(uint16_t tid, unsigned bn, unsigned char* buff) override;
     void write_replay_complete() override;
 };
 
@@ -475,11 +475,11 @@ void ujournalreplayer::error(unsigned bi, const char* format, ...) {
     ++nerrors;
 }
 
-void ujournalreplayer::write_block(uint16_t tid, unsigned bn, unsigned char* buf) {
+void ujournalreplayer::write_block(uint16_t tid, unsigned bn, unsigned char* buff) {
     if (verbose) {
         printf("journal transaction %u: replaying block %u\n", tid, bn);
     }
-    memcpy(disk_ + bn * blocksize, buf, blocksize);
+    memcpy(disk_ + bn * blocksize, buff, blocksize);
 }
 
 void ujournalreplayer::write_replay_complete() {

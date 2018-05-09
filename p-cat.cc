@@ -2,7 +2,7 @@
 
 void process_main(int argc, char** argv) {
     sys_kdisplay(KDISPLAY_NONE);
-    char buf[256];
+    char buff[256];
 
     for (int i = 1; i == 1 || i < argc; ++i) {
         int f = 0;
@@ -14,12 +14,12 @@ void process_main(int argc, char** argv) {
             }
         }
         while (1) {
-            ssize_t n = sys_read(f, buf, sizeof(buf));
+            ssize_t n = sys_read(f, buff, sizeof(buff));
             if (n == 0 || (n < 0 && n != E_AGAIN)) {
                 break;
             }
             if (n > 0) {
-                ssize_t w = sys_write(1, buf, n);
+                ssize_t w = sys_write(1, buff, n);
                 if (w != n) {
                     break;
                 }

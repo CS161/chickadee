@@ -7,16 +7,16 @@
 
 // buffer cache
 
-struct bufentry {
+struct buffentry {
     using blocknum_t = chickadeefs::blocknum_t;
     static constexpr blocknum_t emptyblock = blocknum_t(-1);
 
     spinlock lock_;                  // protects modification to `flags_`
-                                     // and initial setting of `buf_`
+                                     // and initial setting of `buff_`
     blocknum_t bn_ = emptyblock;     // disk block number or `emptyblock`
     unsigned ref_ = 0;               // refcount: protects entry
     unsigned flags_ = 0;             // flags
-    void* buf_ = nullptr;            // memory buffer used for entry
+    void* buff_ = nullptr;            // memory buffer used for entry
 
     enum {
         f_loaded = 1, f_loading = 2, f_dirty = 4
@@ -26,38 +26,38 @@ struct bufentry {
     inline void clear();
 };
 
-struct bufcache {
-    using blocknum_t = bufentry::blocknum_t;
-    static constexpr blocknum_t emptyblock = bufentry::emptyblock;
+struct buffcache {
+    using blocknum_t = buffentry::blocknum_t;
+    static constexpr blocknum_t emptyblock = buffentry::emptyblock;
 
     static constexpr size_t ne = 10;
 
     spinlock lock_;                  // protects all entries' bn_ and ref_
     wait_queue read_wq_;
-    bufentry e_[ne];
+    buffentry e_[ne];
 
 
-    static inline bufcache& get();
+    static inline buffcache& get();
 
     typedef void (*clean_block_function)(void*);
-    bufentry* get_disk_entry(blocknum_t bn, clean_block_function = nullptr);
-    void put_entry(bufentry* e);
+    buffentry* get_disk_entry(blocknum_t bn, clean_block_function = nullptr);
+    void put_entry(buffentry* e);
 
     inline void* get_disk_block(blocknum_t bn, clean_block_function = nullptr);
     inline void put_block(void* pg);
 
-    bufentry* find_entry(void* data);
+    buffentry* find_entry(void* data);
 
-    void get_write(bufentry* e);
-    void put_write(bufentry* e);
+    void get_write(buffentry* e);
+    void put_write(buffentry* e);
 
     int sync(bool drop);
 
  private:
-    static bufcache bc;
+    static buffcache bc;
 
-    bufcache();
-    NO_COPY_OR_ASSIGN(bufcache);
+    buffcache();
+    NO_COPY_OR_ASSIGN(buffcache);
 };
 
 
@@ -69,7 +69,7 @@ struct chkfsstate {
     using inum_t = chickadeefs::inum_t;
     using inode = chickadeefs::inode;
     static constexpr size_t blocksize = chickadeefs::blocksize;
-    static constexpr blocknum_t emptyblock = bufentry::emptyblock;
+    static constexpr blocknum_t emptyblock = buffentry::emptyblock;
 
 
     static inline chkfsstate& get();
@@ -92,26 +92,26 @@ struct chkfsstate {
 };
 
 
-inline void bufentry::clear() {
+inline void buffentry::clear() {
     bn_ = emptyblock;
     assert(ref_ == 0);
     flags_ = 0;
-    buf_ = nullptr;
+    buff_ = nullptr;
 }
 
-inline bufcache& bufcache::get() {
+inline buffcache& buffcache::get() {
     return bc;
 }
 
-// bufcache::get_disk_block, bufcache::put_block
+// buffcache::get_disk_block, buffcache::put_block
 //    Wrapper functions around get_disk_entry and put_entry.
-inline void* bufcache::get_disk_block(blocknum_t bn,
+inline void* buffcache::get_disk_block(blocknum_t bn,
                                       clean_block_function cleaner) {
     auto e = get_disk_entry(bn, cleaner);
-    return e ? e->buf_ : nullptr;
+    return e ? e->buff_ : nullptr;
 }
-inline void bufcache::put_block(void* buf) {
-    put_entry(find_entry(buf));
+inline void buffcache::put_block(void* buff) {
+    put_entry(find_entry(buff));
 }
 
 inline chkfsstate& chkfsstate::get() {
@@ -119,6 +119,6 @@ inline chkfsstate& chkfsstate::get() {
 }
 
 size_t chickadeefs_read_file_data(const char* filename,
-                                  void* buf, size_t sz, size_t off);
+                                  void* buff, size_t sz, size_t off);
 
 #endif

@@ -1,22 +1,22 @@
 #include "p-lib.hh"
 
-static int unparse_counts(char* buf, size_t bufsz, int mode,
+static int unparse_counts(char* buff, size_t buffsz, int mode,
                           const size_t* counts, const char* fname) {
     const char* sep = strlen(fname) ? " " : "";
     if (mode < 0) {
-        return snprintf(buf, bufsz, "%8zu %7zu %7zu%s%s\n",
+        return snprintf(buff, buffsz, "%8zu %7zu %7zu%s%s\n",
                         counts[0], counts[1], counts[2], sep, fname);
     } else if (*sep) {
-        return snprintf(buf, bufsz, "%8zu%s%s\n",
+        return snprintf(buff, buffsz, "%8zu%s%s\n",
                         counts[mode], sep, fname);
     } else {
-        return snprintf(buf, bufsz, "%zu\n", counts[mode]);
+        return snprintf(buff, buffsz, "%zu\n", counts[mode]);
     }
 }
 
 void process_main(int argc, char** argv) {
     sys_kdisplay(KDISPLAY_NONE);
-    static char buf[4096];
+    static char buff[4096];
 
     int mode = -1;
     int argno = 1;
@@ -54,25 +54,25 @@ void process_main(int argc, char** argv) {
         size_t counts[3] = {0, 0, 0};
         bool inword = false;
         while (1) {
-            ssize_t n = sys_read(fd, buf, sizeof(buf));
+            ssize_t n = sys_read(fd, buff, sizeof(buff));
             if (n == 0 || (n < 0 && n != E_AGAIN)) {
                 break;
             }
             for (ssize_t i = 0; i < n; ++i) {
                 ++counts[0];
-                if (!inword && !isspace(buf[i])) {
+                if (!inword && !isspace(buff[i])) {
                     ++counts[1];
                 }
-                inword = !isspace(buf[i]);
-                if (buf[i] == '\n') {
+                inword = !isspace(buff[i]);
+                if (buff[i] == '\n') {
                     ++counts[2];
                 }
             }
         }
 
-        int n = unparse_counts(buf, sizeof(buf), mode, counts,
+        int n = unparse_counts(buff, sizeof(buff), mode, counts,
                                argno < argc ? argv[argno] : "");
-        ssize_t w = sys_write(1, buf, n);
+        ssize_t w = sys_write(1, buff, n);
         assert(w == n);
 
         for (int i = 0; i < 3; ++i) {
@@ -83,8 +83,8 @@ void process_main(int argc, char** argv) {
     }
 
     if (nfiles > 1) {
-        int n = unparse_counts(buf, sizeof(buf), mode, totals, "total");
-        ssize_t w = sys_write(1, buf, n);
+        int n = unparse_counts(buff, sizeof(buff), mode, totals, "total");
+        ssize_t w = sys_write(1, buff, n);
         assert(w == n);
     }
 
