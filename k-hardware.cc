@@ -177,17 +177,16 @@ bool lookup_symbol(uintptr_t addr, const char** name, uintptr_t* start) {
         size_t m = l + ((r - l) >> 1);
         auto& sym = symtab.sym[m];
         if (sym.st_value <= addr
-            && (sym.st_size != 0
-                ? addr < sym.st_value + sym.st_size
-                : m + 1 == symtab.nsym || addr < (&sym)[1].st_value)) {
+            && (m + 1 == symtab.nsym || addr < (&sym)[1].st_value)
+            && (sym.st_size == 0 || addr <= sym.st_value + sym.st_size)) {
             if (name) {
-                *name = symtab.strtab + symtab.sym[m].st_name;
+                *name = symtab.strtab + sym.st_name;
             }
             if (start) {
-                *start = symtab.sym[m].st_value;
+                *start = sym.st_value;
             }
             return true;
-        } else if (symtab.sym[m].st_value < addr) {
+        } else if (sym.st_value < addr) {
             l = m + 1;
         } else {
             r = m;

@@ -58,6 +58,10 @@ SANITIZEFLAGS := -fsanitize=undefined -fsanitize=kernel-address
 $(OBJDIR)/k-alloc.ko $(OBJDIR)/k-sanitizers.ko: SANITIZEFLAGS :=
 endif
 
+ifeq ($(SELFCHECK),1)
+KERNELCXXFLAGS += -DHAVE_SELFCHECK
+endif
+
 # Linker flags
 LDFLAGS := $(LDFLAGS) -Os --gc-sections -z max-page-size=0x1000 -static -nostdlib -nostartfiles
 LDFLAGS	+= $(shell $(LD) -m elf_x86_64 --help >/dev/null 2>&1 && echo -m elf_x86_64)
@@ -107,13 +111,19 @@ QEMU ?= $(INFERRED_QEMU)
 QEMUCONSOLE ?= $(if $(DISPLAY),,1)
 QEMUDISPLAY = $(if $(QEMUCONSOLE),console,graphic)
 
-QEMU_PRELOAD_LIBRARY = $(OBJDIR)/libqemu-nograb.so.1
-
-$(QEMU_PRELOAD_LIBRARY): build/qemu-nograb.c
+$(OBJDIR)/libqemu-nograb.so.1: build/qemu-nograb.c
 	$(call run,mkdir -p $(@D))
 	-$(call run,$(HOSTCC) -fPIC -shared -Wl$(comma)-soname$(comma)$(@F) -ldl -o $@ $<)
 
+ifeq ($(origin QEMU_PRELOAD_LIBRARY),undefined)
+ifneq ($(strip $(shell uname)),Darwin)
+QEMU_PRELOAD_LIBRARY = $(OBJDIR)/libqemu-nograb.so.1
+endif
+endif
+
+ifneq ($(QEMU_PRELOAD_LIBRARY),)
 QEMU_PRELOAD = $(shell if test -r $(QEMU_PRELOAD_LIBRARY); then echo LD_PRELOAD=$(QEMU_PRELOAD_LIBRARY); fi)
+endif
 
 
 # Run the emulator

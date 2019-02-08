@@ -32,7 +32,7 @@ struct __attribute__((aligned(4096))) proc {
     enum state_t {
         blank = 0, runnable, blocked, broken
     };
-    state_t state_;                    // process state
+    std::atomic<state_t> state_;       // process state
     x86_64_pagetable* pagetable_;      // process's page table
 
     list_links runq_links_;

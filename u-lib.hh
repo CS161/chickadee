@@ -123,4 +123,32 @@ inline pid_t sys_fork() {
     return make_syscall(SYSCALL_FORK);
 }
 
+// sys_exit(status)
+//    Exit this process. Does not return.
+[[noreturn]] inline void sys_exit(int status) {
+    make_syscall(SYSCALL_EXIT, status);
+    assert(false);
+}
+
+// sys_msleep(msec)
+//    Block for approximately `msec` milliseconds.
+inline int sys_msleep(unsigned msec) {
+    return E_NOSYS;
+}
+
+// sys_getppid()
+//    Return parent process ID.
+inline pid_t sys_getppid() {
+    return E_NOSYS;
+}
+
+// sys_waitpid(pid, status, options)
+//    Wait until process `pid` exits and report its status. The status
+//    is stored in `*status`, if `status != nullptr`. If `pid == 0`,
+//    waits for any child. If `options == W_NOHANG`, returns immediately.
+inline pid_t sys_waitpid(pid_t pid, int* status = nullptr,
+                         int options = 0) {
+    return E_NOSYS;
+}
+
 #endif

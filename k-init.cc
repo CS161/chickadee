@@ -53,6 +53,12 @@ void init_hardware() {
     enable_asan();
 #endif
 
+#if HAVE_SELFCHECK
+    // run kalloc self-checks
+    extern void test_kalloc();
+    test_kalloc();
+#endif
+
     // enable interrupts
     cpus[0].enable_irq(IRQ_KEYBOARD);
 }

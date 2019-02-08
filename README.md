@@ -2,9 +2,9 @@ Chickadee OS
 ============
 
 This is Chickadee, a teaching operating system built for Harvard’s
-[CS 161] in 2018.
+[CS 161].
 
-Quickstart: `make run`
+Quickstart: `make run` or `make run-PROGRAM`
 
 Make targets
 ------------
@@ -20,6 +20,19 @@ LOG=file:FILENAME run` to redirect it to `FILENAME`.
 Run `make D=1 run` to ask QEMU to print verbose information about interrupts
 and CPU resets to the standard error. This setting will also cause QEMU to
 quit after encountering a [triple fault] (normally it will reboot).
+
+Run `make SELFCHECK=1 run` to ask Chickadee to run self-tests as it boots,
+such as `test_kalloc`, the kernel allocator test function.
+
+`make run-PROGRAM` runs `p-PROGRAM.cc` as the first non-init process. The
+default is `alloc`.
+
+Troubleshooting
+---------------
+
+If you experience runtime errors involving `obj/libqemu-nograb.so.1`, put
+`QEMU_PRELOAD_LIBRARY=` in `config.mk`. This disables a shim we use that
+prevents QEMU from grabbing the mouse.
 
 Source files
 ------------

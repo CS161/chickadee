@@ -90,4 +90,18 @@ private:
     std::atomic_flag f_;
 };
 
+struct spinlock_guard {
+    spinlock_guard(spinlock& lock)
+        : lock_(lock), state_(lock_.lock()) {
+    }
+    ~spinlock_guard() {
+        lock_.unlock(state_);
+    }
+    NO_COPY_OR_ASSIGN(spinlock_guard);
+
+private:
+    spinlock& lock_;
+    irqstate state_;
+};
+
 #endif
