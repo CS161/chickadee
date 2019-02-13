@@ -153,7 +153,17 @@ struct yieldstate {
 
 // timekeeping
 
-#define HZ 100                           // number of ticks per second
+// `HZ` defines the number of timer interrupts per second, or ticks.
+// Real kernels typically use 100 or 1000; Chickadee typically uses 100.
+// Exception: Sanitizers slow down the kernel so much that recursive timer
+// interrupts can become a problem, so when sanitizers are on, we reduce the
+// interrupt frequency to 10 per second.
+#if HAVE_SANITIZERS
+# define HZ 10
+#else
+# define HZ 100
+#endif
+
 extern volatile unsigned long ticks;     // number of ticks since boot
 
 
@@ -368,8 +378,10 @@ void log_vprintf(const char* format, va_list val) __attribute__((noinline));
 
 
 // log_backtrace
-//    Print a backtrace to the host's `log.txt` file.
+//    Print a backtrace to the host's `log.txt` file, either for the current
+//    stack or for a given stack range.
 void log_backtrace(const char* prefix = "");
+void log_backtrace(const char* prefix, uintptr_t rsp, uintptr_t rbp);
 
 
 #if HAVE_SANITIZERS

@@ -196,11 +196,18 @@ bool lookup_symbol(uintptr_t addr, const char** name, uintptr_t* start) {
 }
 
 
-// log_backtrace(prefix)
+// log_backtrace(prefix[, rsp, rbp])
 //    Print a backtrace to `log.txt`, each line prefixed by `prefix`.
 
 void log_backtrace(const char* prefix) {
-    uintptr_t rsp = rdrsp(), rbp = rdrbp();
+    log_backtrace(prefix, rdrsp(), rdrbp());
+}
+
+void log_backtrace(const char* prefix, uintptr_t rsp, uintptr_t rbp) {
+    if (rsp != rbp && round_up(rsp, PAGESIZE) == round_down(rbp, PAGESIZE)) {
+        log_printf("%s  warning: possible stack overflow (rsp %p, rbp %p)\n",
+                   rsp, rbp);
+    }
     uintptr_t stack_top = round_up(rsp, PAGESIZE);
     int frame = 1;
     while (rbp >= rsp && rbp < stack_top) {
