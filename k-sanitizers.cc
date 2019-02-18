@@ -59,11 +59,18 @@ struct type_descriptor {
 
 struct type_mismatch_data {
     source_location location;
-    type_descriptor* type;
+    const type_descriptor* type;
     unsigned long alignment;
     unsigned char type_check_kind;
 
     static const char* const type_check_kind_names[];
+};
+
+struct type_mismatch_data_v1 {
+    source_location location;
+    const type_descriptor* type;
+    unsigned char log_alignment;
+    unsigned char type_check_kind;
 };
 
 const char* const type_mismatch_data::type_check_kind_names[] = {
@@ -74,7 +81,7 @@ const char* const type_mismatch_data::type_check_kind_names[] = {
 
 struct type_data {
     source_location location;
-    type_descriptor* type;
+    const type_descriptor* type;
 };
 using overflow_data = type_data;
 using invalid_value_data = type_data;
@@ -82,14 +89,14 @@ using vla_bound_data = type_data;
 
 struct out_of_bounds_data {
     source_location location;
-    type_descriptor* array_type;
-    type_descriptor* index_type;
+    const type_descriptor* array_type;
+    const type_descriptor* index_type;
 };
 
 struct shift_out_of_bounds_data {
     source_location location;
-    type_descriptor* lhs_type;
-    type_descriptor* rhs_type;
+    const type_descriptor* lhs_type;
+    const type_descriptor* rhs_type;
 };
 
 struct nonnull_arg_data {
@@ -175,26 +182,41 @@ void __ubsan_handle_shift_out_of_bounds(shift_out_of_bounds_data* data,
     }
 }
 
-void __ubsan_handle_type_mismatch(type_mismatch_data* data,
-                                  unsigned long ptr) {
+static void handle_type_mismatch(const source_location& location,
+                                 const type_descriptor* type,
+                                 unsigned long alignment,
+                                 unsigned char type_check_kind,
+                                 unsigned long ptr) {
     if (!ptr) {
         error_printf("!!! %s:%d: %s null pointer of type %s\n",
-                     data->location.file, data->location.line,
-                     data->type_check_kind_names[data->type_check_kind],
-                     data->type->name);
-    } else if (data->alignment && (ptr & (data->alignment - 1)) != 0) {
-	error_printf("!!! %s:%d: %s misaligned address %p for type %s\n",
-                     data->location.file, data->location.line,
-                     data->type_check_kind_names[data->type_check_kind],
-                     ptr, data->type->name);
+                     location.file, location.line,
+                     type_mismatch_data::type_check_kind_names[type_check_kind],
+                     type->name);
+    } else if (alignment && (ptr & (alignment - 1)) != 0) {
+        error_printf("!!! %s:%d: %s misaligned address %p for type %s\n",
+                     location.file, location.line,
+                     type_mismatch_data::type_check_kind_names[type_check_kind],
+                     ptr, type->name);
     } else {
         error_printf("!!! %s:%d: %s address %p\n"
                      "!!!   with insufficient space for an object with type %s\n",
-                     data->location.file, data->location.line,
-                     data->type_check_kind_names[data->type_check_kind],
-                     ptr, data->type->name);
+                     location.file, location.line,
+                     type_mismatch_data::type_check_kind_names[type_check_kind],
+                     ptr, type->name);
     }
     log_backtrace("!!! ");
+}
+
+void __ubsan_handle_type_mismatch(type_mismatch_data* data,
+                                  unsigned long ptr) {
+    handle_type_mismatch(data->location, data->type, data->alignment,
+                         data->type_check_kind, ptr);
+}
+
+void __ubsan_handle_type_mismatch_v1(type_mismatch_data_v1* data,
+                                     unsigned long ptr) {
+    handle_type_mismatch(data->location, data->type, 1UL << data->log_alignment,
+                         data->type_check_kind, ptr);
 }
 
 void __ubsan_handle_out_of_bounds(out_of_bounds_data* data,
@@ -249,6 +271,19 @@ void __ubsan_handle_nonnull_return(source_location* location) {
     error_printf("!!! %s:%d: null pointer returned from function\n"
                  "!!!   which is declared to never be null\n",
                  location->file, location->line);
+}
+
+void __ubsan_handle_pointer_overflow(source_location* location,
+                                     uintptr_t base, uintptr_t result) {
+    if (((intptr_t) base >= 0) == ((intptr_t) result >= 0)) {
+        error_printf("!!! %s:%d: %s of unsigned offset to %p overflowed to %p\n",
+                     location->file, location->line,
+                     base > result ? "addition" : "subtraction",
+                     base, result);
+    } else {
+        error_printf("!!! %s:%d: pointer index expression with base %p overflowed to %p\n",
+                     location->file, location->line, base, result);
+    }
 }
 
 }
