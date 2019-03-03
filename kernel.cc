@@ -192,12 +192,82 @@ uintptr_t proc::syscall(regstate* regs) {
         // Your code here
         return -1;
 
+    case SYSCALL_READ:
+        return syscall_read(regs);
+
+    case SYSCALL_WRITE:
+        return syscall_write(regs);
+
     default:
         // no such system call
         log_printf("%d: no such system call %u\n", id_, regs->reg_rax);
         return E_NOSYS;
 
     }
+}
+
+
+// proc::syscall_read(regs), proc::syscall_write(regs)
+//    Handle read and write system calls.
+
+uintptr_t proc::syscall_read(regstate* regs) {
+    int fd = regs->reg_rdi;
+    uintptr_t addr = regs->reg_rsi;
+    size_t sz = regs->reg_rdx;
+
+    auto& kbd = keyboardstate::get();
+    auto irqs = kbd.lock_.lock();
+
+    // mark that we are now reading from the keyboard
+    // (so `q` should not power off)
+    if (kbd.state_ == kbd.boot) {
+        kbd.state_ = kbd.input;
+    }
+
+    // yield until a line is available
+    // (special case: do not block if the user wants to read 0 bytes)
+    while (sz != 0 && kbd.eol_ == 0) {
+        kbd.lock_.unlock(irqs);
+        yield();
+        irqs = kbd.lock_.lock();
+    }
+
+    // read that line or lines
+    size_t n = 0;
+    while (kbd.eol_ != 0 && n < sz) {
+        if (kbd.buf_[kbd.pos_] == 0x04) {
+            // Ctrl-D means EOF
+            if (n == 0) {
+                kbd.consume(1);
+            }
+            break;
+        } else {
+            *reinterpret_cast<char*>(addr) = kbd.buf_[kbd.pos_];
+            ++addr;
+            ++n;
+            kbd.consume(1);
+        }
+    }
+
+    kbd.lock_.unlock(irqs);
+    return n;
+}
+
+uintptr_t proc::syscall_write(regstate* regs) {
+    int fd = regs->reg_rdi;
+    uintptr_t addr = regs->reg_rsi;
+    size_t sz = regs->reg_rdx;
+    auto& csl = consolestate::get();
+    auto irqs = csl.lock_.lock();
+    size_t n = 0;
+    while (n < sz) {
+        int ch = *reinterpret_cast<const char*>(addr);
+        ++addr;
+        ++n;
+        console_printf(0x0F00, "%c", ch);
+    }
+    csl.lock_.unlock(irqs);
+    return n;
 }
 
 

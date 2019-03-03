@@ -59,6 +59,9 @@ struct __attribute__((aligned(4096))) proc {
 
     inline bool resumable() const;
 
+    uintptr_t syscall_read(regstate* reg);
+    uintptr_t syscall_write(regstate* reg);
+
     inline irqstate lock_pagetable_read();
     inline void unlock_pagetable_read(irqstate& irqs);
 

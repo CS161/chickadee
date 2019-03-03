@@ -99,7 +99,6 @@ struct spinlock_guard {
     }
     NO_COPY_OR_ASSIGN(spinlock_guard);
 
-private:
     spinlock& lock_;
     irqstate state_;
 };

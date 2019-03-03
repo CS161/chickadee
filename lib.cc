@@ -306,19 +306,26 @@ void printer_vprintf(printer* p, int color, const char* format, va_list val) {
             }
         }
 
+        // process length
+        int length = 0;
+        switch (*format) {
+        case 'l':
+        case 't': // ptrdiff_t
+        case 'z': // size_t, ssize_t
+            length = 1;
+            ++format;
+            break;
+        case 'h':
+            ++format;
+            break;
+        }
+
         // process main conversion character
         int base = 10;
         unsigned long num = 0;
-        int length = 0;
         const char* data = "";
 
-    again:
         switch (*format) {
-        case 'l':
-        case 'z':
-            length = 1;
-            ++format;
-            goto again;
         case 'd':
         case 'i': {
             long x = length ? va_arg(val, long) : va_arg(val, int);

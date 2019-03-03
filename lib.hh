@@ -27,6 +27,7 @@ unsigned long strtoul(const char* s, char** endptr = nullptr, int base = 0);
 ssize_t snprintf(char* s, size_t size, const char* format, ...);
 ssize_t vsnprintf(char* s, size_t size, const char* format, va_list val);
 inline bool isspace(unsigned char c);
+inline bool isdigit(unsigned char c);
 }
 
 #define RAND_MAX 0x7FFFFFFF
@@ -156,6 +157,10 @@ inline bool isspace(unsigned char ch) {
     return (ch >= '\t' && ch <= '\r') || ch == ' ';
 }
 
+inline bool isdigit(unsigned char ch) {
+    return ch >= '0' && ch <= '9';
+}
+
 
 // Checksums
 
@@ -208,6 +213,7 @@ inline uint32_t crc32c(const void* buf, size_t sz) {
 #define E_INVAL         -22        // Invalid argument
 #define E_IO            -5         // I/O error
 #define E_MFILE         -24        // Too many open files
+#define E_NAMETOOLONG   -36        // File name too long
 #define E_NFILE         -23        // File table overflow
 #define E_NOENT         -2         // No such file or directory
 #define E_NOEXEC        -8         // Exec format error

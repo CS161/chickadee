@@ -94,11 +94,11 @@ $(OBJDIR)/stamp $(BUILDSTAMP):
 	$(call run,touch $@)
 
 ifneq ($(strip $(INITFS_CONTENTS)),$(DEP_INITFS_CONTENTS))
-INITFS_BUILDSTAMP := $(shell echo "DEP_INITFS_CONTENTS:=$(INITFS_CONTENTS)" > $(DEPSDIR)/_initfs.d; echo always)
+INITFS_BUILDSTAMP := $(shell echo "DEP_INITFS_CONTENTS:=$(strip $(INITFS_CONTENTS))" > $(DEPSDIR)/_initfs.d; echo always)
 endif
 
 ifneq ($(strip $(DISKFS_CONTENTS)),$(DEP_DISKFS_CONTENTS))
-DISKFS_BUILDSTAMP := $(shell echo "DEP_DISKFS_CONTENTS:=$(DISKFS_CONTENTS)" > $(DEPSDIR)/_diskfs.d; echo always)
+DISKFS_BUILDSTAMP := $(shell echo "DEP_DISKFS_CONTENTS:=$(strip $(DISKFS_CONTENTS))" > $(DEPSDIR)/_diskfs.d; echo always)
 endif
 
 

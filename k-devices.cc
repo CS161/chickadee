@@ -227,16 +227,87 @@ void console_show_cursor(int cpos) {
 
 // memfile functions
 
-memfile* memfile::initfs_lookup(const char* name, size_t namelen) {
+// memfile::initfs_lookup(name, namelen, create)
+//    Search `memfile::initfs` for a file named `name`. Return the
+//    index of that `memfile` if found; this will be >= 0 and <
+//    `memfile::initfs_size`. If not found, and `create == true`,
+//    attempt to create and initialize a new file and return its
+//    index. Return an error code on failure.
+int memfile::initfs_lookup(const char* name, bool create) {
+    memfile* empty = nullptr;
+    size_t namelen = strlen(name);
+
+    // search for a file named `name`
     for (memfile* f = initfs; f != initfs + initfs_size; ++f) {
         if (!f->empty()
             && memcmp(f->name_, name, namelen) == 0
             && f->name_[namelen] == 0) {
-            return f;
+            return f - initfs;
+        } else if (f->empty()
+                   && !empty) {
+            empty = f;
         }
     }
-    return nullptr;
+
+    if (!create) {
+        // file not found
+        return E_NOENT;
+    } else if (!empty) {
+        // no space in directory
+        return E_NOSPC;
+    } else if (namelen >= namesize) {
+        // name too long for `memfile::name_`
+        return E_NAMETOOLONG;
+    } else {
+        memcpy(empty->name_, name, namelen);
+        empty->name_[namelen] = 0;
+        empty->data_ = nullptr;
+        empty->len_ = 0;
+        empty->capacity_ = 0;
+        return empty - initfs;
+    }
 }
+
+// memfile::set_length(len)
+//    Set the length of this `memfile` to `len`. This might require
+//    extending this `memfile`’s capacity; allocates memory if so.
+//    Returns 0 on success and an error code such as `E_NOSPC` on
+//    failure.
+int memfile::set_length(size_t len) {
+    // grow file if necessary
+    if (len > capacity_) {
+        // allocate new data
+        if (len > size_t(SSIZE_MAX)) { // too large for safe round_up_pow2
+            return E_NOSPC;
+        }
+        size_t new_capacity = round_up_pow2(len);
+        unsigned char* new_data = new(std::nothrow) unsigned char[new_capacity];
+        if (!new_data) {
+            return E_NOSPC;
+        }
+
+        // copy old data over
+        if (len_ != 0) {
+            memcpy(new_data, data_, len_);
+        }
+
+        // delete old data, unless it is kernel static data
+        if (data_ && physical_ranges.type(kptr2pa(data_)) != mem_kernel) {
+            delete[] data_;
+        }
+
+        data_ = new_data;
+        capacity_ = new_capacity;
+    }
+
+    len_ = len;
+    return 0;
+}
+
+
+// memfile_loader functions
+
+// These functions fulfill the requirements of `loader` using a `memfile`.
 
 ssize_t memfile_loader::get_page(uint8_t** pg, size_t off) {
     if (!memfile_) {

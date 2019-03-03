@@ -28,6 +28,8 @@ typedef unsigned long uint64_t;
 typedef long intptr_t;                // ints big enough to hold pointers
 typedef unsigned long uintptr_t;
 
+#define SIZE_MAX  ((unsigned long) -1)
+#define SSIZE_MAX ((long) 0x7FFFFFFFFFFFFFFF)
 typedef unsigned long size_t;         // sizes and offsets
 typedef long ssize_t;
 typedef long off_t;

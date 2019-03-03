@@ -179,6 +179,9 @@ bool lookup_symbol(uintptr_t addr, const char** name, uintptr_t* start) {
         if (sym.st_value <= addr
             && (m + 1 == symtab.nsym || addr < (&sym)[1].st_value)
             && (sym.st_size == 0 || addr <= sym.st_value + sym.st_size)) {
+            if (!sym.st_value) {
+                return false;
+            }
             if (name) {
                 *name = symtab.strtab + sym.st_name;
             }

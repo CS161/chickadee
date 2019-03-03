@@ -1,5 +1,39 @@
 #include "u-lib.hh"
 
+// dprintf
+//    Construct a string from `format` and pass it to `sys_write(fd)`.
+//    Returns the number of characters printed, or E_2BIG if the string
+//    could not be constructed.
+
+int dprintf(int fd, const char* format, ...) {
+    char buf[513];
+    va_list val;
+    va_start(val, format);
+    size_t n = vsnprintf(buf, sizeof(buf), format, val);
+    if (n < sizeof(buf)) {
+        return sys_write(fd, buf, n);
+    } else {
+        return E_2BIG;
+    }
+}
+
+
+// printf
+//    Like `printf(1, ...)`.
+
+int printf(const char* format, ...) {
+    char buf[513];
+    va_list val;
+    va_start(val, format);
+    size_t n = vsnprintf(buf, sizeof(buf), format, val);
+    if (n < sizeof(buf)) {
+        return sys_write(1, buf, n);
+    } else {
+        return E_2BIG;
+    }
+}
+
+
 // panic, assert_fail
 //     Call the SYSCALL_PANIC system call so the kernel loops until Control-C.
 

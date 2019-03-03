@@ -92,7 +92,8 @@ void proc::init_kernel(pid_t pid, void (*f)(proc*)) {
 // proc::load(proc_loader& ld)
 //    Load the executable specified by the `proc_loader` into `ld.pagetable_`
 //    and set `ld.entry_rip_` to its entry point. Calls `kalloc` and maps
-//    memory. Returns 0 on success, negative on failure (e.g. out-of-memory).
+//    memory. Returns 0 on success and a negative error code on failure,
+//    such as `E_NOMEM` for out of memory or `E_NOEXEC` for not an executable.
 
 int proc::load(proc_loader& ld) {
     union {
@@ -164,6 +165,9 @@ int proc::load_segment(const elf_program& ph, proc_loader& ld) {
         || VA_LOWEND - va < ph.p_memsz
         || ph.p_memsz < ph.p_filesz) {
         return E_NOEXEC;
+    }
+    if (!ld.pagetable_) {
+        return E_NOMEM;
     }
 
     // allocate memory

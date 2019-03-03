@@ -151,4 +151,98 @@ inline pid_t sys_waitpid(pid_t pid, int* status = nullptr,
     return E_NOSYS;
 }
 
+// sys_read(fd, buf, sz)
+//    Read bytes from `fd` into `buf`. Read at most `sz` bytes. Return
+//    the number of bytes read, which is 0 at EOF.
+inline ssize_t sys_read(int fd, char* buf, size_t sz) {
+    clobber_memory(buf);
+    return make_syscall(SYSCALL_READ, fd,
+                        reinterpret_cast<uintptr_t>(buf), sz);
+}
+
+// sys_write(fd, buf, sz)
+//    Write bytes to `fd` from `buf`. Write at most `sz` bytes. Return
+//    the number of bytes written.
+inline ssize_t sys_write(int fd, const char* buf, size_t sz) {
+    access_memory(buf);
+    return make_syscall(SYSCALL_WRITE, fd,
+                        reinterpret_cast<uintptr_t>(buf), sz);
+}
+
+// sys_dup2(oldfd, newfd)
+//    Make `newfd` a reference to the same file structure as `oldfd`.
+inline int sys_dup2(int oldfd, int newfd) {
+    return make_syscall(SYSCALL_DUP2, oldfd, newfd);
+}
+
+// sys_close(fd)
+//    Close `fd`.
+inline int sys_close(int fd) {
+    return make_syscall(SYSCALL_CLOSE, fd);
+}
+
+// sys_open(path, flags)
+//    Open a new file descriptor for pathname `path`. `flags` should
+//    contain at least one of `OF_READ` and `OF_WRITE`.
+inline int sys_open(const char* path, int flags) {
+    access_memory(path);
+    return make_syscall(SYSCALL_OPEN, reinterpret_cast<uintptr_t>(path),
+                        flags);
+}
+
+// sys_pipe(pfd)
+//    Create a pipe.
+inline int sys_pipe(int pfd[2]) {
+    uintptr_t r = make_syscall(SYSCALL_PIPE);
+    if (!is_error(r)) {
+        pfd[0] = r;
+        pfd[1] = r >> 32;
+        r = 0;
+    }
+    return r;
+}
+
+// sys_execv(program_name, argv, argc)
+//    Replace this process image with a new image running `program_name`
+//    with `argc` arguments, stored in argument array `argv`. Returns
+//    only on failure.
+inline int sys_execv(const char* program_name, const char* const* argv,
+                     size_t argc) {
+    access_memory(program_name);
+    access_memory(argv);
+    return make_syscall(SYSCALL_EXECV,
+                        reinterpret_cast<uintptr_t>(program_name),
+                        reinterpret_cast<uintptr_t>(argv), argc);
+}
+
+// sys_execv(program_name, argv)
+//    Replace this process image with a new image running `program_name`
+//    with arguments `argv`. `argv` is a null-terminated array. Returns
+//    only on failure.
+inline int sys_execv(const char* program_name, const char* const* argv) {
+    size_t argc = 0;
+    while (argv && argv[argc] != nullptr) {
+        ++argc;
+    }
+    return sys_execv(program_name, argv, argc);
+}
+
+// sys_unlink(pathname)
+//    Remove the file named `pathname`.
+inline int sys_unlink(const char* pathname) {
+    access_memory(pathname);
+    return make_syscall(SYSCALL_UNLINK, reinterpret_cast<uintptr_t>(pathname));
+}
+
+
+// dprintf(fd, format, ...)
+//    Construct a string from `format` and pass it to `sys_write(fd)`.
+//    Returns the number of characters printed, or E_2BIG if the string
+//    could not be constructed.
+int dprintf(int fd, const char* format, ...);
+
+// printf(format, ...)
+//    Like `dprintf(1, format, ...)`.
+int printf(const char* format, ...);
+
 #endif
