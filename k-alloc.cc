@@ -87,7 +87,7 @@ void operator delete(void* ptr, size_t) noexcept {
 void operator delete(void* ptr, std::align_val_t) noexcept {
     kfree(ptr);
 }
-void operator delete(void* ptr, std::align_val_t, size_t) noexcept {
+void operator delete(void* ptr, size_t, std::align_val_t) noexcept {
     kfree(ptr);
 }
 void operator delete[](void* ptr) noexcept {
@@ -99,6 +99,6 @@ void operator delete[](void* ptr, size_t) noexcept {
 void operator delete[](void* ptr, std::align_val_t) noexcept {
     kfree(ptr);
 }
-void operator delete[](void* ptr, std::align_val_t, size_t) noexcept {
+void operator delete[](void* ptr, size_t, std::align_val_t) noexcept {
     kfree(ptr);
 }
