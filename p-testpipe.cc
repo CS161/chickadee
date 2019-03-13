@@ -158,6 +158,8 @@ void process_main() {
     x = sys_close(pfd[1]);
     assert_eq(x, 0);
 
+    sys_msleep(100); // try to ensure first child exits
+
 
     // inheritance tests with close-on-exit
     console_printf("close-on-exit tests...\n");
