@@ -1,5 +1,7 @@
 #include "k-vmiter.hh"
 
+const x86_64_pageentry_t vmiter::zero_pe = 0;
+
 void vmiter::down() {
     while (level_ > 0 && (*pep_ & (PTE_P | PTE_PS)) == PTE_P) {
         perm_ &= *pep_;
@@ -11,10 +13,15 @@ void vmiter::down() {
 }
 
 void vmiter::real_find(uintptr_t va) {
-    if ((va_ ^ va) & ~pageoffmask(level_ + 1)) {
+    if (level_ == 3 || ((va_ ^ va) & ~pageoffmask(level_ + 1)) != 0) {
         level_ = 3;
-        pep_ = &pt_->entry[pageindex(va, level_)];
-        perm_ = initial_perm;
+        if (va_is_canonical(va)) {
+            perm_ = initial_perm;
+            pep_ = &pt_->entry[pageindex(va, level_)];
+        } else {
+            perm_ = 0;
+            pep_ = const_cast<x86_64_pageentry_t*>(&zero_pe);
+        }
     } else {
         int curidx = (reinterpret_cast<uintptr_t>(pep_) & PAGEOFFMASK) >> 3;
         pep_ += pageindex(va, level_) - curidx;

@@ -93,8 +93,8 @@ $(OBJDIR)/stamp $(BUILDSTAMP):
 	$(call run,mkdir -p $(@D))
 	$(call run,touch $@)
 
-ifneq ($(strip $(INITFS_CONTENTS)),$(DEP_INITFS_CONTENTS))
-INITFS_BUILDSTAMP := $(shell echo "DEP_INITFS_CONTENTS:=$(strip $(INITFS_CONTENTS))" > $(DEPSDIR)/_initfs.d; echo always)
+ifneq ($(strip $(INITFS_CONTENTS) $(INITFS_PARAMS)),$(DEP_INITFS_CONTENTS))
+INITFS_BUILDSTAMP := $(shell echo "DEP_INITFS_CONTENTS:=$(strip $(INITFS_CONTENTS) $(INITFS_PARAMS))" > $(DEPSDIR)/_initfs.d; echo always)
 endif
 
 ifneq ($(strip $(DISKFS_CONTENTS)),$(DEP_DISKFS_CONTENTS))
@@ -109,7 +109,7 @@ INFERRED_QEMU := $(shell if which qemu-system-x86_64 2>/dev/null | grep ^/ >/dev
 	then echo qemu; else echo qemu-system-x86_64; fi)
 QEMU ?= $(INFERRED_QEMU)
 QEMUCONSOLE ?= $(if $(DISPLAY),,1)
-QEMUDISPLAY = $(if $(QEMUCONSOLE),console,graphic)
+QEMUDISPLAY ?= $(if $(QEMUCONSOLE),console,graphic)
 
 $(OBJDIR)/libqemu-nograb.so.1: build/qemu-nograb.c
 	$(call run,mkdir -p $(@D))

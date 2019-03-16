@@ -80,6 +80,7 @@ struct memfile {
     inline memfile();
     inline memfile(const char* name, unsigned char* first,
                    unsigned char* last);
+    inline memfile(const char* name, const char* data);
 
     // return true iff this `memfile` is not being used
     inline bool empty() const;
@@ -108,6 +109,13 @@ inline memfile::memfile(const char* name, unsigned char* first,
     assert(namelen < namesize && datalen >= 0);
     strcpy(name_, name);
     len_ = capacity_ = datalen;
+}
+inline memfile::memfile(const char* name, const char* data)
+    : data_(reinterpret_cast<unsigned char*>(const_cast<char*>(data))),
+      len_(strlen(data)), capacity_(0) {
+    size_t namelen = strlen(name);
+    assert(namelen < namesize);
+    strcpy(name_, name);
 }
 inline bool memfile::empty() const {
     return name_[0] == 0;

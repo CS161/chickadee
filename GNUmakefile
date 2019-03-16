@@ -5,8 +5,8 @@ all: $(QEMUIMAGEFILES)
 # `config.mk` so you don't have to list them every time.
 -include config.mk
 
-# `$(V)` controls whether the lab makefiles print verbose commands (the
-# actual shell commands run by Make) or brief commands (like `COMPILE`).
+# `$(V)` controls whether the makefiles print verbose commands (the shell
+# commands run by Make) or brief commands (like `COMPILE`).
 # For brief commands, run `make all`.
 # For verbose commands, run `make V=1 all`.
 V = 0
@@ -30,7 +30,7 @@ endif
 NCPU = 2
 LOG ?= file:log.txt
 QEMUOPT = -net none -parallel $(LOG) -smp $(NCPU)
-ifneq ($(D),)
+ifeq ($(D),1)
 QEMUOPT += -d int,cpu_reset -no-reboot
 endif
 
@@ -53,6 +53,11 @@ PROCESS_LIB_OBJS = $(OBJDIR)/lib.uo $(OBJDIR)/u-lib.uo $(OBJDIR)/crc32c.uo
 INITFS_CONTENTS = \
 	$(shell find initfs -type f -not -name '\#*\#' -not -name '*~' 2>/dev/null) \
 	$(patsubst %,obj/%,$(PROCESSES))
+
+INITFS_PARAMS ?=
+ifeq ($(HALT),1)
+INITFS_PARAMS += .halt=1
+endif
 
 DISKFS_CONTENTS = \
 	$(shell find initfs -type f -not -name '\#*\#' -not -name '*~' 2>/dev/null) \
@@ -108,7 +113,7 @@ $(OBJDIR)/k-asm.h: kernel.hh x86-64.h build/mkkernelasm.awk $(KERNELBUILDSTAMPS)
 
 $(OBJDIR)/k-initfs.cc: build/mkinitfs.awk \
 	$(INITFS_CONTENTS) $(INITFS_BUILDSTAMP) $(KERNELBUILDSTAMPS)
-	$(call run,echo $(INITFS_CONTENTS) | awk -f build/mkinitfs.awk >,CREATE,$@)
+	$(call run,echo $(INITFS_CONTENTS) $(INITFS_PARAMS) | awk -f build/mkinitfs.awk >,CREATE,$@)
 
 $(OBJDIR)/k-initfs.ko: $(OBJDIR)/k-initfs.cc
 	$(call cxxcompile,$(KERNELCXXFLAGS) -O2 -DCHICKADEE_KERNEL -mcmodel=kernel -c $< -o $@,COMPILE $<)

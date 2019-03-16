@@ -8,7 +8,8 @@
 
 extern "C" {
 
-// memcpy, memmove, memset, strlen, strnlen, strcmp, strncmp
+// memcpy, memmove, memset, memcmp, memchr, strlen, strnlen, strcpy, strcmp,
+// strncmp, strchr, strtoul, strtol
 //    We must provide our own implementations.
 
 void* memcpy(void* dst, const void* src, size_t n) {
@@ -51,6 +52,16 @@ int memcmp(const void* a, const void* b, size_t n) {
         }
     }
     return 0;
+}
+
+void* memchr(const void* s, int c, size_t n) {
+    const unsigned char* ss;
+    for (ss = (const unsigned char*) s; n != 0; ++ss, --n) {
+        if (*ss == (unsigned char) c) {
+            return (void*) ss;
+        }
+    }
+    return nullptr;
 }
 
 size_t strlen(const char* s) {

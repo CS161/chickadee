@@ -235,7 +235,7 @@ void console_show_cursor(int cpos) {
 //    index. Return an error code on failure.
 int memfile::initfs_lookup(const char* name, bool create) {
     memfile* empty = nullptr;
-    size_t namelen = strlen(name);
+    size_t namelen = min(strlen(name), size_t(namesize) - 1);
 
     // search for a file named `name`
     for (memfile* f = initfs; f != initfs + initfs_size; ++f) {

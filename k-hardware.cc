@@ -109,6 +109,21 @@ void reboot() {
 }
 
 
+// process_halt
+//    Called when the last user process exits. This will turn off the virtual
+//    machine if `HALT=1` was specified during kernel build.
+
+void process_halt() {
+    auto& kbd = keyboardstate::get();
+    kbd.state_ = keyboardstate::boot;
+    if (memfile::initfs_lookup(".halt") >= 0) {
+        poweroff();
+    }
+    while (true) {
+        current()->yield();
+    }
+}
+
 
 // log_printf, log_vprintf
 //    Print debugging messages to the host's `log.txt` file. We run QEMU

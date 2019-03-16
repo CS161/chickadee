@@ -362,6 +362,9 @@ void set_pagetable(x86_64_pagetable* pagetable);
 // reboot the virtual machine
 [[noreturn]] void reboot();
 
+// call after last process exits
+[[noreturn]] void process_halt();
+
 extern "C" {
 void kernel_start(const char* command);
 }

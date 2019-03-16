@@ -20,7 +20,7 @@ struct list_links {
 
     // Return true iff this `list_links` is linked in to some list
     inline bool is_linked() const;
-    // Synonym for `is_linked()`
+    // Synonym for `!is_linked()`
     inline bool empty() const;
     // Remove this `list_links` from its containing list
     inline void erase();

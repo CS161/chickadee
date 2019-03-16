@@ -9,11 +9,16 @@ BEGIN {
         gsub(/^initfs\//, "", name);
         gsub(/^obj\/p-/, "", name);
         gsub(/^obj\//, "", name);
-        prefix = "_binary_" $i;
-        gsub(/[^a-zA-Z0-9_]/, "_", prefix);
-        print "extern unsigned char ", prefix, "_start[];";
-        print "extern unsigned char ", prefix, "_end[];";
-        files = files "    memfile(\"" name "\", " prefix "_start, " prefix "_end),\n";
+        eq = index(name, "=");
+        if (eq) {
+            files = files "    memfile(\"" substr(name, 1, eq - 1) "\", \"" substr(name, eq + 1, length(name) - eq) "\"),\n";
+        } else {
+            prefix = "_binary_" $i;
+            gsub(/[^a-zA-Z0-9_]/, "_", prefix);
+            print "extern unsigned char ", prefix, "_start[];";
+            print "extern unsigned char ", prefix, "_end[];";
+            files = files "    memfile(\"" name "\", " prefix "_start, " prefix "_end),\n";
+        }
     }
 }
 END {
