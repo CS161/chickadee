@@ -40,7 +40,8 @@ struct bufcache {
     static inline bufcache& get();
 
     typedef void (*clean_block_function)(unsigned char*);
-    bufentry* get_disk_entry(blocknum_t bn, clean_block_function = nullptr);
+    bufentry* get_disk_entry(blocknum_t bn,
+                             clean_block_function cleaner = nullptr);
     void put_entry(bufentry* e);
 
     bufentry* find_entry(void* data);
@@ -76,7 +77,7 @@ struct chkfsstate {
 
     inode* lookup_inode(inode* dirino, const char* name);
 
-    blocknum_t allocate_block();
+    blocknum_t allocate_extent(unsigned count = 1);
 
 
   private:

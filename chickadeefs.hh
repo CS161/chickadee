@@ -5,12 +5,13 @@
 # include "lib.hh"
 #else
 # include <assert.h>
+# include <inttypes.h>
 #endif
 
 namespace chkfs {
 
-typedef uint32_t blocknum_t;               // type of block numbers
-typedef int32_t inum_t;                    // type of inode numbers
+using blocknum_t = uint32_t;               // type of block numbers
+using inum_t = int32_t;                    // type of inode numbers
 
 // block size
 static constexpr size_t blocksize = 4096;
@@ -21,20 +22,11 @@ static constexpr size_t superblock_offset = 512;   // offset of struct in block
 static constexpr uint64_t magic = 0xFBBFBB003EE9BEEFUL;
 
 // inode information
-static constexpr size_t ndirect = 9;       // # direct pointers per inode
-static constexpr size_t nindirect = blocksize / sizeof(blocknum_t);
-        // # block pointers per indirect or indirect2 block
+static constexpr size_t ndirect = 4;       // # direct extents per inode
 static constexpr size_t inodesize = 64;    // `sizeof(struct inode)`
 static constexpr size_t inodesperblock = blocksize / inodesize;
-
-// file sizes
-static constexpr size_t maxdirectsize = ndirect * blocksize;
-        // maximum file size possible using only direct blocks
-static constexpr size_t maxindirectsize = maxdirectsize
-    + nindirect * blocksize;               // ... plus indirect block
-static constexpr size_t maxindirect2size = maxindirectsize
-    + nindirect * nindirect * blocksize;   // ... plus indirect2 block
-static constexpr size_t maxsize = maxindirect2size;
+static constexpr size_t extentsize = 8;    // `sizeof(extent)`
+static constexpr size_t extentsperblock = blocksize / extentsize;
 
 // special block numbers
 static constexpr blocknum_t emptyblock = blocknum_t(-1);
@@ -46,28 +38,6 @@ static constexpr size_t direntsize = 128;  // `sizeof(struct dirent)`
 // `inode::type` constants
 static constexpr uint32_t type_regular = 1;
 static constexpr uint32_t type_directory = 2;
-
-
-// bi_direct_index(bi)
-//    Return the direct block index for file block index `bi`.
-//    This is either an index into `inode::direct`, or an index
-//    into an indirect block.
-inline unsigned bi_direct_index(size_t bi) {
-    assert(bi < maxsize / blocksize);
-    if (bi < ndirect) {
-        return bi;
-    } else {
-        return (bi - ndirect) % nindirect;
-    }
-}
-
-// bi_indirect_index(bi)
-//    Return the indirect block index for file block index `bi`.
-//    This is an index into the indirect2 block.
-inline unsigned bi_indirect_index(size_t bi) {
-    assert(bi >= ndirect + nindirect && bi < maxsize / blocksize);
-    return (bi - ndirect - nindirect) / nindirect;
-}
 
 
 struct superblock {
@@ -83,15 +53,20 @@ struct superblock {
     blocknum_t journal_bn;        // first block in journal
 };
 
+struct extent {
+    blocknum_t first;             // first block (0 means none)
+    uint32_t count;               // number of blocks (0 means end)
+};
+
 struct inode {
     uint32_t type;                // file type (regular, directory, or 0/none)
     uint32_t size;                // file size
     uint32_t nlink;               // # hard links to file
-    std::atomic<uint32_t> mlock;  // used in memory
-    std::atomic<uint32_t> mref;   // used in memory
-    blocknum_t direct[ndirect];   // block pointers
-    blocknum_t indirect;
-    blocknum_t indirect2;
+    uint32_t flags;               // flags
+    std::atomic<uint32_t> mlock;  // used in memory, 0 when loaded from disk
+    std::atomic<uint32_t> mref;   // used in memory, 0 when loaded from disk
+    extent direct[ndirect];       // extents
+    extent indirect;
 
     // functions only defined in the kernel; the lock_ functions yield,
     // so cannot be called with spinlocks held
@@ -126,7 +101,7 @@ inline bool tid_gt(tid_t x, tid_t y) {
 
 static constexpr uint64_t journalmagic = 0xFBBFBB009EEBCEEDUL;
 static constexpr uint32_t nochecksum = 0x82600A5F;
-static constexpr size_t ref_size = (nindirect - 7) / 3;
+static constexpr size_t ref_size = (blocksize / 4 - 7) / 3;
 
 struct jblockref {              // component of `jmetablock`
     blocknum_t bn;              // destination block number

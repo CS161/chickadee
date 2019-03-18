@@ -190,7 +190,7 @@ namespace chkfs {
 
 void inode::lock_read() {
     uint32_t v = mlock.load(std::memory_order_relaxed);
-    while (1) {
+    while (true) {
         if (v == uint32_t(-1)) {
             current()->yield();
             v = mlock.load(std::memory_order_relaxed);
@@ -312,14 +312,15 @@ chkfs::inode* chkfsstate::lookup_inode(inode* dirino,
 }
 
 
-// chkfsstate::allocate_block()
-//    Allocate and return the number of a fresh block. The returned
-//    block need not be initialized (but it should not be in flight
+// chkfsstate::allocate_extent(unsigned count)
+//    Allocate and return the number of a fresh extent. The returned
+//    extent doesn't need to be initialized (but it should not be in flight
 //    to the disk or part of any incomplete journal transaction).
-//    Returns the block number or an error code on failure. Errors
-//    can be distinguished by `blocknum >= blocknum_t(E_MINERROR)`.
+//    Returns the block number of the first block in the extent, or an error
+//    code on failure. Errors can be distinguished by
+//    `blocknum >= blocknum_t(E_MINERROR)`.
 
-auto chkfsstate::allocate_block() -> blocknum_t {
+auto chkfsstate::allocate_extent(unsigned) -> blocknum_t {
     // Your code here
     return E_INVAL;
 }

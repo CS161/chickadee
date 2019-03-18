@@ -8,17 +8,18 @@ class chkfs_fileiter {
     using inode = chkfs::inode;
     static constexpr size_t blocksize = chkfs::blocksize;
     static constexpr blocknum_t emptyblock = bufentry::emptyblock;
+    static constexpr size_t npos = -1;
 
 
     // Initialize an iterator for `ino` at file offset `off`.
-    chkfs_fileiter(inode* ino, size_t off = 0);
+    chkfs_fileiter(chkfs::inode* ino, size_t off = 0);
     NO_COPY_OR_ASSIGN(chkfs_fileiter);
     ~chkfs_fileiter();
 
 
     // Return the current file offset.
     inline size_t offset() const;
-    // Return true iff the iter is within Chkfs's file size limits.
+    // Return true iff the iterator points to real data.
     inline bool active() const;
     // Return the block number corresponding to the current file offset.
     // Returns 0 if there is no block stored for the current offset.
@@ -37,10 +38,11 @@ class chkfs_fileiter {
 
     // Move the iterator to the next larger file offset with a different
     // present block. If there is no such block, move the iterator to
-    // offset `chkfs::maxsize` (making the iterator `!active()`).
+    // offset `npos` (making the iterator `!active()`).
     void next();
 
 
+    // xxxxxx
     // Change the block stored at the current offset to `bn`, allocating
     // blocks for indirect and doubly-indirect blocks as necessary.
     // Returns 0 on success, a negative error code on failure.
@@ -51,29 +53,25 @@ class chkfs_fileiter {
     // * `bufcache::get_write(bufentry*)` and `bufcache::put_write(bufentry*)`,
     //   to obtain write references to indirect[2] blocks and/or the inode
     //   block
-    int map(blocknum_t bn);
+    int append(blocknum_t bn, uint32_t count = 1);
 
 
  private:
-    inode* ino_;                    // inode
+    chkfs::inode* ino_;             // inode
     size_t off_;                    // file offset
-    blocknum_t* dptr_;              // pointer into buffer cache to
-                                    // data block number for `off_`
+    size_t eoff_;                   // file offset of this extent
+    size_t eidx_;                   // index of this extent
+    chkfs::extent* eptr_;           // pointer into buffer cache to
+                                    // extent for `off_`
 
-    // bufentries for inode, indirect2 block, current indirect block
-    bufentry* ino_entry_;
-    bufentry* indirect2_entry_ = nullptr;
+    bufentry* ino_entry_;           // bufentry for inode
+    // bufentry containing indirect extent block for `eidx_`
     bufentry* indirect_entry_ = nullptr;
-
-    static inline constexpr unsigned iclass(unsigned bi);
-    inline blocknum_t* get_iptr(unsigned bi) const;
-    inline blocknum_t* get_dptr(unsigned bi) const;
-    blocknum_t allocate_metablock_entry(bufentry** eptr) const;
 };
 
 
 inline chkfs_fileiter::chkfs_fileiter(inode* ino, size_t off)
-    : ino_(ino), off_(0), dptr_(&ino->direct[0]) {
+    : ino_(ino), off_(0), eoff_(0), eidx_(0), eptr_(&ino->direct[0]) {
     ino_entry_ = bufcache::get().find_entry(ino);
     if (off != 0) {
         find(off);
@@ -85,22 +83,23 @@ inline chkfs_fileiter::~chkfs_fileiter() {
     if (indirect_entry_) {
         bc.put_entry(indirect_entry_);
     }
-    if (indirect2_entry_) {
-        bc.put_entry(indirect2_entry_);
-    }
 }
 
 inline size_t chkfs_fileiter::offset() const {
     return off_;
 }
 inline bool chkfs_fileiter::active() const {
-    return off_ < chkfs::maxsize;
+    return off_ < npos;
 }
 inline auto chkfs_fileiter::blocknum() const -> blocknum_t {
-    return dptr_ ? *dptr_ : 0;
+    if (eptr_ && eptr_->first != 0) {
+        return eptr_->first + (off_ - eoff_) / blocksize;
+    } else {
+        return 0;
+    }
 }
 inline bool chkfs_fileiter::present() const {
-    return dptr_ && *dptr_ != 0;
+    return eptr_ && eptr_->first != 0;
 }
 
 inline chkfs_fileiter& chkfs_fileiter::operator+=(ssize_t delta) {
