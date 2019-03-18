@@ -234,6 +234,78 @@ inline int sys_unlink(const char* pathname) {
     return make_syscall(SYSCALL_UNLINK, reinterpret_cast<uintptr_t>(pathname));
 }
 
+// sys_readdiskfile(filename, buf, sz, off)
+//    Read bytes from disk file `filename` into `buf`. Read at most `sz`
+//    bytes starting at file offset `off`. Return the number of bytes
+//    read, which is 0 at EOF.
+inline ssize_t sys_readdiskfile(const char* filename,
+                                char* buf, size_t sz, size_t off) {
+    clobber_memory(buf);
+    return make_syscall(SYSCALL_READDISKFILE,
+                        reinterpret_cast<uintptr_t>(filename),
+                        reinterpret_cast<uintptr_t>(buf), sz, off);
+}
+
+// sys_sync(drop)
+//    Synchronize all modified buffer cache contents to disk. If
+//    `drop` is true, then additionally drop all buffer cache contents,
+//    so that future reads start from an empty cache.
+inline int sys_sync(int drop = 0) {
+    return make_syscall(SYSCALL_SYNC, drop);
+}
+
+// sys_lseek(fd, offset, origin)
+//    Set the current file position for `fd` to `off`, relative to
+//    `origin` (one of the `LSEEK_` constants). Returns the new file
+//    position (or, for `LSEEK_SIZE`, the file size).
+inline ssize_t sys_lseek(int fd, ssize_t off, int origin) {
+    return make_syscall(SYSCALL_LSEEK, fd, off, origin);
+}
+
+// sys_ftruncate(fd, len)
+//    Set the size of file `fd` to `sz`. If the file was previously
+//    larger, the extra data is lost; if it was shorter, it is extended
+//    with zero bytes.
+inline int sys_ftruncate(int fd, size_t sz) {
+    return make_syscall(SYSCALL_FTRUNCATE, fd, sz);
+}
+
+// sys_rename(oldpath, newpath)
+//    Rename the file with name `oldpath` to `newpath`.
+inline int sys_rename(const char* oldpath, const char* newpath) {
+    access_memory(oldpath);
+    access_memory(newpath);
+    return make_syscall(SYSCALL_RENAME, reinterpret_cast<uintptr_t>(oldpath),
+                        reinterpret_cast<uintptr_t>(newpath));
+}
+
+// sys_gettid()
+//    Return the current thread ID.
+inline pid_t sys_gettid() {
+    return make_syscall(SYSCALL_GETTID);
+}
+
+// sys_clone(function, arg, stack_top)
+//    Create a new thread running `function` with `arg`, starting at
+//    stack address `stack_top`. Returns the new thread's thread ID.
+//
+//    In the context of the new thread, when the `function` returns,
+//    the thread should call `sys_texit` with the function's return value
+//    as argument.
+//
+//    Unlike most other system calls, we recommend you implement `sys_clone`
+//    in `u-lib.cc`.
+pid_t sys_clone(int (*function)(void*), void* arg, char* stack_top);
+
+// sys_texit(status)
+//    Exit the current thread with exit status `status`. If this is
+//    the last thread in the process, this will have the same effect
+//    as `sys_exit(status)`.
+[[noreturn]] inline void sys_texit(int status) {
+    make_syscall(SYSCALL_TEXIT, status);
+    assert(false);
+}
+
 
 // dprintf(fd, format, ...)
 //    Construct a string from `format` and pass it to `sys_write(fd)`.

@@ -61,6 +61,7 @@ struct __attribute__((aligned(4096))) proc {
 
     uintptr_t syscall_read(regstate* reg);
     uintptr_t syscall_write(regstate* reg);
+    uintptr_t syscall_readdiskfile(regstate* reg);
 
     inline irqstate lock_pagetable_read();
     inline void unlock_pagetable_read(irqstate& irqs);
@@ -344,6 +345,9 @@ void init_hardware();
 // query machine configuration
 unsigned machine_ncpu();
 unsigned machine_pci_irq(int pci_addr, int intr_pin);
+
+struct ahcistate;
+extern ahcistate* sata_disk;
 
 
 // early page table (only kernel mappings)
