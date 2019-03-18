@@ -7,7 +7,6 @@ class chkfs_fileiter {
     using blocknum_t = chkfs::blocknum_t;
     using inode = chkfs::inode;
     static constexpr size_t blocksize = chkfs::blocksize;
-    static constexpr blocknum_t emptyblock = bufentry::emptyblock;
     static constexpr size_t npos = -1;
 
 
@@ -50,7 +49,7 @@ class chkfs_fileiter {
     // This function can call:
     // * `chkfsstate::allocate_block`, to allocate indirect[2] blocks
     // * `bufcache::get_disk_entry(blocknum_t)`, to find indirect[2] bufentries
-    // * `bufcache::get_write(bufentry*)` and `bufcache::put_write(bufentry*)`,
+    // * `bufcache::get_write(bcentry*)` and `bufcache::put_write(bcentry*)`,
     //   to obtain write references to indirect[2] blocks and/or the inode
     //   block
     int append(blocknum_t bn, uint32_t count = 1);
@@ -64,9 +63,9 @@ class chkfs_fileiter {
     chkfs::extent* eptr_;           // pointer into buffer cache to
                                     // extent for `off_`
 
-    bufentry* ino_entry_;           // bufentry for inode
-    // bufentry containing indirect extent block for `eidx_`
-    bufentry* indirect_entry_ = nullptr;
+    bcentry* ino_entry_;            // buffer cache entry for inode
+    // bcentry containing indirect extent block for `eidx_`
+    bcentry* indirect_entry_ = nullptr;
 };
 
 

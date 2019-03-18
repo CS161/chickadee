@@ -7,47 +7,47 @@
 
 // buffer cache
 
-struct bufentry {
+using bcentry_clean_function = void (*)(chkfs::blocknum_t, unsigned char*);
+
+struct bcentry {
     using blocknum_t = chkfs::blocknum_t;
-    static constexpr blocknum_t emptyblock = blocknum_t(-1);
 
-    spinlock lock_;                  // protects modification to `flags_`
-                                     // and initial setting of `buf_`
-    blocknum_t bn_ = emptyblock;     // disk block number or `emptyblock`
-    unsigned ref_ = 0;               // refcount: protects entry
-    unsigned flags_ = 0;             // flags
-    unsigned char* buf_ = nullptr;   // memory buffer used for entry
-
-    enum {
-        f_loaded = 1, f_loading = 2, f_dirty = 4
+    enum state_t {
+        s_empty, s_loading, s_clean
     };
 
+    std::atomic<int> state_ = s_empty;   // state (empty, loading, clean)
 
-    inline void clear();
+    spinlock lock_;                      // protects most `state_` changes
+    unsigned ref_ = 0;                   // reference count
+    blocknum_t bn_;                      // disk block number (unless empty)
+    unsigned char* buf_ = nullptr;       // memory buffer used for entry
+
+
+    inline bool empty() const;
+    bool load(irqstate& irqs, bcentry_clean_function cleaner);
 };
 
 struct bufcache {
-    using blocknum_t = bufentry::blocknum_t;
-    static constexpr blocknum_t emptyblock = bufentry::emptyblock;
+    using blocknum_t = bcentry::blocknum_t;
 
     static constexpr size_t ne = 10;
 
     spinlock lock_;                  // protects all entries' bn_ and ref_
     wait_queue read_wq_;
-    bufentry e_[ne];
+    bcentry e_[ne];
 
 
     static inline bufcache& get();
 
-    typedef void (*clean_block_function)(unsigned char*);
-    bufentry* get_disk_entry(blocknum_t bn,
-                             clean_block_function cleaner = nullptr);
-    void put_entry(bufentry* e);
+    bcentry* get_disk_entry(blocknum_t bn,
+                            bcentry_clean_function cleaner = nullptr);
+    void put_entry(bcentry* e);
 
-    bufentry* find_entry(void* data);
+    bcentry* find_entry(void* data);
 
-    void get_write(bufentry* e);
-    void put_write(bufentry* e);
+    void get_write(bcentry* e);
+    void put_write(bcentry* e);
 
     int sync(bool drop);
 
@@ -67,7 +67,6 @@ struct chkfsstate {
     using inum_t = chkfs::inum_t;
     using inode = chkfs::inode;
     static constexpr size_t blocksize = chkfs::blocksize;
-    static constexpr blocknum_t emptyblock = bufentry::emptyblock;
 
 
     static inline chkfsstate& get();
@@ -88,19 +87,16 @@ struct chkfsstate {
 };
 
 
-inline void bufentry::clear() {
-    bn_ = emptyblock;
-    assert(ref_ == 0);
-    flags_ = 0;
-    buf_ = nullptr;
-}
-
 inline bufcache& bufcache::get() {
     return bc;
 }
 
 inline chkfsstate& chkfsstate::get() {
     return fs;
+}
+
+inline bool bcentry::empty() const {
+    return state_.load(std::memory_order_relaxed) == s_empty;
 }
 
 size_t chickadeefs_read_file_data(const char* filename,

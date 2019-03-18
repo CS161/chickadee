@@ -8,87 +8,108 @@ bufcache::bufcache() {
 }
 
 
+bool bcentry::load(irqstate& irqs, bcentry_clean_function cleaner) {
+    bufcache& bc = bufcache::get();
+
+    // load block, or wait for concurrent reader to load it
+    while (true) {
+        if (state_ == s_empty) {
+            if (!buf_) {
+                buf_ = reinterpret_cast<unsigned char*>
+                    (kalloc(chkfs::blocksize));
+                if (!buf_) {
+                    return false;
+                }
+            }
+            state_ = s_loading;
+            lock_.unlock(irqs);
+
+            sata_disk->read(buf_, chkfs::blocksize,
+                            bn_ * chkfs::blocksize);
+
+            irqs = lock_.lock();
+            state_ = s_clean;
+            if (cleaner) {
+                cleaner(bn_, buf_);
+            }
+            bc.read_wq_.wake_all();
+        } else if (state_ == s_loading) {
+            waiter(current()).block_until(bc.read_wq_, [&] () {
+                    return state_ != s_loading;
+                }, lock_, irqs);
+        } else {
+            return true;
+        }
+    }
+}
+
 // bufcache::get_disk_entry(bn, cleaner)
 //    Read disk block `bn` into the buffer cache, obtain a reference to it,
-//    and return a pointer to its bufentry. The function may block. If this
+//    and return a pointer to its bcentry. The function may block. If this
 //    function reads the disk block from disk, and `cleaner != nullptr`,
 //    then `cleaner` is called on the block data. Returns `nullptr` if
 //    there's no room for the block.
 
-bufentry* bufcache::get_disk_entry(chkfs::blocknum_t bn,
-                                   clean_block_function cleaner) {
+bcentry* bufcache::get_disk_entry(chkfs::blocknum_t bn,
+                                  bcentry_clean_function cleaner) {
     assert(chkfs::blocksize == PAGESIZE);
     auto irqs = lock_.lock();
 
     // look for slot containing `bn`
-    size_t i;
+    size_t i, empty_slot = -1;
     for (i = 0; i != ne; ++i) {
-        if (e_[i].bn_ == bn) {
+        if (e_[i].empty()) {
+            if (e_[i].buf_) {
+                kfree(e_[i].buf_);
+                e_[i].buf_ = nullptr;
+            }
+            if (empty_slot == size_t(-1)) {
+                empty_slot = i;
+            }
+        } else if (e_[i].bn_ == bn) {
             break;
         }
     }
 
-    // if not found, look for free slot
+    // if not found, use free slot
     if (i == ne) {
-        for (i = 0; i != ne && e_[i].bn_ != emptyblock; ++i) {
-        }
-        if (i == ne) {
+        if (empty_slot == size_t(-1)) {
             // cache full!
             lock_.unlock(irqs);
             log_printf("bufcache: no room for block %u\n", bn);
             return nullptr;
         }
+        i = empty_slot;
         e_[i].bn_ = bn;
     }
-
-    // mark reference
-    ++e_[i].ref_;
 
     // switch lock to entry lock
     e_[i].lock_.lock_noirq();
     lock_.unlock_noirq();
 
-    // load block, or wait for concurrent reader to load it
-    while (!(e_[i].flags_ & bufentry::f_loaded)) {
-        if (!(e_[i].flags_ & bufentry::f_loading)) {
-            if (!e_[i].buf_) {
-                e_[i].buf_ = reinterpret_cast<unsigned char*>
-                    (kalloc(chkfs::blocksize));
-                if (!e_[i].buf_) {
-                    --e_[i].ref_;
-                    e_[i].lock_.unlock(irqs);
-                    return nullptr;
-                }
-            }
-            e_[i].flags_ |= bufentry::f_loading;
-            e_[i].lock_.unlock(irqs);
-            sata_disk->read(e_[i].buf_, chkfs::blocksize,
-                            bn * chkfs::blocksize);
-            irqs = e_[i].lock_.lock();
-            e_[i].flags_ = (e_[i].flags_ & ~bufentry::f_loading)
-                | bufentry::f_loaded;
-            if (cleaner) {
-                cleaner(e_[i].buf_);
-            }
-            read_wq_.wake_all();
-        } else {
-            waiter(current()).block_until(read_wq_, [&] () {
-                    return (e_[i].flags_ & bufentry::f_loading) == 0;
-                }, e_[i].lock_, irqs);
-        }
-    }
+    // mark reference
+    ++e_[i].ref_;
+
+    // load block
+    bool ok = e_[i].load(irqs, cleaner);
+
+    e_[i].lock_.unlock(irqs);
 
     // return entry
-    e_[i].lock_.unlock(irqs);
-    return &e_[i];
+    if (ok) {
+        return &e_[i];
+    } else {
+        --e_[i].ref_;
+        return nullptr;
+    }
 }
 
 
 // bufcache::find_entry(buf)
-//    Return the `bufentry` containing pointer `buf`. This entry
+//    Return the `bcentry` containing pointer `buf`. This entry
 //    must have a nonzero `ref_`.
 
-bufentry* bufcache::find_entry(void* buf) {
+bcentry* bufcache::find_entry(void* buf) {
     if (buf) {
         buf = reinterpret_cast<void*>(
             round_down(reinterpret_cast<uintptr_t>(buf), chkfs::blocksize)
@@ -99,9 +120,9 @@ bufentry* bufcache::find_entry(void* buf) {
         //    will not change.
         // 2. No other entry has the same `buf_` because nonempty
         //    entries have unique `buf_`s.
-        // (XXX Really, though, `bufentry::buf_` should be std::atomic.)
+        // (XXX Really, though, `bcentry::buf_` should be std::atomic.)
         for (size_t i = 0; i != ne; ++i) {
-            if (e_[i].buf_ == buf) {
+            if (!e_[i].empty() && e_[i].buf_ == buf) {
                 return &e_[i];
             }
         }
@@ -114,13 +135,11 @@ bufentry* bufcache::find_entry(void* buf) {
 // bufcache::put_entry(e)
 //    Decrement the reference count for buffer cache entry `e`.
 
-void bufcache::put_entry(bufentry* e) {
+void bufcache::put_entry(bcentry* e) {
     if (e) {
         spinlock_guard guard(e->lock_);
-        --e->ref_;
-        if (e->ref_ == 0) {
-            kfree(e->buf_);
-            e->clear();
+        if (--e->ref_ == 0) {
+            e->state_ = bcentry::s_empty;
         }
     }
 }
@@ -129,7 +148,7 @@ void bufcache::put_entry(bufentry* e) {
 // bufcache::get_write(e)
 //    Obtain a write reference for `e`.
 
-void bufcache::get_write(bufentry* e) {
+void bufcache::get_write(bcentry* e) {
     // Your code here
     assert(false);
 }
@@ -138,7 +157,7 @@ void bufcache::get_write(bufentry* e) {
 // bufcache::put_write(e)
 //    Release a write reference for `e`.
 
-void bufcache::put_write(bufentry* e) {
+void bufcache::put_write(bcentry* e) {
     // Your code here
     assert(false);
 }
@@ -155,9 +174,13 @@ int bufcache::sync(bool drop) {
     if (drop) {
         spinlock_guard guard(lock_);
         for (size_t i = 0; i != ne; ++i) {
-            if (e_[i].bn_ != emptyblock && !e_[i].ref_) {
-                kfree(e_[i].buf_);
-                e_[i].clear();
+            spinlock_guard eguard(e_[i].lock_);
+            if (e_[i].ref_ == 0) {
+                e_[i].state_ = bcentry::s_empty;
+                if (e_[i].buf_) {
+                    kfree(e_[i].buf_);
+                    e_[i].buf_ = nullptr;
+                }
             }
         }
     }
@@ -170,7 +193,7 @@ int bufcache::sync(bool drop) {
 //    This function is called when loading an inode block into the
 //    buffer cache. It clears values that are only used in memory.
 
-static void clean_inode_block(unsigned char* buf) {
+static void clean_inode_block(chkfs::blocknum_t, unsigned char* buf) {
     auto is = reinterpret_cast<chkfs::inode*>(buf);
     for (unsigned i = 0; i != chkfs::inodesperblock; ++i) {
         is[i].mlock = is[i].mref = 0;
@@ -290,7 +313,7 @@ chkfs::inode* chkfsstate::lookup_inode(inode* dirino,
     // read directory to find file inode
     chkfs::inum_t in = 0;
     for (size_t diroff = 0; !in; diroff += blocksize) {
-        bufentry* e;
+        bcentry* e;
         if (!(it.find(diroff).present()
               && (e = bc.get_disk_entry(it.blocknum())))) {
             break;
@@ -359,7 +382,7 @@ size_t chickadeefs_read_file_data(const char* filename,
         size_t ncopy = 0;
 
         // read inode contents, copy data
-        bufentry* e;
+        bcentry* e;
         if (it.find(off).present()
             && (e = bc.get_disk_entry(it.blocknum()))) {
             size_t blockoff = round_down(off, fs.blocksize);

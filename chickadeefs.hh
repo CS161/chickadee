@@ -28,9 +28,6 @@ static constexpr size_t inodesperblock = blocksize / inodesize;
 static constexpr size_t extentsize = 8;    // `sizeof(extent)`
 static constexpr size_t extentsperblock = blocksize / extentsize;
 
-// special block numbers
-static constexpr blocknum_t emptyblock = blocknum_t(-1);
-
 // directory entry information
 static constexpr size_t maxnamelen = 123;  // max strlen(name) supported
 static constexpr size_t direntsize = 128;  // `sizeof(struct dirent)`
@@ -62,7 +59,7 @@ struct inode {
     uint32_t type;                // file type (regular, directory, or 0/none)
     uint32_t size;                // file size
     uint32_t nlink;               // # hard links to file
-    uint32_t flags;               // flags
+    uint32_t flags;               // flags (currently unused)
     std::atomic<uint32_t> mlock;  // used in memory, 0 when loaded from disk
     std::atomic<uint32_t> mref;   // used in memory, 0 when loaded from disk
     extent direct[ndirect];       // extents

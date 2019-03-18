@@ -116,7 +116,7 @@ int chkfs_fileiter::append(blocknum_t first, unsigned count) {
     }
 
     // add new extent
-    bufentry* entry;
+    bcentry* entry;
     if (eidx_ < chkfs::ndirect) {
         entry = ino_entry_;
         eptr_ = &ino_->direct[eidx_];
