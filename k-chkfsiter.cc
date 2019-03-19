@@ -3,7 +3,7 @@
 
 // MAIN CHICKADEEFS ITERATOR FUNCTIONS
 
-chkfs_fileiter& chkfs_fileiter::find(size_t off) {
+chkfs_fileiter& chkfs_fileiter::find(off_t off) {
     auto& bc = bufcache::get();
 
     // if moving backwards, rewind to start

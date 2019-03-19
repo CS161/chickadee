@@ -10,25 +10,28 @@ class chkfs_fileiter {
     static constexpr size_t npos = -1;
 
 
-    // Initialize an iterator for `ino` at file offset `off`.
-    chkfs_fileiter(chkfs::inode* ino, size_t off = 0);
+    // initialize an iterator for `ino` at file offset `off`
+    chkfs_fileiter(chkfs::inode* ino, off_t off = 0);
     NO_COPY_OR_ASSIGN(chkfs_fileiter);
     ~chkfs_fileiter();
 
 
-    // Return the current file offset.
-    inline size_t offset() const;
-    // Return true iff the iterator points to real data.
+    // return the current file offset
+    inline off_t offset() const;
+    // return true iff the iterator points to real data
     inline bool active() const;
+    // return the file offset of the current block
+    inline off_t block_offset() const;
+    // return true iff `blocknum() != 0`
+    inline bool present() const;
     // Return the block number corresponding to the current file offset.
     // Returns 0 if there is no block stored for the current offset.
     inline blocknum_t blocknum() const;
-    // Return true iff `blocknum() != 0`.
-    inline bool present() const;
+    inline bcentry* get_disk_entry() const;
 
 
     // Move the iterator to file offset `off`. Returns `*this`.
-    chkfs_fileiter& find(size_t off);
+    chkfs_fileiter& find(off_t off);
     // Like `find(offset() + delta)`.
     inline chkfs_fileiter& operator+=(ssize_t delta);
     // Like `find(offset() - delta)`.
@@ -69,7 +72,7 @@ class chkfs_fileiter {
 };
 
 
-inline chkfs_fileiter::chkfs_fileiter(inode* ino, size_t off)
+inline chkfs_fileiter::chkfs_fileiter(inode* ino, off_t off)
     : ino_(ino), off_(0), eoff_(0), eidx_(0), eptr_(&ino->direct[0]) {
     ino_entry_ = bufcache::get().find_entry(ino);
     if (off != 0) {
@@ -84,11 +87,17 @@ inline chkfs_fileiter::~chkfs_fileiter() {
     }
 }
 
-inline size_t chkfs_fileiter::offset() const {
+inline off_t chkfs_fileiter::offset() const {
     return off_;
 }
 inline bool chkfs_fileiter::active() const {
     return off_ < npos;
+}
+inline off_t chkfs_fileiter::block_offset() const {
+    return eoff_;
+}
+inline bool chkfs_fileiter::present() const {
+    return eptr_ && eptr_->first != 0;
 }
 inline auto chkfs_fileiter::blocknum() const -> blocknum_t {
     if (eptr_ && eptr_->first != 0) {
@@ -97,8 +106,9 @@ inline auto chkfs_fileiter::blocknum() const -> blocknum_t {
         return 0;
     }
 }
-inline bool chkfs_fileiter::present() const {
-    return eptr_ && eptr_->first != 0;
+inline bcentry* chkfs_fileiter::get_disk_entry() const {
+    blocknum_t bn = blocknum();
+    return bn ? bufcache::get().get_disk_entry(bn) : nullptr;
 }
 
 inline chkfs_fileiter& chkfs_fileiter::operator+=(ssize_t delta) {

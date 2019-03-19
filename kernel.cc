@@ -2,6 +2,7 @@
 #include "k-ahci.hh"
 #include "k-apic.hh"
 #include "k-chkfs.hh"
+#include "k-chkfsiter.hh"
 #include "k-devices.hh"
 #include "k-vmiter.hh"
 
@@ -292,7 +293,54 @@ uintptr_t proc::syscall_readdiskfile(regstate* regs) {
         return E_IO;
     }
 
-    return chickadeefs_read_file_data(filename, buf, sz, off);
+    auto& bc = bufcache::get();
+    auto& fs = chkfsstate::get();
+
+    // read directory to find file inode number
+    auto dirino = fs.get_inode(1);
+    assert(dirino);
+    dirino->lock_read();
+
+    auto ino = fs.lookup_inode(dirino, filename);
+
+    dirino->unlock_read();
+    fs.put_inode(dirino);
+
+    if (!ino) {
+        return 0;
+    }
+
+    // read file inode
+    ino->lock_read();
+    chkfs_fileiter it(ino);
+
+    size_t nread = 0;
+    while (sz > 0) {
+        size_t ncopy = 0;
+
+        // read inode contents, copy data
+        if (bcentry* e = it.find(off).get_disk_entry()) {
+            size_t boff = it.offset() - it.block_offset();
+            size_t bsz = min(ino->size - it.block_offset(), off_t(fs.blocksize));
+            if (bsz > boff) {
+                ncopy = min(bsz - boff, sz);
+                memcpy(buf + nread, e->buf_ + boff, ncopy);
+            }
+            bc.put_entry(e);
+        }
+
+        // account for copied data
+        if (ncopy == 0) {
+            break;
+        }
+        nread += ncopy;
+        off += ncopy;
+        sz -= ncopy;
+    }
+
+    ino->unlock_read();
+    fs.put_inode(ino);
+    return nread;
 }
 
 

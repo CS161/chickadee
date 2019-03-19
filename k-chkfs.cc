@@ -59,10 +59,7 @@ bcentry* bufcache::get_disk_entry(chkfs::blocknum_t bn,
     size_t i, empty_slot = -1;
     for (i = 0; i != ne; ++i) {
         if (e_[i].empty()) {
-            if (e_[i].buf_) {
-                kfree(e_[i].buf_);
-                e_[i].buf_ = nullptr;
-            }
+            e_[i].clear();
             if (empty_slot == size_t(-1)) {
                 empty_slot = i;
             }
@@ -114,13 +111,6 @@ bcentry* bufcache::find_entry(void* buf) {
         buf = reinterpret_cast<void*>(
             round_down(reinterpret_cast<uintptr_t>(buf), chkfs::blocksize)
         );
-
-        // Synchronization is not necessary!
-        // 1. The relevant entry has nonzero `ref_`, so its `buf_`
-        //    will not change.
-        // 2. No other entry has the same `buf_` because nonempty
-        //    entries have unique `buf_`s.
-        // (XXX Really, though, `bcentry::buf_` should be std::atomic.)
         for (size_t i = 0; i != ne; ++i) {
             if (!e_[i].empty() && e_[i].buf_ == buf) {
                 return &e_[i];
@@ -176,11 +166,7 @@ int bufcache::sync(bool drop) {
         for (size_t i = 0; i != ne; ++i) {
             spinlock_guard eguard(e_[i].lock_);
             if (e_[i].ref_ == 0) {
-                e_[i].state_ = bcentry::s_empty;
-                if (e_[i].buf_) {
-                    kfree(e_[i].buf_);
-                    e_[i].buf_ = nullptr;
-                }
+                e_[i].clear();
             }
         }
     }
@@ -346,68 +332,4 @@ chkfs::inode* chkfsstate::lookup_inode(inode* dirino,
 auto chkfsstate::allocate_extent(unsigned) -> blocknum_t {
     // Your code here
     return E_INVAL;
-}
-
-
-// chickadeefs_read_file_data(filename, buf, sz, off)
-//    Read up to `sz` bytes, from the file named `filename` in the
-//    disk's root directory, into `buf`, starting at file offset `off`.
-//    Returns the number of bytes read.
-
-size_t chickadeefs_read_file_data(const char* filename,
-                                  unsigned char* buf, size_t sz, size_t off) {
-    auto& bc = bufcache::get();
-    auto& fs = chkfsstate::get();
-
-    // read directory to find file inode number
-    auto dirino = fs.get_inode(1);
-    assert(dirino);
-    dirino->lock_read();
-
-    auto ino = fs.lookup_inode(dirino, filename);
-
-    dirino->unlock_read();
-    fs.put_inode(dirino);
-
-    if (!ino) {
-        return 0;
-    }
-
-    // read file inode
-    ino->lock_read();
-    chkfs_fileiter it(ino);
-
-    size_t nread = 0;
-    while (sz > 0) {
-        size_t ncopy = 0;
-
-        // read inode contents, copy data
-        bcentry* e;
-        if (it.find(off).present()
-            && (e = bc.get_disk_entry(it.blocknum()))) {
-            size_t blockoff = round_down(off, fs.blocksize);
-            size_t bsz = min(ino->size - blockoff, fs.blocksize);
-            size_t boff = off - blockoff;
-            if (bsz > boff) {
-                ncopy = bsz - boff;
-                if (ncopy > sz) {
-                    ncopy = sz;
-                }
-                memcpy(buf + nread, e->buf_ + boff, ncopy);
-            }
-            bc.put_entry(e);
-        }
-
-        // account for copied data
-        if (ncopy == 0) {
-            break;
-        }
-        nread += ncopy;
-        off += ncopy;
-        sz -= ncopy;
-    }
-
-    ino->unlock_read();
-    fs.put_inode(ino);
-    return nread;
 }

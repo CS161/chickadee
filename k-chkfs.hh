@@ -19,12 +19,13 @@ struct bcentry {
     std::atomic<int> state_ = s_empty;   // state (empty, loading, clean)
 
     spinlock lock_;                      // protects most `state_` changes
-    unsigned ref_ = 0;                   // reference count
     blocknum_t bn_;                      // disk block number (unless empty)
+    unsigned ref_ = 0;                   // reference count
     unsigned char* buf_ = nullptr;       // memory buffer used for entry
 
 
     inline bool empty() const;
+    void clear();
     bool load(irqstate& irqs, bcentry_clean_function cleaner);
 };
 
@@ -99,7 +100,13 @@ inline bool bcentry::empty() const {
     return state_.load(std::memory_order_relaxed) == s_empty;
 }
 
-size_t chickadeefs_read_file_data(const char* filename,
-                                  unsigned char* buf, size_t sz, size_t off);
+inline void bcentry::clear() {
+    assert(ref_ == 0);
+    state_ = s_empty;
+    if (buf_) {
+        kfree(buf_);
+        buf_ = nullptr;
+    }
+}
 
 #endif
