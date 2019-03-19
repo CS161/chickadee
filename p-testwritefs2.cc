@@ -50,7 +50,7 @@ void process_main() {
     // synchronize disk
     printf("%s:%d: sync...\n", __FILE__, __LINE__);
 
-    int r = sys_sync(1);
+    int r = sys_sync(2);
     assert_ge(r, 0);
 
 
@@ -92,7 +92,7 @@ void process_main() {
     // synchronize disk
     printf("%s:%d: sync...\n", __FILE__, __LINE__);
 
-    int r = sys_sync(1);
+    r = sys_sync(2);
     assert_ge(r, 0);
 
 
@@ -187,7 +187,7 @@ void process_main() {
     // synchronize disk
     printf("%s:%d: sync...\n", __FILE__, __LINE__);
 
-    r = sys_sync(1);
+    r = sys_sync(2);
     assert_ge(r, 0);
 
 
@@ -272,7 +272,7 @@ void process_main() {
     // synchronize disk
     printf("%s:%d: sync...\n", __FILE__, __LINE__);
 
-    r = sys_sync(1);
+    r = sys_sync(2);
     assert_ge(r, 0);
 
 
