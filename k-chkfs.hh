@@ -13,10 +13,10 @@ struct bcentry {
     using blocknum_t = chkfs::blocknum_t;
 
     enum state_t {
-        s_empty, s_loading, s_clean
+        state_empty, state_allocated, state_loading, state_clean
     };
 
-    std::atomic<int> state_ = s_empty;   // state (empty, loading, clean)
+    std::atomic<int> state_ = state_empty;
 
     spinlock lock_;                      // protects most `state_` changes
     blocknum_t bn_;                      // disk block number (unless empty)
@@ -97,12 +97,12 @@ inline chkfsstate& chkfsstate::get() {
 }
 
 inline bool bcentry::empty() const {
-    return state_.load(std::memory_order_relaxed) == s_empty;
+    return state_.load(std::memory_order_relaxed) == state_empty;
 }
 
 inline void bcentry::clear() {
     assert(ref_ == 0);
-    state_ = s_empty;
+    state_ = state_empty;
     if (buf_) {
         kfree(buf_);
         buf_ = nullptr;

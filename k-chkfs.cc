@@ -13,7 +13,8 @@ bool bcentry::load(irqstate& irqs, bcentry_clean_function cleaner) {
 
     // load block, or wait for concurrent reader to load it
     while (true) {
-        if (state_ == s_empty) {
+        assert(state_ != state_empty);
+        if (state_ == state_allocated) {
             if (!buf_) {
                 buf_ = reinterpret_cast<unsigned char*>
                     (kalloc(chkfs::blocksize));
@@ -21,21 +22,21 @@ bool bcentry::load(irqstate& irqs, bcentry_clean_function cleaner) {
                     return false;
                 }
             }
-            state_ = s_loading;
+            state_ = state_loading;
             lock_.unlock(irqs);
 
             sata_disk->read(buf_, chkfs::blocksize,
                             bn_ * chkfs::blocksize);
 
             irqs = lock_.lock();
-            state_ = s_clean;
+            state_ = state_clean;
             if (cleaner) {
                 cleaner(bn_, buf_);
             }
             bc.read_wq_.wake_all();
-        } else if (state_ == s_loading) {
+        } else if (state_ == state_loading) {
             waiter(current()).block_until(bc.read_wq_, [&] () {
-                    return state_ != s_loading;
+                    return state_ != state_loading;
                 }, lock_, irqs);
         } else {
             return true;
@@ -77,6 +78,7 @@ bcentry* bufcache::get_disk_entry(chkfs::blocknum_t bn,
             return nullptr;
         }
         i = empty_slot;
+        e_[i].state_ = bcentry::state_allocated;
         e_[i].bn_ = bn;
     }
 
@@ -90,15 +92,12 @@ bcentry* bufcache::get_disk_entry(chkfs::blocknum_t bn,
     // load block
     bool ok = e_[i].load(irqs, cleaner);
 
-    e_[i].lock_.unlock(irqs);
-
-    // return entry
-    if (ok) {
-        return &e_[i];
-    } else {
+    // unlock and return entry
+    if (!ok) {
         --e_[i].ref_;
-        return nullptr;
     }
+    e_[i].lock_.unlock(irqs);
+    return ok ? &e_[i] : nullptr;
 }
 
 
@@ -129,7 +128,7 @@ void bufcache::put_entry(bcentry* e) {
     if (e) {
         spinlock_guard guard(e->lock_);
         if (--e->ref_ == 0) {
-            e->state_ = bcentry::s_empty;
+            e->state_ = bcentry::state_empty;
         }
     }
 }
