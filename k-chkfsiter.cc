@@ -56,14 +56,10 @@ chkfs_fileiter& chkfs_fileiter::find(off_t off) {
 
 
 void chkfs_fileiter::next() {
-    while (off_ < npos) {
-        find(round_up(off_ + 1, blocksize));
-
-        if (!eptr_) {
-            off_ = npos;
-        } else if (eptr_->first) {
-            break;
-        }
+    if (eptr_ && eptr_->count != 0) {
+        do {
+            find(round_up(off_ + 1, blocksize));
+        } while (eptr_ && eptr_->first == 0 && eptr_->count != 0);
     }
 }
 

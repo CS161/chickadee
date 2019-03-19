@@ -6,7 +6,6 @@ class chkfs_fileiter {
  public:
     using blocknum_t = chkfs::blocknum_t;
     static constexpr size_t blocksize = chkfs::blocksize;
-    static constexpr size_t npos = -1;
 
 
     // initialize an iterator for `ino` at file offset `off`
@@ -42,8 +41,7 @@ class chkfs_fileiter {
 
 
     // Move the iterator to the next larger file offset with a different
-    // present block. If there is no such block, move the iterator to
-    // offset `npos` (making the iterator `!active()`).
+    // present block. At the end of the file, the iterator becomes `!active()`.
     void next();
 
 
@@ -100,7 +98,7 @@ inline off_t chkfs_fileiter::offset() const {
     return off_;
 }
 inline bool chkfs_fileiter::active() const {
-    return off_ < npos;
+    return eptr_ && eptr_->count != 0;
 }
 inline off_t chkfs_fileiter::block_offset() const {
     return eoff_;
