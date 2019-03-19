@@ -233,7 +233,7 @@ void process_main() {
 
 
     // synchronize disk
-    printf("%s:%d: sync\n", __FILE__, __LINE__);
+    printf("%s:%d: sync...\n", __FILE__, __LINE__);
 
     r = sys_sync(1);
     assert_ge(r, 0);

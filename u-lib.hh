@@ -247,9 +247,11 @@ inline ssize_t sys_readdiskfile(const char* filename,
 }
 
 // sys_sync(drop)
-//    Synchronize all modified buffer cache contents to disk. If
-//    `drop` is true, then additionally drop all buffer cache contents,
-//    so that future reads start from an empty cache.
+//    Synchronize all modified buffer cache contents to disk.
+//    If `drop == 1`, then additionally clear the buffer cache so that
+//    future reads start from an empty cache.
+//    If `drop == 2`, then assert that the process has no open files and
+//    that no data blocks are referenced.
 inline int sys_sync(int drop = 0) {
     return make_syscall(SYSCALL_SYNC, drop);
 }

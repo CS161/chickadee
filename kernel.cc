@@ -209,7 +209,7 @@ uintptr_t proc::syscall(regstate* regs) {
         return syscall_readdiskfile(regs);
 
     case SYSCALL_SYNC:
-        return bufcache::get().sync(regs->reg_rdi != 0);
+        return bufcache::get().sync(regs->reg_rdi);
 
     default:
         // no such system call

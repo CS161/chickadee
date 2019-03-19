@@ -56,7 +56,7 @@ struct bufcache {
                             bcentry_clean_function cleaner = nullptr);
     bcentry* find_entry(void* data);
 
-    int sync(bool drop);
+    int sync(int drop);
 
  private:
     static bufcache bc;
