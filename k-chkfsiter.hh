@@ -5,7 +5,6 @@
 class chkfs_fileiter {
  public:
     using blocknum_t = chkfs::blocknum_t;
-    using inode = chkfs::inode;
     static constexpr size_t blocksize = chkfs::blocksize;
     static constexpr size_t npos = -1;
 
@@ -15,7 +14,8 @@ class chkfs_fileiter {
     NO_COPY_OR_ASSIGN(chkfs_fileiter);
     ~chkfs_fileiter();
 
-
+    // return the inode
+    inline chkfs::inode* inode() const;
     // return the current file offset
     inline off_t offset() const;
     // return true iff the iterator points to real data
@@ -75,8 +75,9 @@ class chkfs_fileiter {
 };
 
 
-inline chkfs_fileiter::chkfs_fileiter(inode* ino, off_t off)
+inline chkfs_fileiter::chkfs_fileiter(chkfs::inode* ino, off_t off)
     : ino_(ino), off_(0), eoff_(0), eidx_(0), eptr_(&ino->direct[0]) {
+    assert(ino_);
     ino_entry_ = bufcache::get().find_entry(ino);
     if (off != 0) {
         find(off);
@@ -89,6 +90,9 @@ inline chkfs_fileiter::~chkfs_fileiter() {
     }
 }
 
+inline chkfs::inode* chkfs_fileiter::inode() const {
+    return ino_;
+}
 inline off_t chkfs_fileiter::offset() const {
     return off_;
 }
