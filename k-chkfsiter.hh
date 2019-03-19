@@ -15,6 +15,8 @@ class chkfs_fileiter {
 
     // return the inode
     inline chkfs::inode* inode() const;
+    // return the bcentry for the inode
+    inline bcentry* inode_entry() const;
     // return the current file offset
     inline off_t offset() const;
     // return true iff the iterator points within the file
@@ -93,6 +95,9 @@ inline chkfs_fileiter::~chkfs_fileiter() {
 
 inline chkfs::inode* chkfs_fileiter::inode() const {
     return ino_;
+}
+inline bcentry* chkfs_fileiter::inode_entry() const {
+    return ino_entry_;
 }
 inline off_t chkfs_fileiter::offset() const {
     return off_;
