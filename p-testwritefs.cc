@@ -4,7 +4,7 @@ void process_main() {
     printf("Starting testwritefs (assuming clean file system)...\n");
 
     // read file
-    printf("%s:%d: read\n", __FILE__, __LINE__);
+    printf("%s:%d: read tests...\n", __FILE__, __LINE__);
 
     int f = sys_open("emerson.txt", OF_READ);
     assert_gt(f, 2);
@@ -21,7 +21,7 @@ void process_main() {
 
 
     // overwrite start of file
-    printf("%s:%d: overwrite start\n", __FILE__, __LINE__);
+    printf("%s:%d: overwrite start...\n", __FILE__, __LINE__);
 
     f = sys_open("emerson.txt", OF_WRITE);
     assert_gt(f, 2);
@@ -46,7 +46,7 @@ void process_main() {
 
 
     // read & write same file
-    printf("%s:%d: read and write\n", __FILE__, __LINE__);
+    printf("%s:%d: read and write tests...\n", __FILE__, __LINE__);
 
     f = sys_open("emerson.txt", OF_READ);
     assert_gt(f, 2);
@@ -89,7 +89,7 @@ void process_main() {
 
 
     // read & write same file with combination flags
-    printf("%s:%d: read|write\n", __FILE__, __LINE__);
+    printf("%s:%d: read|write...\n", __FILE__, __LINE__);
 
     f = sys_open("emerson.txt", OF_READ);
     assert_gt(f, 2);
@@ -126,14 +126,14 @@ void process_main() {
 
 
     // synchronize disk
-    printf("%s:%d: sync\n", __FILE__, __LINE__);
+    printf("%s:%d: sync disk...\n", __FILE__, __LINE__);
 
     int r = sys_sync(1);
     assert_ge(r, 0);
 
 
     // read again, this time from disk
-    printf("%s:%d: read\n", __FILE__, __LINE__);
+    printf("%s:%d: read...\n", __FILE__, __LINE__);
 
     f = sys_open("emerson.txt", OF_READ);
     assert_gt(f, 2);
