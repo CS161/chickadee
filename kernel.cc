@@ -307,7 +307,7 @@ uintptr_t proc::syscall_readdiskfile(regstate* regs) {
     fs.put_inode(dirino);
 
     if (!ino) {
-        return 0;
+        return E_NOENT;
     }
 
     // read file inode
