@@ -68,20 +68,23 @@ void chkfs_fileiter::next() {
 }
 
 
-int chkfs_fileiter::append(blocknum_t first, unsigned count) {
+int chkfs_fileiter::insert(blocknum_t first, unsigned count) {
     assert(ino_->has_write_lock());
     assert(count != 0);
-    assert(!eptr_ || (eidx_ == 0 && !eptr_->count));
+    assert(!eptr_ || !eptr_->count);
+    assert((eoff_ % blocksize) == 0);
     auto& bc = bufcache::get();
 
     // grow previous direct extent if possible
     if (eidx_ > 0 && eidx_ <= chkfs::ndirect) {
-        chkfs::extent* prev_eptr = &ino_->direct[eidx_ - 1];
-        if (prev_eptr->first + prev_eptr->count == first) {
-            eoff_ -= prev_eptr->count * blocksize;
+        chkfs::extent* peptr = &ino_->direct[eidx_ - 1];
+        if (peptr->first + peptr->count == first) {
+            ino_entry_->get_write();
+            eptr_ = peptr;
             --eidx_;
-            eptr_ = prev_eptr;
+            eoff_ -= eptr_->count * blocksize;
             eptr_->count += count;
+            ino_entry_->put_write();
             return 0;
         }
     }
@@ -126,8 +129,19 @@ int chkfs_fileiter::append(blocknum_t first, unsigned count) {
             + (eidx_ - chkfs::ndirect) % chkfs::extentsperblock;
     }
     entry->get_write();
-    eptr_->first = first;
-    eptr_->count = count;
+    if (eidx_ >= chkfs::ndirect
+        && (eidx_ - chkfs::ndirect) % chkfs::extentsperblock != 0
+        && eptr_[-1]->first + eptr_[-1]->count == first) {
+        // grow previous extent
+        --eptr_;
+        --eidx_;
+        eoff_ -= eptr_->count * blocksize;
+        eptr_->count += count;
+    } else {
+        // add new extent
+        eptr_->first = first;
+        eptr_->count = count;
+    }
     entry->put_write();
     return 0;
 }

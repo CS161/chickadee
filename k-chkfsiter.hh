@@ -18,7 +18,7 @@ class chkfs_fileiter {
     inline chkfs::inode* inode() const;
     // return the current file offset
     inline off_t offset() const;
-    // return true iff the iterator points to real data
+    // return true iff the iterator points within the file
     inline bool active() const;
     // return the file offset of the current block
     inline off_t block_offset() const;
@@ -47,18 +47,21 @@ class chkfs_fileiter {
     void next();
 
 
-    // xxxxxx
-    // Change the block stored at the current offset to `bn`, allocating
-    // blocks for indirect and doubly-indirect blocks as necessary.
-    // Returns 0 on success, a negative error code on failure.
+    // Add an extent at this file offset. Allocates an indirect extent if
+    // necessary. Returns 0 on success, a negative error code on failure.
+    //
+    // The handout version can only add an extent to the end of the file,
+    // immediately after all existing extents. An assertion will fail if
+    // `offset()` is in the middle of the file or is not block-aligned.
+    //
+    // The handout version supports at most one indirect-extent block.
     //
     // This function can call:
-    // * `chkfsstate::allocate_block`, to allocate indirect[2] blocks
-    // * `bufcache::get_disk_entry(blocknum_t)`, to find indirect[2] bufentries
-    // * `bufcache::get_write(bcentry*)` and `bufcache::put_write(bcentry*)`,
-    //   to obtain write references to indirect[2] blocks and/or the inode
-    //   block
-    int append(blocknum_t bn, uint32_t count = 1);
+    // * `chkfsstate::allocate_extent`, to allocate an indirect extent
+    // * `bufcache::get_disk_entry`, to find indirect-extent blocks
+    // * `bcentry::get_write` and `bcentry::put_write`, to obtain write
+    //   references to inode and/or indirect-extent entries
+    int insert(blocknum_t first, uint32_t count = 1);
 
 
  private:
