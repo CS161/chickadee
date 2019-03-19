@@ -164,8 +164,8 @@ void bcentry::put_write() {
 // bufcache::sync(drop)
 //    Write all dirty buffers to disk (blocking until complete).
 //    If `drop > 0`, then additionally free all buffer cache contents,
-//    except referenced blocks. If `drop > 1`, then assert that all data
-//    blocks are unreferenced.
+//    except referenced blocks. If `drop > 1`, then assert that all inode
+//    and data blocks are unreferenced.
 
 int bufcache::sync(int drop) {
     // write dirty buffers to disk
@@ -180,9 +180,9 @@ int bufcache::sync(int drop) {
             // validity checks: referenced entries aren't empty; if drop > 1,
             // no data blocks are referenced
             assert(e_[i].ref_ == 0 || e_[i].state_ != bcentry::state_empty);
-            if (e_[i].ref_ > 0 && drop > 1 && e_[i].bn_ >= 16) {
-                error_printf(CPOS(22, 0), COLOR_ERROR, "sync(2): data block %u has nonzero reference count\n", e_[i].bn_);
-                assert_fail(__FILE__, __LINE__, "e_[i].bn_ < 16");
+            if (e_[i].ref_ > 0 && drop > 1 && e_[i].bn_ >= 2) {
+                error_printf(CPOS(22, 0), COLOR_ERROR, "sync(2): block %u has nonzero reference count\n", e_[i].bn_);
+                assert_fail(__FILE__, __LINE__, "e_[i].bn_ < 2");
             }
 
             // actually drop buffer

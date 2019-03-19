@@ -208,8 +208,16 @@ uintptr_t proc::syscall(regstate* regs) {
     case SYSCALL_READDISKFILE:
         return syscall_readdiskfile(regs);
 
-    case SYSCALL_SYNC:
-        return bufcache::get().sync(regs->reg_rdi);
+    case SYSCALL_SYNC: {
+        int drop = regs->reg_rdi;
+        // `drop > 1` asserts that no data blocks are referenced (except
+        // possibly superblock and FBB blocks). This can only be ensured on
+        // tests that run as the first process.
+        if (drop > 1 && strncmp(CHICKADEE_FIRST_PROCESS, "test", 4) != 0) {
+            drop = 1;
+        }
+        return bufcache::get().sync(drop);
+    }
 
     default:
         // no such system call
