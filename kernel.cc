@@ -317,12 +317,10 @@ uintptr_t proc::syscall_readdiskfile(regstate* regs) {
 
         // read inode contents, copy data
         if (bcentry* e = it.find(off).get_disk_entry()) {
-            size_t boff = it.offset() - it.block_offset();
-            size_t bsz = min(ino->size - it.block_offset(),
-                             off_t(chkfs::blocksize));
-            if (bsz > boff) {
-                ncopy = min(bsz - boff, sz);
-                memcpy(buf + nread, e->buf_ + boff, ncopy);
+            off_t b = it.block_relative_offset();
+            ncopy = min(ino->size - it.offset(), off_t(chkfs::blocksize) - b);
+            if (ncopy > 0) {
+                memcpy(buf + nread, e->buf_ + b, ncopy);
             }
             e->put();
         }

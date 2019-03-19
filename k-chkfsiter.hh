@@ -17,13 +17,12 @@ class chkfs_fileiter {
     inline chkfs::inode* inode() const;
     // return the bcentry for the inode
     inline bcentry* inode_entry() const;
+
     // return the current file offset
     inline off_t offset() const;
-    // return true iff the iterator points within the file
+    // return true iff the offset is within the file (i.e., in some extent)
     inline bool active() const;
-    // return the file offset of the current block
-    inline off_t block_offset() const;
-    // return true iff `blocknum() != 0`
+    // return true iff the offset points at data
     inline bool present() const;
 
     // Return the block number corresponding to the current file offset.
@@ -32,6 +31,8 @@ class chkfs_fileiter {
     // Return a buffer cache entry containing the current file offset’s data.
     // Returns nullptr if there is no block stored for the current offset.
     inline bcentry* get_disk_entry() const;
+    // return the file offset relative to the current block
+    inline unsigned block_relative_offset() const;
 
 
     // Move the iterator to file offset `off`. Returns `*this`.
@@ -105,8 +106,8 @@ inline off_t chkfs_fileiter::offset() const {
 inline bool chkfs_fileiter::active() const {
     return eptr_ && eptr_->count != 0;
 }
-inline off_t chkfs_fileiter::block_offset() const {
-    return eoff_;
+inline unsigned chkfs_fileiter::block_relative_offset() const {
+    return eoff_ % blocksize;
 }
 inline bool chkfs_fileiter::present() const {
     return eptr_ && eptr_->first != 0;
