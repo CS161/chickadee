@@ -130,32 +130,31 @@ bcentry* bufcache::find_entry(void* buf) {
 }
 
 
-// bufcache::put_entry(e)
-//    Decrement the reference count for buffer cache entry `e`.
+// bcentry::put()
+//    Release a reference to this buffer cache entry. The caller must
+//    not use the entry after this call.
 
-void bufcache::put_entry(bcentry* e) {
-    if (e) {
-        spinlock_guard guard(e->lock_);
-        if (--e->ref_ == 0) {
-            e->state_ = bcentry::state_empty;
-        }
+void bcentry::put() {
+    spinlock_guard guard(lock_);
+    if (--ref_ == 0) {
+        state_ = bcentry::state_empty;
     }
 }
 
 
-// bufcache::get_write(e)
-//    Obtain a write reference for `e`.
+// bcentry::get_write()
+//    Obtain a write reference for this entry.
 
-void bufcache::get_write(bcentry* e) {
+void bcentry::get_write() {
     // Your code here
     assert(false);
 }
 
 
-// bufcache::put_write(e)
-//    Release a write reference for `e`.
+// bcentry::put_write()
+//    Release a write reference for this entry.
 
-void bufcache::put_write(bcentry* e) {
+void bcentry::put_write() {
     // Your code here
     assert(false);
 }
@@ -271,7 +270,7 @@ chkfs::inode* chkfsstate::get_inode(inum_t inum) {
         (&superblock_entry->buf_[chkfs::superblock_offset]);
     auto inode_bn = sb->inode_bn;
     auto ninodes = sb->ninodes;
-    bc.put_entry(superblock_entry);
+    superblock_entry->put();
 
     chkfs::inode* ino = nullptr;
     if (inum > 0 && inum < ninodes) {
@@ -290,8 +289,7 @@ chkfs::inode* chkfsstate::get_inode(inum_t inum) {
 // chkfsstate::put_inode(ino)
 //    Drop the reference to `ino`.
 void chkfsstate::put_inode(inode* ino) {
-    auto& bc = bufcache::get();
-    bc.put_entry(bc.find_entry(ino));
+    bufcache::get().find_entry(ino)->put();
 }
 
 
@@ -321,8 +319,7 @@ chkfs::inode* chkfsstate::lookup_inode(inode* dirino,
                 break;
             }
         }
-
-        bc.put_entry(e);
+        e->put();
     }
 
     return get_inode(in);

@@ -81,9 +81,8 @@ inline chkfs_fileiter::chkfs_fileiter(inode* ino, off_t off)
 }
 
 inline chkfs_fileiter::~chkfs_fileiter() {
-    auto& bc = bufcache::get();
     if (indirect_entry_) {
-        bc.put_entry(indirect_entry_);
+        indirect_entry_->put();
     }
 }
 

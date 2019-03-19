@@ -326,7 +326,7 @@ uintptr_t proc::syscall_readdiskfile(regstate* regs) {
                 ncopy = min(bsz - boff, sz);
                 memcpy(buf + nread, e->buf_ + boff, ncopy);
             }
-            bc.put_entry(e);
+            e->put();
         }
 
         // account for copied data

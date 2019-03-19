@@ -24,7 +24,18 @@ struct bcentry {
     unsigned char* buf_ = nullptr;       // memory buffer used for entry
 
 
+    // test if this entry is empty (`state_ == state_empty`)
     inline bool empty() const;
+
+    // release a reference on this entry
+    void put();
+
+    // obtain/release a write reference to this entry
+    void get_write();
+    void put_write();
+
+
+    // internal functions
     void clear();
     bool load(irqstate& irqs, bcentry_clean_function cleaner);
 };
@@ -43,12 +54,7 @@ struct bufcache {
 
     bcentry* get_disk_entry(blocknum_t bn,
                             bcentry_clean_function cleaner = nullptr);
-    void put_entry(bcentry* e);
-
     bcentry* find_entry(void* data);
-
-    void get_write(bcentry* e);
-    void put_write(bcentry* e);
 
     int sync(bool drop);
 

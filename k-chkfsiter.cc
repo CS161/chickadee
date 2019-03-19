@@ -13,7 +13,7 @@ chkfs_fileiter& chkfs_fileiter::find(off_t off) {
         eidx_ = 0;
         eptr_ = &ino_->direct[0];
         if (indirect_entry_) {
-            bc.put_entry(indirect_entry_);
+            indirect_entry_->put();
             indirect_entry_ = nullptr;
         }
     }
@@ -32,7 +32,7 @@ chkfs_fileiter& chkfs_fileiter::find(off_t off) {
             // do nothing
         } else if ((eidx_ - chkfs::ndirect) % chkfs::extentsperblock == 0) {
             if (indirect_entry_) {
-                bc.put_entry(indirect_entry_);
+                indirect_entry_->put();
                 indirect_entry_ = nullptr;
             }
             unsigned ibi = (eidx_ - chkfs::ndirect) / chkfs::extentsperblock;
@@ -100,14 +100,14 @@ int chkfs_fileiter::append(blocknum_t first, unsigned count) {
             return E_NOMEM;
         }
 
-        bc.get_write(indirect_entry_);
+        indirect_entry_->get_write();
         memset(indirect_entry_->buf_, 0, blocksize);
-        bc.put_write(indirect_entry_);
+        indirect_entry_->put_write();
 
-        bc.get_write(ino_entry_);
+        ino_entry_->get_write();
         ino_->indirect.first = indirect_bn;
         ino_->indirect.count = 1;
-        bc.put_write(ino_entry_);
+        ino_entry_->put_write();
     }
 
     // fail if required to grow indirect extent
@@ -125,9 +125,9 @@ int chkfs_fileiter::append(blocknum_t first, unsigned count) {
         eptr_ = reinterpret_cast<chkfs::extent*>(indirect_entry_->buf_)
             + (eidx_ - chkfs::ndirect) % chkfs::extentsperblock;
     }
-    bc.get_write(entry);
+    entry->get_write();
     eptr_->first = first;
     eptr_->count = count;
-    bc.put_write(entry);
+    entry->put_write();
     return 0;
 }
