@@ -108,7 +108,8 @@ struct jblockref {              // component of `jmetablock`
 struct jmetablock {
     uint64_t magic;             // must equal `chkfs::journalmagic`
     uint32_t checksum;          // CRC32C checksum of block starting at `seq`
-    uint32_t padding;           // (not including magic, checksum, or padding)
+    uint32_t padding;
+    // checksum starts here:
     tid_t seq;                  // sequence number
     tid_t tid;                  // associated tid
     tid_t commit_boundary;      // first noncommitted tid
