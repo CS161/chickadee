@@ -370,7 +370,7 @@ chkfs::inode* chkfsstate::lookup_inode(const char* filename) {
 //    code on failure. Errors can be distinguished by
 //    `blocknum >= blocknum_t(E_MINERROR)`.
 
-auto chkfsstate::allocate_extent(unsigned) -> blocknum_t {
+auto chkfsstate::allocate_extent(unsigned count) -> blocknum_t {
     // Your code here
     return E_INVAL;
 }
