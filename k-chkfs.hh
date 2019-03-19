@@ -27,7 +27,7 @@ struct bcentry {
     // test if this entry is empty (`state_ == state_empty`)
     inline bool empty() const;
 
-    // release a reference on this entry
+    // release the caller's reference
     void put();
 
     // obtain/release a write reference to this entry

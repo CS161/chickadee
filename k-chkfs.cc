@@ -136,6 +136,7 @@ bcentry* bufcache::find_entry(void* buf) {
 
 void bcentry::put() {
     spinlock_guard guard(lock_);
+    assert(ref_ != 0);
     if (--ref_ == 0) {
         state_ = bcentry::state_empty;
     }
