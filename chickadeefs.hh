@@ -65,13 +65,17 @@ struct inode {
     extent direct[ndirect];       // extents
     extent indirect;
 
-    // functions only defined in the kernel; the lock_ functions yield,
-    // so cannot be called with spinlocks held
+#ifdef CHICKADEE_KERNEL
+    // drop reference to this buffer-cached inode
+    void put();
+    // obtain/release locks; the lock_ functions may yield, so cannot be
+    // called with spinlocks
     void lock_read();
     void unlock_read();
     void lock_write();
     void unlock_write();
     bool has_write_lock() const;
+#endif
 };
 
 struct dirent {

@@ -260,7 +260,8 @@ static void clean_inode_block(chkfs::blocknum_t, unsigned char* buf) {
 
 // chkfsstate::get_inode(inum)
 //    Return inode number `inum`, or `nullptr` if there's no such inode.
-//    The returned pointer should eventually be passed to `put_inode`.
+//    Obtains a reference on the buffer cache block containing the inode;
+//    you should eventually release this reference by calling `ino->put()`.
 
 chkfs::inode* chkfsstate::get_inode(inum_t inum) {
     auto& bc = bufcache::get();
@@ -287,21 +288,22 @@ chkfs::inode* chkfsstate::get_inode(inum_t inum) {
 }
 
 
-// chkfsstate::put_inode(ino)
-//    Drop the reference to `ino`.
+// chkfs::inode::put()
+//    Release the caller’s reference to this inode, which must be located
+//    in the buffer cache.
 
-void chkfsstate::put_inode(inode* ino) {
-    if (ino) {
-        bufcache::get().find_entry(ino)->put();
-    }
+namespace chkfs {
+void inode::put() {
+    bufcache::get().find_entry(this)->put();
+}
 }
 
 
 // chkfsstate::lookup_inode(dirino, filename)
 //    Look up `filename` in the directory inode `dirino`, returning the
 //    corresponding inode (or nullptr if not found). The caller must have
-//    a read lock on `dirino`. The returned inode has a reference; the
-//    caller should release that reference eventually using `put_inode`.
+//    a read lock on `dirino`. The returned inode has a reference that
+//    the caller should eventually release with `ino->put()`.
 
 chkfs::inode* chkfsstate::lookup_inode(inode* dirino,
                                        const char* filename) {
@@ -338,7 +340,7 @@ chkfs::inode* chkfsstate::lookup_inode(const char* filename) {
         dirino->lock_read();
         auto ino = fs.lookup_inode(dirino, filename);
         dirino->unlock_read();
-        put_inode(dirino);
+        dirino->put();
         return ino;
     } else {
         return nullptr;

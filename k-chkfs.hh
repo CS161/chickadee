@@ -78,8 +78,8 @@ struct chkfsstate {
 
     static inline chkfsstate& get();
 
+    // obtain an inode by number
     inode* get_inode(inum_t inum);
-    void put_inode(inode* ino);
 
     // directory lookup in `dirino`
     inode* lookup_inode(inode* dirino, const char* name);

@@ -293,10 +293,8 @@ uintptr_t proc::syscall_readdiskfile(regstate* regs) {
         return E_IO;
     }
 
-    auto& fs = chkfsstate::get();
-
     // read root directory to find file inode number
-    auto ino = fs.lookup_inode(filename);
+    auto ino = chkfsstate::get().lookup_inode(filename);
     if (!ino) {
         return E_NOENT;
     }
@@ -312,7 +310,8 @@ uintptr_t proc::syscall_readdiskfile(regstate* regs) {
         // read inode contents, copy data
         if (bcentry* e = it.find(off).get_disk_entry()) {
             size_t boff = it.offset() - it.block_offset();
-            size_t bsz = min(ino->size - it.block_offset(), off_t(fs.blocksize));
+            size_t bsz = min(ino->size - it.block_offset(),
+                             off_t(chkfs::blocksize));
             if (bsz > boff) {
                 ncopy = min(bsz - boff, sz);
                 memcpy(buf + nread, e->buf_ + boff, ncopy);
@@ -330,7 +329,7 @@ uintptr_t proc::syscall_readdiskfile(regstate* regs) {
     }
 
     ino->unlock_read();
-    fs.put_inode(ino);
+    ino->put();
     return nread;
 }
 
