@@ -8,48 +8,15 @@ bufcache::bufcache() {
 }
 
 
-bool bcentry::load(irqstate& irqs, bcentry_clean_function cleaner) {
-    bufcache& bc = bufcache::get();
-
-    // load block, or wait for concurrent reader to load it
-    while (true) {
-        assert(state_ != state_empty);
-        if (state_ == state_allocated) {
-            if (!buf_) {
-                buf_ = reinterpret_cast<unsigned char*>
-                    (kalloc(chkfs::blocksize));
-                if (!buf_) {
-                    return false;
-                }
-            }
-            state_ = state_loading;
-            lock_.unlock(irqs);
-
-            sata_disk->read(buf_, chkfs::blocksize,
-                            bn_ * chkfs::blocksize);
-
-            irqs = lock_.lock();
-            state_ = state_clean;
-            if (cleaner) {
-                cleaner(bn_, buf_);
-            }
-            bc.read_wq_.wake_all();
-        } else if (state_ == state_loading) {
-            waiter(current()).block_until(bc.read_wq_, [&] () {
-                    return state_ != state_loading;
-                }, lock_, irqs);
-        } else {
-            return true;
-        }
-    }
-}
-
 // bufcache::get_disk_entry(bn, cleaner)
 //    Read disk block `bn` into the buffer cache, obtain a reference to it,
-//    and return a pointer to its bcentry. The function may block. If this
-//    function reads the disk block from disk, and `cleaner != nullptr`,
-//    then `cleaner` is called on the block data. Returns `nullptr` if
-//    there's no room for the block.
+//    and return a pointer to its bcentry. The returned bcentry has
+//    `buf_ != nullptr` and `state_ >= state_clean`. The function may block.
+//
+//    If this function reads the disk block from disk, and `cleaner != nullptr`,
+//    then `cleaner` is called on the block data.
+//
+//    Returns `nullptr` if there's no room for the block.
 
 bcentry* bufcache::get_disk_entry(chkfs::blocknum_t bn,
                                   bcentry_clean_function cleaner) {
@@ -101,9 +68,51 @@ bcentry* bufcache::get_disk_entry(chkfs::blocknum_t bn,
 }
 
 
+// bcentry::load(irqs, cleaner)
+//    This function completes the loading process for a block. It requires
+//    that `lock_` is locked, that `state_ >= state_allocated`, and that
+//    `bn_` is set to the desired block number.
+
+bool bcentry::load(irqstate& irqs, bcentry_clean_function cleaner) {
+    bufcache& bc = bufcache::get();
+
+    // load block, or wait for concurrent reader to load it
+    while (true) {
+        assert(state_ != state_empty);
+        if (state_ == state_allocated) {
+            if (!buf_) {
+                buf_ = reinterpret_cast<unsigned char*>
+                    (kalloc(chkfs::blocksize));
+                if (!buf_) {
+                    return false;
+                }
+            }
+            state_ = state_loading;
+            lock_.unlock(irqs);
+
+            sata_disk->read(buf_, chkfs::blocksize,
+                            bn_ * chkfs::blocksize);
+
+            irqs = lock_.lock();
+            state_ = state_clean;
+            if (cleaner) {
+                cleaner(bn_, buf_);
+            }
+            bc.read_wq_.wake_all();
+        } else if (state_ == state_loading) {
+            waiter(current()).block_until(bc.read_wq_, [&] () {
+                    return state_ != state_loading;
+                }, lock_, irqs);
+        } else {
+            return true;
+        }
+    }
+}
+
+
 // bufcache::find_entry(buf)
-//    Return the `bcentry` containing pointer `buf`. This entry
-//    must have a nonzero `ref_`.
+//    Return the `bcentry` containing pointer `buf`. Requires that the current
+//    kernel task holds a reference to the corresponding entry.
 
 bcentry* bufcache::find_entry(void* buf) {
     if (buf) {
@@ -174,18 +183,6 @@ int bufcache::sync(bool drop) {
 }
 
 
-// clean_inode_block(buf)
-//    This function is called when loading an inode block into the
-//    buffer cache. It clears values that are only used in memory.
-
-static void clean_inode_block(chkfs::blocknum_t, unsigned char* buf) {
-    auto is = reinterpret_cast<chkfs::inode*>(buf);
-    for (unsigned i = 0; i != chkfs::inodesperblock; ++i) {
-        is[i].mlock = is[i].mref = 0;
-    }
-}
-
-
 // inode lock functions
 //    The inode lock protects the inode's size and data references.
 //    It is a read/write lock; multiple readers can hold the lock
@@ -247,6 +244,18 @@ bool inode::has_write_lock() const {
 chkfsstate chkfsstate::fs;
 
 chkfsstate::chkfsstate() {
+}
+
+
+// clean_inode_block(buf)
+//    This function is called when loading an inode block into the
+//    buffer cache. It clears values that are only used in memory.
+
+static void clean_inode_block(chkfs::blocknum_t, unsigned char* buf) {
+    auto is = reinterpret_cast<chkfs::inode*>(buf);
+    for (unsigned i = 0; i != chkfs::inodesperblock; ++i) {
+        is[i].mlock = is[i].mref = 0;
+    }
 }
 
 
