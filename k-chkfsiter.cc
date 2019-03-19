@@ -131,7 +131,7 @@ int chkfs_fileiter::insert(blocknum_t first, unsigned count) {
     entry->get_write();
     if (eidx_ >= chkfs::ndirect
         && (eidx_ - chkfs::ndirect) % chkfs::extentsperblock != 0
-        && eptr_[-1]->first + eptr_[-1]->count == first) {
+        && eptr_[-1].first + eptr_[-1].count == first) {
         // grow previous extent
         --eptr_;
         --eidx_;
