@@ -4,7 +4,7 @@ void process_main() {
     printf("Starting testwritefs4 (assuming clean file system)...\n");
 
     // read file
-    printf("%s:%d: read\n", __FILE__, __LINE__);
+    printf("%s:%d: read...\n", __FILE__, __LINE__);
 
     int f = sys_open("emerson.txt", OF_READ);
     assert_gt(f, 2);
@@ -21,7 +21,7 @@ void process_main() {
 
 
     // create file
-    printf("%s:%d: create\n", __FILE__, __LINE__);
+    printf("%s:%d: create...\n", __FILE__, __LINE__);
 
     f = sys_open("geisel.txt", OF_WRITE | OF_CREATE);
     assert_gt(f, 2);
@@ -34,7 +34,7 @@ void process_main() {
 
 
     // read back
-    printf("%s:%d: read created\n", __FILE__, __LINE__);
+    printf("%s:%d: read created...\n", __FILE__, __LINE__);
 
     f = sys_open("geisel.txt", OF_READ);
     assert_gt(f, 2);
@@ -49,7 +49,7 @@ void process_main() {
 
 
     // remove file
-    printf("%s:%d: unlink\n", __FILE__, __LINE__);
+    printf("%s:%d: unlink...\n", __FILE__, __LINE__);
 
     int r = sys_unlink("geisel.txt");
     assert_eq(r, 0);
@@ -59,21 +59,21 @@ void process_main() {
 
 
     // synchronize disk
-    printf("%s:%d: sync\n", __FILE__, __LINE__);
+    printf("%s:%d: sync...\n", __FILE__, __LINE__);
 
     r = sys_sync(1);
     assert_ge(r, 0);
 
 
     // read back
-    printf("%s:%d: reread\n", __FILE__, __LINE__);
+    printf("%s:%d: reread...\n", __FILE__, __LINE__);
 
     f = sys_open("geisel.txt", OF_READ);
     assert_eq(f, E_NOENT);
 
 
     // unlink while open
-    printf("%s:%d: unlink while open\n", __FILE__, __LINE__);
+    printf("%s:%d: unlink while open...\n", __FILE__, __LINE__);
 
     f = sys_open("dickinson.txt", OF_READ);
     assert_gt(f, 2);
@@ -95,7 +95,7 @@ void process_main() {
 
 
     // recreate
-    printf("%s:%d: recreate\n", __FILE__, __LINE__);
+    printf("%s:%d: recreate...\n", __FILE__, __LINE__);
 
     int wf = sys_open("dickinson.txt", OF_READ | OF_WRITE | OF_CREATE);
     assert_gt(wf, 2);
@@ -113,7 +113,7 @@ void process_main() {
 
 
     // reread
-    printf("%s:%d: read both\n", __FILE__, __LINE__);
+    printf("%s:%d: read both...\n", __FILE__, __LINE__);
 
     n = sys_read(f, buf, 28);
     assert_eq(n, 28);
@@ -125,14 +125,14 @@ void process_main() {
 
 
     // synchronize
-    printf("%s:%d: sync\n", __FILE__, __LINE__);
+    printf("%s:%d: sync...\n", __FILE__, __LINE__);
 
     r = sys_sync(1);
     assert_ge(r, 0);
 
 
     // keep reading
-    printf("%s:%d: continue reading\n", __FILE__, __LINE__);
+    printf("%s:%d: continue reading...\n", __FILE__, __LINE__);
 
     n = sys_read(f, buf, 26);
     assert_eq(n, 26);
@@ -144,7 +144,7 @@ void process_main() {
 
 
     // close (should free file data)
-    printf("%s:%d: close\n", __FILE__, __LINE__);
+    printf("%s:%d: close...\n", __FILE__, __LINE__);
 
     r = sys_close(f);
     assert_ge(r, 0);
@@ -154,7 +154,7 @@ void process_main() {
 
 
     // synchronize
-    printf("%s:%d: sync\n", __FILE__, __LINE__);
+    printf("%s:%d: sync...\n", __FILE__, __LINE__);
 
     r = sys_sync(1);
     assert_ge(r, 0);

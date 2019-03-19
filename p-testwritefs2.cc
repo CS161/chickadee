@@ -13,7 +13,7 @@ void process_main() {
     printf("Starting testwritefs2 (assuming clean file system)...\n");
 
     // read file
-    printf("%s:%d: read\n", __FILE__, __LINE__);
+    printf("%s:%d: read...\n", __FILE__, __LINE__);
 
     int f = sys_open("emerson.txt", OF_READ);
     assert_gt(f, 2);
@@ -30,7 +30,7 @@ void process_main() {
 
 
     // truncate file
-    printf("%s:%d: truncate\n", __FILE__, __LINE__);
+    printf("%s:%d: truncate...\n", __FILE__, __LINE__);
 
     f = sys_open("emerson.txt", OF_WRITE | OF_TRUNC);
     assert_gt(f, 2);
@@ -53,14 +53,14 @@ void process_main() {
 
 
     // synchronize disk
-    printf("%s:%d: sync\n", __FILE__, __LINE__);
+    printf("%s:%d: sync...\n", __FILE__, __LINE__);
 
     int r = sys_sync(1);
     assert_ge(r, 0);
 
 
     // read again, this time from disk
-    printf("%s:%d: reread\n", __FILE__, __LINE__);
+    printf("%s:%d: reread...\n", __FILE__, __LINE__);
 
     f = sys_open("emerson.txt", OF_READ);
     assert_gt(f, 2);
@@ -74,7 +74,7 @@ void process_main() {
 
 
     // seek within a file
-    printf("%s:%d: lseek\n", __FILE__, __LINE__);
+    printf("%s:%d: lseek...\n", __FILE__, __LINE__);
 
     f = sys_open("thoreau.txt", OF_READ);
     assert_gt(f, 2);
@@ -108,7 +108,7 @@ void process_main() {
 
 
     // extend the file
-    printf("%s:%d: extend\n", __FILE__, __LINE__);
+    printf("%s:%d: extend...\n", __FILE__, __LINE__);
 
     int wf = sys_open("thoreau.txt", OF_WRITE | OF_TRUNC);
     assert_gt(wf, 2);
@@ -148,14 +148,14 @@ void process_main() {
 
 
     // synchronize disk
-    printf("%s:%d: sync\n", __FILE__, __LINE__);
+    printf("%s:%d: sync...\n", __FILE__, __LINE__);
 
     r = sys_sync(1);
     assert_ge(r, 0);
 
 
     // read again
-    printf("%s:%d: reread\n", __FILE__, __LINE__);
+    printf("%s:%d: reread...\n", __FILE__, __LINE__);
 
     f = sys_open("thoreau.txt", OF_READ);
     assert_gt(f, 2);

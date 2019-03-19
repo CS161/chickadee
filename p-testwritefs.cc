@@ -4,7 +4,7 @@ void process_main() {
     printf("Starting testwritefs (assuming clean file system)...\n");
 
     // read file
-    printf("%s:%d: read tests...\n", __FILE__, __LINE__);
+    printf("%s:%d: read...\n", __FILE__, __LINE__);
 
     int f = sys_open("emerson.txt", OF_READ);
     assert_gt(f, 2);
@@ -46,7 +46,7 @@ void process_main() {
 
 
     // read & write same file
-    printf("%s:%d: read and write tests...\n", __FILE__, __LINE__);
+    printf("%s:%d: read and write...\n", __FILE__, __LINE__);
 
     f = sys_open("emerson.txt", OF_READ);
     assert_gt(f, 2);

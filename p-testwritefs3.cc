@@ -4,7 +4,7 @@ void process_main() {
     printf("Starting testwritefs3 (assuming clean file system)...\n");
 
     // read file
-    printf("%s:%d: read\n", __FILE__, __LINE__);
+    printf("%s:%d: read...\n", __FILE__, __LINE__);
 
     int f = sys_open("emerson.txt", OF_READ);
     assert_gt(f, 2);
@@ -21,7 +21,7 @@ void process_main() {
 
 
     // create file
-    printf("%s:%d: create\n", __FILE__, __LINE__);
+    printf("%s:%d: create...\n", __FILE__, __LINE__);
 
     f = sys_open("geisel.txt", OF_WRITE);
     assert_lt(f, 0);
@@ -38,7 +38,7 @@ void process_main() {
 
 
     // read back
-    printf("%s:%d: read created\n", __FILE__, __LINE__);
+    printf("%s:%d: read created...\n", __FILE__, __LINE__);
 
     f = sys_open("geisel.txt", OF_READ);
     assert_gt(f, 2);
@@ -53,14 +53,14 @@ void process_main() {
 
 
     // synchronize disk
-    printf("%s:%d: sync\n", __FILE__, __LINE__);
+    printf("%s:%d: sync...\n", __FILE__, __LINE__);
 
     int r = sys_sync(1);
     assert_ge(r, 0);
 
 
     // read back
-    printf("%s:%d: reread\n", __FILE__, __LINE__);
+    printf("%s:%d: reread...\n", __FILE__, __LINE__);
 
     f = sys_open("geisel.txt", OF_READ);
     assert_gt(f, 2);
