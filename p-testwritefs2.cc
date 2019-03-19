@@ -35,6 +35,43 @@ void process_main() {
     f = sys_open("emerson.txt", OF_WRITE | OF_TRUNC);
     assert_gt(f, 2);
 
+    sys_close(f);
+
+
+    f = sys_open("emerson.txt", OF_READ);
+    assert_gt(f, 2);
+
+    n = sys_read(f, buf, 200);
+    assert_eq(n, 0);
+
+    sys_close(f);
+
+
+    // synchronize disk
+    printf("%s:%d: sync...\n", __FILE__, __LINE__);
+
+    int r = sys_sync(1);
+    assert_ge(r, 0);
+
+
+    // read again, this time from disk
+    printf("%s:%d: reread...\n", __FILE__, __LINE__);
+
+    f = sys_open("emerson.txt", OF_READ);
+    assert_gt(f, 2);
+
+    n = sys_read(f, buf, 200);
+    assert_eq(n, 0);
+
+    sys_close(f);
+
+
+    // write into truncated file
+    printf("%s:%d: write...\n", __FILE__, __LINE__);
+
+    f = sys_open("emerson.txt", OF_WRITE | OF_TRUNC);
+    assert_gt(f, 2);
+
     n = sys_write(f, "CLARE ROJAS WAS HERE", 20);
     assert_eq(n, 20);
 
