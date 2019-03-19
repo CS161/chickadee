@@ -261,6 +261,7 @@ static void clean_inode_block(chkfs::blocknum_t, unsigned char* buf) {
 // chkfsstate::get_inode(inum)
 //    Return inode number `inum`, or `nullptr` if there's no such inode.
 //    The returned pointer should eventually be passed to `put_inode`.
+
 chkfs::inode* chkfsstate::get_inode(inum_t inum) {
     auto& bc = bufcache::get();
 
@@ -288,15 +289,20 @@ chkfs::inode* chkfsstate::get_inode(inum_t inum) {
 
 // chkfsstate::put_inode(ino)
 //    Drop the reference to `ino`.
+
 void chkfsstate::put_inode(inode* ino) {
-    bufcache::get().find_entry(ino)->put();
+    if (ino) {
+        bufcache::get().find_entry(ino)->put();
+    }
 }
 
 
 // chkfsstate::lookup_inode(dirino, filename)
 //    Look up `filename` in the directory inode `dirino`, returning the
-//    corresponding inode (or nullptr if not found). The caller should
-//    eventually call `put_inode` on the returned inode pointer.
+//    corresponding inode (or nullptr if not found). The caller must have
+//    a read lock on `dirino`. The returned inode has a reference; the
+//    caller should release that reference eventually using `put_inode`.
+
 chkfs::inode* chkfsstate::lookup_inode(inode* dirino,
                                        const char* filename) {
     auto& bc = bufcache::get();
@@ -305,24 +311,38 @@ chkfs::inode* chkfsstate::lookup_inode(inode* dirino,
     // read directory to find file inode
     chkfs::inum_t in = 0;
     for (size_t diroff = 0; !in; diroff += blocksize) {
-        bcentry* e;
-        if (!(it.find(diroff).present()
-              && (e = bc.get_disk_entry(it.blocknum())))) {
-            break;
-        }
-
-        size_t bsz = min(dirino->size - diroff, blocksize);
-        auto dirent = reinterpret_cast<chkfs::dirent*>(e->buf_);
-        for (unsigned i = 0; i * sizeof(*dirent) < bsz; ++i, ++dirent) {
-            if (dirent->inum && strcmp(dirent->name, filename) == 0) {
-                in = dirent->inum;
-                break;
+        if (bcentry* e = it.find(diroff).get_disk_entry()) {
+            size_t bsz = min(dirino->size - diroff, blocksize);
+            auto dirent = reinterpret_cast<chkfs::dirent*>(e->buf_);
+            for (unsigned i = 0; i * sizeof(*dirent) < bsz; ++i, ++dirent) {
+                if (dirent->inum && strcmp(dirent->name, filename) == 0) {
+                    in = dirent->inum;
+                    break;
+                }
             }
+            e->put();
+        } else {
+            return nullptr;
         }
-        e->put();
     }
-
     return get_inode(in);
+}
+
+
+// chkfsstate::lookup_inode(filename)
+//    Look up `filename` in the root directory.
+
+chkfs::inode* chkfsstate::lookup_inode(const char* filename) {
+    auto dirino = get_inode(1);
+    if (dirino) {
+        dirino->lock_read();
+        auto ino = fs.lookup_inode(dirino, filename);
+        dirino->unlock_read();
+        put_inode(dirino);
+        return ino;
+    } else {
+        return nullptr;
+    }
 }
 
 

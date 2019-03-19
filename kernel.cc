@@ -293,19 +293,10 @@ uintptr_t proc::syscall_readdiskfile(regstate* regs) {
         return E_IO;
     }
 
-    auto& bc = bufcache::get();
     auto& fs = chkfsstate::get();
 
-    // read directory to find file inode number
-    auto dirino = fs.get_inode(1);
-    assert(dirino);
-    dirino->lock_read();
-
-    auto ino = fs.lookup_inode(dirino, filename);
-
-    dirino->unlock_read();
-    fs.put_inode(dirino);
-
+    // read root directory to find file inode number
+    auto ino = fs.lookup_inode(filename);
     if (!ino) {
         return E_NOENT;
     }

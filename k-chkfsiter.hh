@@ -24,9 +24,12 @@ class chkfs_fileiter {
     inline off_t block_offset() const;
     // return true iff `blocknum() != 0`
     inline bool present() const;
+
     // Return the block number corresponding to the current file offset.
     // Returns 0 if there is no block stored for the current offset.
     inline blocknum_t blocknum() const;
+    // Return a buffer cache entry containing the current file offset’s data.
+    // Returns nullptr if there is no block stored for the current offset.
     inline bcentry* get_disk_entry() const;
 
 

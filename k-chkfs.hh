@@ -81,7 +81,10 @@ struct chkfsstate {
     inode* get_inode(inum_t inum);
     void put_inode(inode* ino);
 
+    // directory lookup in `dirino`
     inode* lookup_inode(inode* dirino, const char* name);
+    // directory lookup starting at root directory
+    inode* lookup_inode(const char* name);
 
     blocknum_t allocate_extent(unsigned count = 1);
 
