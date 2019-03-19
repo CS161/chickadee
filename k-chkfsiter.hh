@@ -107,7 +107,7 @@ inline bool chkfs_fileiter::active() const {
     return eptr_ && eptr_->count != 0;
 }
 inline unsigned chkfs_fileiter::block_relative_offset() const {
-    return eoff_ % blocksize;
+    return off_ % blocksize;
 }
 inline bool chkfs_fileiter::present() const {
     return eptr_ && eptr_->first != 0;

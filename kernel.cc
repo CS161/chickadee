@@ -312,26 +312,26 @@ uintptr_t proc::syscall_readdiskfile(regstate* regs) {
     chkfs_fileiter it(ino);
 
     size_t nread = 0;
-    while (sz > 0) {
-        size_t ncopy = 0;
-
-        // read inode contents, copy data
+    while (nread < sz) {
+        // copy data from current block
         if (bcentry* e = it.find(off).get_disk_entry()) {
-            off_t b = it.block_relative_offset();
-            ncopy = min(ino->size - it.offset(), off_t(chkfs::blocksize) - b);
-            if (ncopy > 0) {
-                memcpy(buf + nread, e->buf_ + b, ncopy);
-            }
+            unsigned b = it.block_relative_offset();
+            size_t ncopy = min(
+                size_t(ino->size - it.offset()),   // bytes left in file
+                chkfs::blocksize - b,              // bytes left in block
+                sz - nread                         // bytes left in request
+            );
+            memcpy(buf + nread, e->buf_ + b, ncopy);
             e->put();
-        }
 
-        // account for copied data
-        if (ncopy == 0) {
+            nread += ncopy;
+            off += ncopy;
+            if (ncopy == 0) {
+                break;
+            }
+        } else {
             break;
         }
-        nread += ncopy;
-        off += ncopy;
-        sz -= ncopy;
     }
 
     ino->unlock_read();

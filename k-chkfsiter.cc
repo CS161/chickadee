@@ -4,8 +4,6 @@
 // MAIN CHICKADEEFS ITERATOR FUNCTIONS
 
 chkfs_fileiter& chkfs_fileiter::find(off_t off) {
-    auto& bc = bufcache::get();
-
     // if moving backwards, rewind to start
     off_ = off;
     if (!eptr_ || off_ < eoff_) {
@@ -39,6 +37,7 @@ chkfs_fileiter& chkfs_fileiter::find(off_t off) {
             if (ino_->indirect.count <= ibi) {
                 goto not_found;
             }
+            auto& bc = bufcache::get();
             indirect_entry_ = bc.get_disk_entry(ino_->indirect.first + ibi);
             if (!indirect_entry_) {
                 goto not_found;
