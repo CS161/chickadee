@@ -75,8 +75,16 @@ inline constexpr T min(T a, T b) {
     return a < b ? a : b;
 }
 template <typename T>
+inline constexpr T min(T a, T b, T c) {
+    return min(min(a, b), c);
+}
+template <typename T>
 inline constexpr T max(T a, T b) {
     return b < a ? a : b;
+}
+template <typename T>
+inline constexpr T max(T a, T b, T c) {
+    return max(max(a, b), c);
 }
 
 template <typename T>
