@@ -315,7 +315,7 @@ void operator delete(void* ptr, size_t sz) noexcept;
 void operator delete(void* ptr, std::align_val_t align) noexcept;
 void operator delete(void* ptr, size_t sz, std::align_val_t align) noexcept;
 void operator delete[](void* ptr) noexcept;
-void operator delete[](void* ptr, size_t) noexcept;
+void operator delete[](void* ptr, size_t sz) noexcept;
 void operator delete[](void* ptr, std::align_val_t align) noexcept;
 void operator delete[](void* ptr, size_t sz, std::align_val_t align) noexcept;
 
