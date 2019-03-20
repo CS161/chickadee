@@ -75,8 +75,16 @@ inline constexpr T min(T a, T b) {
     return a < b ? a : b;
 }
 template <typename T>
+inline constexpr T min(T a, T b, T c) {
+    return min(min(a, b), c);
+}
+template <typename T>
 inline constexpr T max(T a, T b) {
     return b < a ? a : b;
+}
+template <typename T>
+inline constexpr T max(T a, T b, T c) {
+    return max(max(a, b), c);
 }
 
 template <typename T>
@@ -169,6 +177,35 @@ uint32_t crc32c(uint32_t crc, const void* buf, size_t sz);
 inline uint32_t crc32c(const void* buf, size_t sz) {
     return crc32c(0, buf, sz);
 }
+
+
+// Bit arrays
+
+struct bitset_view {
+    uint64_t* v_;
+    size_t n_;
+
+    struct bit {
+        uint64_t& v_;
+        uint64_t m_;
+
+        inline constexpr bit(uint64_t& v, uint64_t m);
+        NO_COPY_OR_ASSIGN(bit);
+        inline constexpr operator bool() const;
+        inline bit& operator=(bool x);
+    };
+
+    // initialize a bitset_view for the `n` bits starting at `v`
+    inline bitset_view(uint64_t* v, size_t n)
+        : v_(v), n_(n) {
+    }
+    inline size_t size() const;              // return size of bitset_view
+    inline bool operator[](size_t i) const;  // return bit `i`
+    inline bit operator[](size_t i);
+    // return index of next 1 (or 0) bit >= `i`, examining at most `n` bits
+    inline size_t find_lsb(size_t i = 0, size_t n = -1) const;
+    inline size_t find_lsz(size_t i = 0, size_t n = -1) const;
+};
 
 
 // System call numbers (passed in `%rax` at `syscall` time)
@@ -392,4 +429,57 @@ assert_memeq_fail(const char* file, int line, const char* msg,
 void __attribute__((noinline, noreturn, cold))
 panic(const char* format, ...);
 
-#endif /* !CHICKADEE_LIB_H */
+
+// bitset_view inline functions
+
+inline constexpr bitset_view::bit::bit(uint64_t& v, uint64_t m)
+    : v_(v), m_(m) {
+}
+inline constexpr bitset_view::bit::operator bool() const {
+    return (v_ & m_) != 0;
+}
+inline auto bitset_view::bit::operator=(bool x) -> bit& {
+    if (x) {
+        v_ |= m_;
+    } else {
+        v_ &= ~m_;
+    }
+    return *this;
+}
+inline size_t bitset_view::size() const {
+    return n_;
+}
+inline bool bitset_view::operator[](size_t i) const {
+    assert(i < n_);
+    return (v_[i / 64] & (1UL << (i % 64))) != 0;
+}
+inline auto bitset_view::operator[](size_t i) -> bit {
+    assert(i < n_);
+    return bit(v_[i / 64], 1UL << (i % 64));
+}
+inline size_t bitset_view::find_lsb(size_t i, size_t n) const {
+    unsigned off = i % 64;
+    uint64_t mask = ~(off ? (uint64_t(1) << off) - 1 : uint64_t(0));
+    n = min(n_ - i, n) + i;
+    i -= off;
+    unsigned b = 0;
+    while (i < n && !(b = lsb(v_[i / 64] & mask))) {
+        i += 64;
+        mask = -1;
+    }
+    return b ? min(n, i + b - 1) : n;
+}
+inline size_t bitset_view::find_lsz(size_t i, size_t n) const {
+    unsigned off = i % 64;
+    uint64_t mask = ~(off ? (uint64_t(1) << off) - 1 : uint64_t(0));
+    n = min(n_ - i, n) + i;
+    i -= off;
+    unsigned b = 0;
+    while (i < n && !(b = lsb(~v_[i / 64] & mask))) {
+        i += 64;
+        mask = -1;
+    }
+    return b ? min(n, i + b - 1) : n;
+}
+
+#endif /* !CHICKADEE_LIB_HH */

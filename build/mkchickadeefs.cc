@@ -31,6 +31,11 @@ static unsigned char** blocks;
 static unsigned freeb;
 static chkfs::inum_t freeinode;
 static std::vector<chkfs::dirent> root;
+static bool randomize;
+static uint32_t first_datab = 0;
+static std::vector<chkfs::extent> extents;
+static std::default_random_engine engine;
+static std::discrete_distribution<uint32_t> extentsize_distribution {0, 3, 2, 1, 1, 1, 1};
 
 
 inline void mark_free(blocknum_t bnum) {
@@ -90,9 +95,9 @@ static chkfs::inode* get_inode(chkfs::inum_t inum) {
 static chkfs::inum_t
 add_inode(chkfs::inum_t inum,
           unsigned type, size_t sz, unsigned nlink,
-          blocknum_t first_block, const char* path,
-          bool indirect_at_end = false) {
-    assert(freeb >= first_block + (sz + blocksize - 1) / blocksize);
+          blocknum_t first_block, const char* path) {
+    uint32_t nblocks = (sz + blocksize - 1) / blocksize;
+    assert(freeb >= first_block + nblocks);
 
     if (inum == 0) {
         if (freeinode == sb.ninodes) {
@@ -108,42 +113,45 @@ add_inode(chkfs::inum_t inum,
     ino->size = to_le(sz);
     ino->nlink = to_le(nlink);
 
-    // allocate indirect block
-    if (sz > chkfs::maxindirectsize) {
-        fprintf(stderr, "%s: file too big for indirect block\n", path);
-        exit(1);
-    }
-    blocknum_t* indir = nullptr;
-    if (sz > chkfs::maxdirectsize) {
-        advance_blockno(path);
-        indir = new blocknum_t[chkfs::nindirect];
-        memset(indir, 0, blocksize);
-        if (indirect_at_end) {
-            ino->indirect = to_le(freeb - 1);
-            blocks[freeb - 1] = reinterpret_cast<unsigned char*>(indir);
+    chkfs::extent* indir = nullptr;
+    size_t extenti = 0;
+    for (uint32_t eb = 0; eb < nblocks; ) {
+        uint32_t nb;
+        if (randomize
+            && (!first_datab || first_datab != first_block)) {
+            nb = extentsize_distribution(engine);
         } else {
-            ++first_block;
-            memmove(&blocks[first_block], &blocks[first_block - 1],
-                    sizeof(unsigned char*) * (freeb - first_block));
-            ino->indirect = to_le(first_block - 1);
-            blocks[first_block - 1] = reinterpret_cast<unsigned char*>(indir);
+            nb = nblocks;
         }
-    }
+        nb = std::min(nb, nblocks - eb);
 
-    // assign block pointers
-    for (size_t bidx = 0; bidx * blocksize < sz; ++bidx) {
-        if (bidx < chkfs::ndirect) {
-            ino->direct[bidx] = to_le(first_block + bidx);
+        chkfs::extent* ex;
+        if (extenti < chkfs::ndirect) {
+            ex = &ino->direct[extenti];
         } else {
-            indir[bidx - chkfs::ndirect] = to_le(first_block + bidx);
+            if (!indir) {
+                advance_blockno(path);
+                indir = new chkfs::extent[chkfs::extentsperblock];
+                memset(indir, 0, blocksize);
+                blocks[freeb - 1] = reinterpret_cast<unsigned char*>(indir);
+                ino->indirect.first = to_le(freeb - 1);
+                ino->indirect.count = to_le(uint32_t(1));
+                extents.push_back(chkfs::extent{freeb - 1, 1});
+            }
+            ex = &indir[extenti - chkfs::ndirect];
         }
+        ex->first = to_le(first_block + eb);
+        ex->count = to_le(nb);
+
+        extents.push_back(chkfs::extent{first_block + eb, nb});
+        ++extenti;
+        eb += nb;
     }
 
     return inum;
 }
 
-static void add_file(const char* path, const char* name,
-                     bool indirect_at_end) {
+static void add_file(const char* path, const char* name) {
     FILE* f = fopencheck(path);
     size_t sz = 0;
     uint32_t first_block = freeb;
@@ -173,8 +181,7 @@ static void add_file(const char* path, const char* name,
 
     // allocate inode
     uint32_t ino = add_inode
-        (0, chkfs::type_regular, sz, 1, first_block, path,
-         indirect_at_end);
+        (0, chkfs::type_regular, sz, 1, first_block, path);
 
     // add to directory
     if (strcmp(name, ".") == 0
@@ -192,7 +199,7 @@ static void add_file(const char* path, const char* name,
 }
 
 
-static void shuffle_blocks(bool preserve_inode2);
+static void shuffle_blocks();
 
 static void parse_uint32(const char* arg, uint32_t* val, int opt) {
     unsigned long n;
@@ -238,10 +245,8 @@ Create a ChickadeeFS image from the arguments.\n\
 }
 
 int main(int argc, char** argv) {
-    uint32_t first_datab = 0;
     const char* bootsector = nullptr;
     const char* outfile = nullptr;
-    bool randomize = false;
 
     int opt;
     while ((opt = getopt_long(argc, argv, "b:i:w:j:f:rs:o:",
@@ -362,7 +367,6 @@ int main(int argc, char** argv) {
     freeinode = 2;
 
     // read files
-    bool is_first = !!first_datab;
     for (; optind < argc; ++optind) {
         char* colon = strchr(argv[optind], ':');
         const char* name = argv[optind];
@@ -380,8 +384,7 @@ int main(int argc, char** argv) {
                 name += 7;
             }
         }
-        add_file(argv[optind], name, is_first);
-        is_first = false;
+        add_file(argv[optind], name);
     }
 
     // add root directory
@@ -415,7 +418,7 @@ int main(int argc, char** argv) {
 
     // randomize if requested
     if (randomize) {
-        shuffle_blocks(first_datab != 0);
+        shuffle_blocks();
     }
 
     // write output
@@ -467,61 +470,41 @@ int main(int argc, char** argv) {
 
 
 static void shuffle_indirect(unsigned char* data, blocknum_t* perm) {
-    blocknum_t* indir = reinterpret_cast<blocknum_t*>(data);
-    for (int i = 0; i != chkfs::nindirect; ++i) {
-        indir[i] = to_le(perm[from_le(indir[i])]);
-    }
-}
-
-static void shuffle_indirect2(unsigned char* data, blocknum_t* perm) {
-    blocknum_t* indir2 = reinterpret_cast<blocknum_t*>(data);
-    for (int i = 0; i != chkfs::nindirect; ++i) {
-        shuffle_indirect(blocks[from_le(indir2[i])], perm);
-        indir2[i] = to_le(perm[from_le(indir2[i])]);
+    chkfs::extent* indir = reinterpret_cast<chkfs::extent*>(data);
+    for (int i = 0; i != chkfs::extentsperblock; ++i) {
+        indir[i].first = to_le(perm[from_le(indir[i].first)]);
     }
 }
 
 static void shuffle_inode(chkfs::inode* in, blocknum_t* perm) {
     for (size_t i = 0; i != chkfs::ndirect; ++i) {
-        in->direct[i] = to_le(perm[from_le(in->direct[i])]);
+        in->direct[i].first = to_le(perm[from_le(in->direct[i].first)]);
     }
-    if (from_le(in->indirect)) {
-        shuffle_indirect(blocks[from_le(in->indirect)], perm);
-        in->indirect = to_le(perm[from_le(in->indirect)]);
-    }
-    if (from_le(in->indirect2)) {
-        shuffle_indirect2(blocks[from_le(in->indirect2)], perm);
-        in->indirect2 = to_le(perm[from_le(in->indirect2)]);
+    if (from_le(in->indirect.first)) {
+        shuffle_indirect(blocks[from_le(in->indirect.first)], perm);
+        in->indirect.first = to_le(perm[from_le(in->indirect.first)]);
     }
 }
 
-static void shuffle_blocks(bool preserve_inode2) {
-    std::vector<blocknum_t> perm;
-    std::vector<blocknum_t> shufflein;
-    std::vector<blocknum_t> shuffleout;
+static void shuffle_blocks() {
+    std::vector<blocknum_t> perm(sb.nblocks);
+    std::iota(perm.begin(), perm.end(), blocknum_t(0));
 
-    size_t data_bn = sb.data_bn;
-    if (preserve_inode2) {
-        chkfs::inode* in = get_inode(2);
-        if (from_le(in->size) != 0) {
-            assert(from_le(in->direct[0]) == data_bn);
-            data_bn += (from_le(in->size) + blocksize - 1) / blocksize;
+    // shuffle extents
+    std::shuffle(extents.begin() + (first_datab && sb.data_bn == first_datab),
+                 extents.end(), engine);
+    std::discrete_distribution<int> space_distribution {13, 2, 1};
+    size_t bn = sb.data_bn;
+    for (auto it = extents.begin(); it != extents.end(); ++it) {
+        if (it != extents.begin()) {
+            size_t nspace = std::min(sb.journal_bn - freeb, blocknum_t(space_distribution(engine)));
+            for (uint32_t bi = 0; bi != nspace; ++bi, ++bn, ++freeb) {
+                perm[freeb] = bn;
+            }
         }
-    }
-
-    for (blocknum_t b = 0; b != sb.nblocks; ++b) {
-        perm.push_back(b);
-        if (b >= data_bn && b < sb.journal_bn && b < freeb + 128) {
-            shufflein.push_back(b);
-            shuffleout.push_back(b);
+        for (uint32_t bi = 0; bi != it->count; ++bi, ++bn) {
+            perm[it->first + bi] = bn;
         }
-    }
-
-    // shuffle it
-    std::shuffle(shuffleout.begin(), shuffleout.end(),
-                 std::default_random_engine());
-    for (size_t i = 0; i != shufflein.size(); ++i) {
-        perm[shufflein[i]] = shuffleout[i];
     }
 
     // shuffle inodes
@@ -556,3 +539,5 @@ static_assert(sizeof(chkfs::inode) == chkfs::inodesize,
               "inodesize valid");
 static_assert(sizeof(chkfs::dirent) == chkfs::direntsize,
               "direntsize valid");
+static_assert(sizeof(chkfs::extent) == chkfs::extentsize,
+              "extentsize valid");

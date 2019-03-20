@@ -1,5 +1,6 @@
 #include "kernel.hh"
 #include "lib.hh"
+#include "k-ahci.hh"
 #include "k-apic.hh"
 #include "k-devices.hh"
 #include "elf.h"
@@ -9,6 +10,9 @@
 elf_symtabref symtab = {
     reinterpret_cast<elf_symbol*>(0xFFFFFFFF81000000), 0, nullptr, 0
 };
+
+// sata_disk: pointer to the first SATA disk found
+ahcistate* sata_disk;
 
 
 // init_hardware
@@ -61,6 +65,12 @@ void init_hardware() {
 
     // enable interrupts
     cpus[0].enable_irq(IRQ_KEYBOARD);
+
+    // initialize SATA drive
+    /* sata_disk = ahcistate::find(); */
+    if (sata_disk && sata_disk->irq_ > 0) {
+        cpus[ncpu - 1].enable_irq(sata_disk->irq_);
+    }
 }
 
 

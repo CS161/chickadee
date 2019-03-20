@@ -1,5 +1,8 @@
 #include "kernel.hh"
+#include "k-ahci.hh"
 #include "k-apic.hh"
+#include "k-chkfs.hh"
+#include "k-chkfsiter.hh"
 #include "k-devices.hh"
 #include "k-vmiter.hh"
 
@@ -127,7 +130,11 @@ void proc::exception(regstate* regs) {
         break;
 
     default:
-        panic("Unexpected exception %d!\n", regs->reg_intno);
+        if (sata_disk && regs->reg_intno == INT_IRQ + sata_disk->irq_) {
+            sata_disk->handle_interrupt();
+        } else {
+            panic("Unexpected exception %d!\n", regs->reg_intno);
+        }
         break;                  /* will not be reached */
 
     }
@@ -197,6 +204,20 @@ uintptr_t proc::syscall(regstate* regs) {
 
     case SYSCALL_WRITE:
         return syscall_write(regs);
+
+    case SYSCALL_READDISKFILE:
+        return syscall_readdiskfile(regs);
+
+    case SYSCALL_SYNC: {
+        int drop = regs->reg_rdi;
+        // `drop > 1` asserts that no data blocks are referenced (except
+        // possibly superblock and FBB blocks). This can only be ensured on
+        // tests that run as the first process.
+        if (drop > 1 && strncmp(CHICKADEE_FIRST_PROCESS, "test", 4) != 0) {
+            drop = 1;
+        }
+        return bufcache::get().sync(drop);
+    }
 
     default:
         // no such system call
@@ -268,6 +289,54 @@ uintptr_t proc::syscall_write(regstate* regs) {
     }
     csl.lock_.unlock(irqs);
     return n;
+}
+
+uintptr_t proc::syscall_readdiskfile(regstate* regs) {
+    const char* filename = reinterpret_cast<const char*>(regs->reg_rdi);
+    unsigned char* buf = reinterpret_cast<unsigned char*>(regs->reg_rsi);
+    uintptr_t sz = regs->reg_rdx;
+    uintptr_t off = regs->reg_r10;
+
+    if (!sata_disk) {
+        return E_IO;
+    }
+
+    // read root directory to find file inode number
+    auto ino = chkfsstate::get().lookup_inode(filename);
+    if (!ino) {
+        return E_NOENT;
+    }
+
+    // read file inode
+    ino->lock_read();
+    chkfs_fileiter it(ino);
+
+    size_t nread = 0;
+    while (nread < sz) {
+        // copy data from current block
+        if (bcentry* e = it.find(off).get_disk_entry()) {
+            unsigned b = it.block_relative_offset();
+            size_t ncopy = min(
+                size_t(ino->size - it.offset()),   // bytes left in file
+                chkfs::blocksize - b,              // bytes left in block
+                sz - nread                         // bytes left in request
+            );
+            memcpy(buf + nread, e->buf_ + b, ncopy);
+            e->put();
+
+            nread += ncopy;
+            off += ncopy;
+            if (ncopy == 0) {
+                break;
+            }
+        } else {
+            break;
+        }
+    }
+
+    ino->unlock_read();
+    ino->put();
+    return nread;
 }
 
 

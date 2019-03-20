@@ -8,6 +8,7 @@
 #include <inttypes.h>
 #include <vector>
 #include <deque>
+#include <string>
 #include <unordered_set>
 #include <algorithm>
 #include <stdarg.h>
@@ -22,11 +23,12 @@
 static bool verbose = false;
 static size_t nerrors = 0;
 static size_t nwarnings = 0;
+static const char* extract = nullptr;
 
 static void eprintf(const char* format, ...) {
     va_list val;
     va_start(val, format);
-    vfprintf(stdout, format, val);
+    vfprintf(extract ? stderr : stdout, format, val);
     va_end(val);
     ++nerrors;
 }
@@ -34,7 +36,7 @@ static void eprintf(const char* format, ...) {
 static void ewprintf(const char* format, ...) {
     va_list val;
     va_start(val, format);
-    vfprintf(stdout, format, val);
+    vfprintf(extract ? stderr : stdout, format, val);
     va_end(val);
     ++nwarnings;
 }
@@ -42,13 +44,12 @@ static void ewprintf(const char* format, ...) {
 static void exprintf(const char* format, ...) {
     va_list val;
     va_start(val, format);
-    vfprintf(stdout, format, val);
+    vfprintf(extract ? stderr : stdout, format, val);
     va_end(val);
 }
 
 
 static constexpr size_t blocksize = chkfs::blocksize;
-static constexpr size_t inodesize = sizeof(chkfs::inode);
 using blocknum_t = chkfs::blocknum_t;
 using inum_t = chkfs::inum_t;
 
@@ -58,12 +59,12 @@ static chkfs::superblock sb;
 
 enum blocktype {
     bunused = 0, bsuperblock, bswap, bfbb, binode,
-    bjournal, bfree, bdirectory, bdata, bindirect, bindirect2
+    bjournal, bfree, bdirectory, bdata, bindirect
 };
 
 static const char* const typenames[] = {
     "unused", "superblock", "swap", "fbb", "inode",
-    "journal", "free", "directory", "data", "indirect", "indirect2"
+    "journal", "free", "directory", "data", "indirect"
 };
 
 struct blockinfo {
@@ -130,9 +131,7 @@ struct inodeinfo {
     void visit(const char* ref);
     void scan();
     void finish_visit();
-    void visit_data(blocknum_t b, size_t idx, size_t sz);
-    void visit_indirect(blocknum_t b, size_t idx, size_t sz);
-    void visit_indirect2(blocknum_t b, size_t idx, size_t sz);
+    unsigned visit_data(blocknum_t b, blocknum_t count, unsigned bi, size_t sz);
     void visit_directory_data(blocknum_t b, size_t pos, size_t sz);
     unsigned char* get_data_block(unsigned bi);
     inum_t lookup(const char* name);
@@ -210,14 +209,15 @@ void inodeinfo::finish_visit() {
             sprintf(typebuf, "<type %d>", from_le(in->type));
             type = typebuf;
         }
-        printf("inode %u @%s: size %zu, type %s, nlink %u\n",
-               inum, ref_, sz, type, from_le(in->nlink));
+        char indirbuf[100] = "";
+        if (in->indirect.first || in->indirect.count) {
+            sprintf(indirbuf, ", indirect extent %u+%u",
+                    from_le(in->indirect.first), from_le(in->indirect.count));
+        }
+        printf("inode %u @%s: size %zu, type %s, nlink %u%s\n",
+               inum, ref_, sz, type, from_le(in->nlink), indirbuf);
     }
 
-    if (sz > chkfs::maxindirect2size) {
-        eprintf("inode %u @%s: size %zu too big (max %zu)\n",
-                inum, ref_, sz, chkfs::maxindirect2size);
-    }
     if (type_ == bdirectory) {
         contents_ = new std::unordered_set<std::string>();
         if (sz % sizeof(chkfs::dirent) != 0) {
@@ -226,40 +226,84 @@ void inodeinfo::finish_visit() {
         }
     }
 
-    for (size_t i = 0; i != chkfs::ndirect; ++i) {
-        visit_data(from_le(in->direct[i]), i, sz);
-    }
-    visit_indirect(from_le(in->indirect), chkfs::ndirect, sz);
-    visit_indirect2(from_le(in->indirect2),
-                    chkfs::ndirect + chkfs::nindirect, sz);
-
-    delete contents_;
-}
-
-void inodeinfo::visit_data(blocknum_t b, size_t idx, size_t sz) {
-    if (b != 0) {
-        if (verbose) {
-            printf("  [%zu]: data block %u\n", idx, b);
+    chkfs::extent* end_indir = nullptr;
+    size_t pos = 0;
+    bool saw_empty = false;
+    for (chkfs::extent* e = &in->direct[0]; true; ++e) {
+        if (e == &in->indirect) {
+            e = nullptr;
+            blocknum_t first = from_le(in->indirect.first);
+            blocknum_t count = from_le(in->indirect.count);
+            if (first && count) {
+                if (first >= sb.data_bn
+                    && first < sb.journal_bn
+                    && first + count <= sb.journal_bn) {
+                    e = reinterpret_cast<chkfs::extent*>(data + first * blocksize);
+                    end_indir = reinterpret_cast<chkfs::extent*>(data + (first + count) * blocksize);
+                    for (blocknum_t bb = 0; bb != count; ++bb) {
+                        blockinfo::blocks[first + bb].visit(bindirect, ref_, bb);
+                    }
+                } else {
+                    eprintf("inode %u @%s: indirect extent %u+%u out of range\n",
+                            inum, ref_, first, count);
+                }
+            } else {
+                if (!first && count) {
+                    eprintf("inode %u @%s: nonempty indirect extent starts at zero block\n",
+                            inum, ref_);
+                }
+                if (pos < sz) {
+                    eprintf("inode %u @%s: missing indirect block\n",
+                            inum, ref_);
+                }
+            }
         }
-        if (idx * blocksize >= sz) {
-            ewprintf("inode %u @%s [%zu]: warning: dangling block reference\n",
-                     get_inum(), ref_, idx);
+        if (e == end_indir) {
+            break;
         }
-        if (b < blockinfo::blocks.size()) {
-            blockinfo::blocks[b].visit(type_, ref_, idx);
-            if (type_ == bdirectory) {
-                visit_directory_data(b, idx * blocksize, sz);
+
+        blocknum_t first = from_le(e->first);
+        blocknum_t count = from_le(e->count);
+        if (count && saw_empty) {
+            eprintf("inode %u @%s [%zu]: nonempty extent follows empty extent\n",
+                    inum, ref_, pos / blocksize);
+        }
+        if (first && count) {
+            if (verbose) {
+                printf("  [%zu]: extent %u+%u\n", pos / blocksize, first, count);
+            }
+            for (blocknum_t bb = 0; bb != count; ++bb, pos += blocksize) {
+                if (pos > sz) {
+                    ewprintf("inode %u @%s [%zu]: warning: dangling block reference\n",
+                             inum, ref_, pos / blocksize);
+                }
+                if (first + bb < blockinfo::blocks.size()) {
+                    blockinfo::blocks[first + bb].visit(type_, ref_, pos / blocksize);
+                    if (type_ == bdirectory) {
+                        visit_directory_data(first + bb, pos, sz);
+                    }
+                } else {
+                    eprintf("inode %u @%s [%zu]: block number %u out of range\n",
+                            inum, ref_, pos / blocksize, first + bb);
+                }
             }
         } else {
-            eprintf("inode %u @%s [%zu]: block number %u out of range\n",
-                    get_inum(), ref_, idx, b);
-        }
-    } else {
-        if (idx * blocksize < sz) {
-            ewprintf("inode %u @%s [%zu]: warning: hole in file\n",
-                     get_inum(), ref_, idx);
+            if (!first && count) {
+                eprintf("inode %u @%s [%zu]: nonempty extent starts at zero block\n",
+                        inum, ref_, pos / blocksize);
+            }
+            if (count && pos < sz) {
+                eprintf("inode %u @%s [%zu]: warning: hole in file\n",
+                        inum, ref_, pos / blocksize);
+            }
+            if (!count) {
+                saw_empty = true;
+            }
+            pos += count * blocksize;
         }
     }
+
+    delete contents_;
 }
 
 void inodeinfo::visit_directory_data(blocknum_t b, size_t pos, size_t sz) {
@@ -312,104 +356,39 @@ void inodeinfo::visit_directory_data(blocknum_t b, size_t pos, size_t sz) {
     }
 }
 
-void inodeinfo::visit_indirect(blocknum_t b, size_t idx, size_t sz) {
-    if (b != 0) {
-        if (verbose) {
-            printf("  [%zu]: indirect block %u\n", idx, b);
-        }
-        if (idx * blocksize >= sz) {
-            ewprintf("inode %u @%s [%zu]: warning: dangling indirect block reference\n",
-                     get_inum(), ref_, idx);
-        }
-        if (b < blockinfo::blocks.size()) {
-            blockinfo::blocks[b].visit(bindirect, ref_, idx);
-            blocknum_t* bdata = reinterpret_cast<blocknum_t*>
-                (data + b * blocksize);
-            for (size_t i = 0; i != chkfs::nindirect; ++i) {
-                visit_data(from_le(bdata[i]), idx + i, sz);
-            }
-        } else {
-            eprintf("inode %u @%s [%zu]: block number %u out of range\n",
-                    get_inum(), ref_, idx, b);
-        }
-    } else {
-        if (idx * blocksize < sz) {
-            ewprintf("inode %u @%s [%zu]: warning: %s\n",
-                     get_inum(), ref_, idx,
-                     idx == chkfs::ndirect ? "missing indirect block"
-                     : "hole in file");
-        }
-    }
-}
-
-void inodeinfo::visit_indirect2(blocknum_t b, size_t idx, size_t sz) {
-    if (b != 0) {
-        if (verbose) {
-            printf("  [%zu]: indirect2 block %u\n", idx, b);
-        }
-        if (idx * blocksize >= sz) {
-            ewprintf("inode %u @%s [%zu]: warning: dangling indirect2 block reference\n",
-                     get_inum(), ref_, idx);
-        }
-        if (b < blockinfo::blocks.size()) {
-            blockinfo::blocks[b].visit(bindirect2, ref_, idx);
-            blocknum_t* bdata = reinterpret_cast<blocknum_t*>
-                (data + b * blocksize);
-            for (size_t i = 0; i != chkfs::nindirect; ++i) {
-                visit_indirect(from_le(bdata[i]), idx + i * chkfs::nindirect, sz);
-            }
-        } else {
-            eprintf("inode %u @%s [%zu]: block number %u out of range\n",
-                    get_inum(), ref_, idx, b);
-        }
-    } else {
-        if (idx * blocksize < sz) {
-            ewprintf("inode %u @%s [%zu]: warning: %s\n",
-                     get_inum(), ref_, idx,
-                     idx == chkfs::ndirect + chkfs::nindirect
-                     ? "missing indirect2 block"
-                     : "hole in file");
-        }
-    }
-}
-
 
 unsigned char* inodeinfo::get_data_block(unsigned bi) {
     auto in = get_inode();
 
-    blocknum_t indir;
-    if (bi >= chkfs::ndirect + chkfs::nindirect) {
-        if (in->indirect2 < sb.data_bn
-            || in->indirect2 >= sb.journal_bn) {
+    chkfs::extent* end_indir = nullptr;
+    for (chkfs::extent* e = &in->direct[0]; true; ++e) {
+        if (e == &in->indirect) {
+            blocknum_t first = from_le(in->indirect.first);
+            blocknum_t count = from_le(in->indirect.count);
+            if (first < sb.data_bn
+                || !count
+                || first + count > sb.journal_bn) {
+                return nullptr;
+            }
+            e = reinterpret_cast<chkfs::extent*>(data + first * blocksize);
+            end_indir = reinterpret_cast<chkfs::extent*>(data + (first + count) * blocksize);
+        }
+        if (e == end_indir) {
             return nullptr;
         }
-        blocknum_t* indir2d = reinterpret_cast<blocknum_t*>
-            (data + in->indirect2 * blocksize);
-        indir = indir2d[chkfs::bi_indirect_index(bi)];
-    } else if (bi >= chkfs::ndirect) {
-        indir = in->indirect;
-    } else {
-        indir = 0;
-    }
-
-    blocknum_t dir;
-    if (bi >= chkfs::ndirect) {
-        if (indir < sb.data_bn
-            || indir >= sb.journal_bn) {
+        blocknum_t first = from_le(e->first);
+        blocknum_t count = from_le(e->count);
+        if (bi < count) {
+            if (first < sb.data_bn
+                || first + count > sb.journal_bn) {
+                return nullptr;
+            } else {
+                return data + (first + bi) * blocksize;
+            }
+        } else if (count == 0) {
             return nullptr;
         }
-        blocknum_t* indird = reinterpret_cast<blocknum_t*>
-            (data + indir * blocksize);
-        dir = indird[chkfs::bi_direct_index(bi)];
-    } else {
-        dir = in->direct[bi];
-    }
-
-    if (dir < sb.data_bn
-        || dir >= sb.journal_bn) {
-        return nullptr;
-    } else {
-        return data + dir * blocksize;
+        bi -= count;
     }
 }
 
@@ -534,7 +513,6 @@ static struct option options[] = {
 int main(int argc, char** argv) {
     bool replay = false;
     bool no_journal = false;
-    const char* extract = nullptr;
 
     int opt;
     while ((opt = getopt_long(argc, argv, "Vse:", options, nullptr)) != -1) {
