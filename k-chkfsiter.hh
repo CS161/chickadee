@@ -9,6 +9,7 @@ class chkfs_fileiter {
 
 
     // initialize an iterator for `ino` at file offset `off`
+    // The caller must have a reference on `ino`.
     chkfs_fileiter(chkfs::inode* ino, off_t off = 0);
     NO_COPY_OR_ASSIGN(chkfs_fileiter);
     ~chkfs_fileiter();
@@ -67,9 +68,9 @@ class chkfs_fileiter {
 
  private:
     chkfs::inode* ino_;             // inode
-    size_t off_;                    // file offset
-    size_t eoff_;                   // file offset of this extent
-    size_t eidx_;                   // index of this extent
+    size_t off_ = 0;                // file offset
+    size_t eoff_ = 0;               // file offset of this extent
+    size_t eidx_ = 0;               // index of this extent
     chkfs::extent* eptr_;           // pointer into buffer cache to
                                     // extent for `off_`
 
@@ -80,7 +81,7 @@ class chkfs_fileiter {
 
 
 inline chkfs_fileiter::chkfs_fileiter(chkfs::inode* ino, off_t off)
-    : ino_(ino), off_(0), eoff_(0), eidx_(0), eptr_(&ino->direct[0]) {
+    : ino_(ino), eptr_(&ino->direct[0]) {
     assert(ino_);
     ino_entry_ = bufcache::get().find_entry(ino);
     if (off != 0) {

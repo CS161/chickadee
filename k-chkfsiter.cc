@@ -87,6 +87,7 @@ int chkfs_fileiter::insert(blocknum_t first, unsigned count) {
     // allocate & initialize indirect extent if necessary
     if (eidx_ == chkfs::ndirect && !ino_->indirect.count) {
         auto& chkfs = chkfsstate::get();
+        assert(!indirect_entry_);
 
         blocknum_t indirect_bn = chkfs.allocate_extent(1);
         if (indirect_bn >= blocknum_t(E_MINERROR)) {

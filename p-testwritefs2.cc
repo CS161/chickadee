@@ -299,6 +299,95 @@ void process_main() {
     assert_eq(sz, 405890);
     assert_eq(crc, 0x76954FBBU);
 
+    sys_close(f);
+
+
+    // extend two files through alternating writes, encouraging creation of
+    // indirect extents
+    printf("%s:%d: extend two files", __FILE__, __LINE__);
+
+    f = sys_open("emerson.txt", OF_WRITE);
+    int f2 = sys_open("thoreau.txt", OF_WRITE);
+
+    assert_gt(f, 2);
+    assert_gt(f2, 2);
+    assert_ne(f, f2);
+
+    r = sys_lseek(f, 0, LSEEK_END);
+    assert_eq(r, 20);
+    r = sys_lseek(f2, 0, LSEEK_END);
+    assert_eq(r, 405890);
+
+    bbsz = prepare_bigbuf();
+
+    for (int i = 0; i != 30; ++i) {
+        dprintf(f, "Chick%ddee\n", i);
+        n = sys_write(f, bigbuf, bbsz);
+        assert_eq(size_t(n), bbsz);
+
+        dprintf(f2, "Chick%ddee\n", i);
+        n = sys_write(f2, bigbuf, bbsz);
+        assert_eq(size_t(n), bbsz);
+
+        if (i % 5 == 0) {
+            printf(".");
+        }
+    }
+    printf("\n");
+
+    sys_close(f);
+    sys_close(f2);
+
+
+    // synchronize disk
+    printf("%s:%d: sync...\n", __FILE__, __LINE__);
+
+    r = sys_sync(2);
+    assert_ge(r, 0);
+
+
+    // recompute crc32c
+    printf("%s:%d: check checksums", __FILE__, __LINE__);
+
+    f = sys_open("thoreau.txt", OF_READ);
+
+    crc = 0;
+    sz = 0;
+    printsz = 0;
+    while ((n = sys_read(f, bigbuf, sizeof(bigbuf))) > 0) {
+        crc = crc32c(crc, bigbuf, n);
+        sz += n;
+        while (sz > printsz + 40000) {
+            printf(".");
+            printsz += 40000;
+        }
+    }
+
+    assert_eq(sz, 527650);
+    assert_eq(crc, 2111621591U);
+
+    sys_close(f);
+
+
+    f = sys_open("emerson.txt", OF_READ);
+
+    crc = 0;
+    sz = 0;
+    while ((n = sys_read(f, bigbuf, sizeof(bigbuf))) > 0) {
+        crc = crc32c(crc, bigbuf, n);
+        sz += n;
+        while (sz > printsz + 40000) {
+            printf(".");
+            printsz += 40000;
+        }
+    }
+    printf("\n");
+
+    assert_eq(sz, 121780);
+    assert_eq(crc, 1518875118U);
+
+    sys_close(f);
+
 
     printf("testwritefs2 succeeded.\n");
     sys_exit(0);

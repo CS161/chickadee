@@ -23,11 +23,12 @@
 static bool verbose = false;
 static size_t nerrors = 0;
 static size_t nwarnings = 0;
+static const char* extract = nullptr;
 
 static void eprintf(const char* format, ...) {
     va_list val;
     va_start(val, format);
-    vfprintf(stdout, format, val);
+    vfprintf(extract ? stderr : stdout, format, val);
     va_end(val);
     ++nerrors;
 }
@@ -35,7 +36,7 @@ static void eprintf(const char* format, ...) {
 static void ewprintf(const char* format, ...) {
     va_list val;
     va_start(val, format);
-    vfprintf(stdout, format, val);
+    vfprintf(extract ? stderr : stdout, format, val);
     va_end(val);
     ++nwarnings;
 }
@@ -43,7 +44,7 @@ static void ewprintf(const char* format, ...) {
 static void exprintf(const char* format, ...) {
     va_list val;
     va_start(val, format);
-    vfprintf(stdout, format, val);
+    vfprintf(extract ? stderr : stdout, format, val);
     va_end(val);
 }
 
@@ -208,8 +209,13 @@ void inodeinfo::finish_visit() {
             sprintf(typebuf, "<type %d>", from_le(in->type));
             type = typebuf;
         }
-        printf("inode %u @%s: size %zu, type %s, nlink %u\n",
-               inum, ref_, sz, type, from_le(in->nlink));
+        char indirbuf[100] = "";
+        if (in->indirect.first || in->indirect.count) {
+            sprintf(indirbuf, ", indirect extent %u+%u",
+                    from_le(in->indirect.first), from_le(in->indirect.count));
+        }
+        printf("inode %u @%s: size %zu, type %s, nlink %u%s\n",
+               inum, ref_, sz, type, from_le(in->nlink), indirbuf);
     }
 
     if (type_ == bdirectory) {
@@ -507,7 +513,6 @@ static struct option options[] = {
 int main(int argc, char** argv) {
     bool replay = false;
     bool no_journal = false;
-    const char* extract = nullptr;
 
     int opt;
     while ((opt = getopt_long(argc, argv, "Vse:", options, nullptr)) != -1) {
