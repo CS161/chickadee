@@ -268,6 +268,8 @@ void process_main() {
     assert_eq(sz, 405890);
     assert_eq(crc, 0x76954FBBU);
 
+    sys_close(f);
+
 
     // synchronize disk
     printf("%s:%d: sync...\n", __FILE__, __LINE__);
