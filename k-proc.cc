@@ -176,6 +176,7 @@ int proc::load_segment(const elf_program& ph, proc_loader& ld) {
          it += PAGESIZE) {
         void* pg = kalloc(PAGESIZE);
         if (!pg || it.map(ka2pa(pg)) < 0) {
+            kfree(pg);
             return E_NOMEM;
         }
     }
