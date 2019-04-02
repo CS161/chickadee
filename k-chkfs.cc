@@ -27,7 +27,6 @@ bcentry* bufcache::get_disk_entry(chkfs::blocknum_t bn,
     size_t i, empty_slot = -1;
     for (i = 0; i != ne; ++i) {
         if (e_[i].empty()) {
-            e_[i].clear();
             if (empty_slot == size_t(-1)) {
                 empty_slot = i;
             }
@@ -45,12 +44,18 @@ bcentry* bufcache::get_disk_entry(chkfs::blocknum_t bn,
             return nullptr;
         }
         i = empty_slot;
+    }
+
+    // obtain entry lock
+    e_[i].lock_.lock_noirq();
+
+    // mark allocated if empty
+    if (e_[i].empty()) {
         e_[i].state_ = bcentry::state_allocated;
         e_[i].bn_ = bn;
     }
 
-    // switch lock to entry lock
-    e_[i].lock_.lock_noirq();
+    // no longer need cache lock
     lock_.unlock_noirq();
 
     // mark reference
@@ -138,7 +143,7 @@ void bcentry::put() {
     spinlock_guard guard(lock_);
     assert(ref_ != 0);
     if (--ref_ == 0) {
-        state_ = bcentry::state_empty;
+        clear();
     }
 }
 
