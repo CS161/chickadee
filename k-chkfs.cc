@@ -101,7 +101,7 @@ bool bcentry::load(irqstate& irqs, bcentry_clean_function cleaner) {
             irqs = lock_.lock();
             state_ = state_clean;
             if (cleaner) {
-                cleaner(bn_, buf_);
+                cleaner(this);
             }
             bc.read_wq_.wake_all();
         } else if (state_ == state_loading) {
@@ -112,26 +112,6 @@ bool bcentry::load(irqstate& irqs, bcentry_clean_function cleaner) {
             return true;
         }
     }
-}
-
-
-// bufcache::find_entry(buf)
-//    Return the `bcentry` containing pointer `buf`. Requires that the current
-//    kernel task holds a reference to the corresponding entry.
-
-bcentry* bufcache::find_entry(void* buf) {
-    if (buf) {
-        buf = reinterpret_cast<void*>(
-            round_down(reinterpret_cast<uintptr_t>(buf), chkfs::blocksize)
-        );
-        for (size_t i = 0; i != ne; ++i) {
-            if (!e_[i].empty() && e_[i].buf_ == buf) {
-                return &e_[i];
-            }
-        }
-        assert(false);
-    }
-    return nullptr;
 }
 
 
@@ -212,9 +192,11 @@ int bufcache::sync(int drop) {
 namespace chkfs {
 
 void inode::lock_read() {
-    uint32_t v = mlock.load(std::memory_order_relaxed);
+    uint16_t v = mlock.load(std::memory_order_relaxed);
     while (true) {
-        if (v == uint32_t(-1)) {
+        assert(v != uint16_t(-2));   // at most 2^16 - 2 read locks allowed
+
+        if (v == uint16_t(-1)) {
             current()->yield();
             v = mlock.load(std::memory_order_relaxed);
         } else if (mlock.compare_exchange_weak(v, v + 1,
@@ -228,8 +210,8 @@ void inode::lock_read() {
 }
 
 void inode::unlock_read() {
-    uint32_t v = mlock.load(std::memory_order_relaxed);
-    assert(v != 0 && v != uint32_t(-1));
+    uint16_t v = mlock.load(std::memory_order_relaxed);
+    assert(v != 0 && v != uint16_t(-1));
     while (!mlock.compare_exchange_weak(v, v - 1,
                                         std::memory_order_release)) {
         pause();
@@ -237,8 +219,8 @@ void inode::unlock_read() {
 }
 
 void inode::lock_write() {
-    uint32_t v = 0;
-    while (!mlock.compare_exchange_weak(v, uint32_t(-1),
+    uint16_t v = 0;
+    while (!mlock.compare_exchange_weak(v, uint16_t(-1),
                                         std::memory_order_acquire)) {
         current()->yield();
         v = 0;
@@ -251,7 +233,7 @@ void inode::unlock_write() {
 }
 
 bool inode::has_write_lock() const {
-    return mlock.load(std::memory_order_relaxed) == uint32_t(-1);
+    return mlock.load(std::memory_order_relaxed) == uint16_t(-1);
 }
 
 }
@@ -269,10 +251,12 @@ chkfsstate::chkfsstate() {
 //    This function is called when loading an inode block into the
 //    buffer cache. It clears values that are only used in memory.
 
-static void clean_inode_block(chkfs::blocknum_t, unsigned char* buf) {
-    auto is = reinterpret_cast<chkfs::inode*>(buf);
+static void clean_inode_block(bcentry* entry) {
+    uint32_t entry_index = entry - bufcache::get().e_;
+    auto is = reinterpret_cast<chkfs::inode*>(entry->buf_);
     for (unsigned i = 0; i != chkfs::inodesperblock; ++i) {
         is[i].mlock = is[i].mref = 0;
+        is[i].mbcindex = entry_index;
     }
 }
 
@@ -307,14 +291,22 @@ chkfs::inode* chkfsstate::get_inode(inum_t inum) {
 }
 
 
-// chkfs::inode::put()
-//    Release the caller’s reference to this inode, which must be located
-//    in the buffer cache.
-
 namespace chkfs {
-void inode::put() {
-    bufcache::get().find_entry(this)->put();
+// chkfs::inode::entry()
+//    Return a pointer to the buffer cache entry containing this inode.
+//    Requires that the inode is located in the buffer cache.
+
+bcentry* inode::entry() {
+    return &bufcache::get().e_[mbcindex];
 }
+
+// chkfs::inode::put()
+//    Releases the reference to this inode's buffer cache entry.
+
+void inode::put() {
+    entry()->put();
+}
+
 }
 
 

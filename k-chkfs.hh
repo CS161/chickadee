@@ -4,10 +4,11 @@
 #include "chickadeefs.hh"
 #include "k-lock.hh"
 #include "k-wait.hh"
+struct bcentry;
 
 // buffer cache
 
-using bcentry_clean_function = void (*)(chkfs::blocknum_t, unsigned char*);
+using bcentry_clean_function = void (*)(bcentry*);
 
 struct bcentry {
     using blocknum_t = chkfs::blocknum_t;
@@ -54,7 +55,6 @@ struct bufcache {
 
     bcentry* get_disk_entry(blocknum_t bn,
                             bcentry_clean_function cleaner = nullptr);
-    bcentry* find_entry(void* data);
 
     int sync(int drop);
 

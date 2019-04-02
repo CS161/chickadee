@@ -83,7 +83,6 @@ class chkfs_fileiter {
 inline chkfs_fileiter::chkfs_fileiter(chkfs::inode* ino, off_t off)
     : ino_(ino), eptr_(&ino->direct[0]) {
     assert(ino_);
-    ino_entry_ = bufcache::get().find_entry(ino);
     if (off != 0) {
         find(off);
     }
@@ -99,7 +98,7 @@ inline chkfs::inode* chkfs_fileiter::inode() const {
     return ino_;
 }
 inline bcentry* chkfs_fileiter::inode_entry() const {
-    return ino_entry_;
+    return ino_->entry();
 }
 inline off_t chkfs_fileiter::offset() const {
     return off_;

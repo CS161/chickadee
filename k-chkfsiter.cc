@@ -69,17 +69,18 @@ int chkfs_fileiter::insert(blocknum_t first, unsigned count) {
     assert(!eptr_ || !eptr_->count);
     assert((eoff_ % blocksize) == 0);
     auto& bc = bufcache::get();
+    auto ino_entry = inode_entry();
 
     // grow previous direct extent if possible
     if (eidx_ > 0 && eidx_ <= chkfs::ndirect) {
         chkfs::extent* peptr = &ino_->direct[eidx_ - 1];
         if (peptr->first + peptr->count == first) {
-            ino_entry_->get_write();
+            ino_entry->get_write();
             eptr_ = peptr;
             --eidx_;
             eoff_ -= eptr_->count * blocksize;
             eptr_->count += count;
-            ino_entry_->put_write();
+            ino_entry->put_write();
             return 0;
         }
     }
@@ -103,10 +104,10 @@ int chkfs_fileiter::insert(blocknum_t first, unsigned count) {
         memset(indirect_entry_->buf_, 0, blocksize);
         indirect_entry_->put_write();
 
-        ino_entry_->get_write();
+        ino_entry->get_write();
         ino_->indirect.first = indirect_bn;
         ino_->indirect.count = 1;
-        ino_entry_->put_write();
+        ino_entry->put_write();
     }
 
     // fail if required to grow indirect extent
@@ -117,7 +118,7 @@ int chkfs_fileiter::insert(blocknum_t first, unsigned count) {
     // add new extent
     bcentry* entry;
     if (eidx_ < chkfs::ndirect) {
-        entry = ino_entry_;
+        entry = ino_entry;
         eptr_ = &ino_->direct[eidx_];
     } else {
         entry = indirect_entry_;

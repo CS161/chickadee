@@ -7,6 +7,9 @@
 # include <assert.h>
 # include <inttypes.h>
 #endif
+#ifdef CHICKADEE_KERNEL
+struct bcentry;
+#endif
 
 namespace chkfs {
 
@@ -60,12 +63,15 @@ struct inode {
     uint32_t size;                // file size
     uint32_t nlink;               // # hard links to file
     uint32_t flags;               // flags (currently unused)
-    std::atomic<uint32_t> mlock;  // used in memory, 0 when loaded from disk
-    std::atomic<uint32_t> mref;   // used in memory, 0 when loaded from disk
+    std::atomic<uint16_t> mlock;  // used in memory, 0 when loaded from disk
+    std::atomic<uint16_t> mref;   // used in memory, 0 when loaded from disk
+    uint32_t mbcindex;            // used in memory, 0 when loaded from disk
     extent direct[ndirect];       // extents
     extent indirect;
 
 #ifdef CHICKADEE_KERNEL
+    // return the buffer cache entry containing this buffer-cached inode
+    bcentry* entry();
     // drop reference to this buffer-cached inode
     void put();
     // obtain/release locks; the lock_ functions may yield, so cannot be
