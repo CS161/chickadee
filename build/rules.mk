@@ -108,7 +108,9 @@ INFERRED_QEMU := $(shell if which qemu-system-x86_64 2>/dev/null | grep ^/ >/dev
 	elif grep 16 /etc/fedora-release >/dev/null 2>&1; \
 	then echo qemu; else echo qemu-system-x86_64; fi)
 QEMU ?= $(INFERRED_QEMU)
+ifneq ($(strip $(shell uname)),Darwin)
 QEMUCONSOLE ?= $(if $(DISPLAY),,1)
+endif
 QEMUDISPLAY ?= $(if $(QEMUCONSOLE),console,graphic)
 
 $(OBJDIR)/libqemu-nograb.so.1: build/qemu-nograb.c
