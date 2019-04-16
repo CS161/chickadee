@@ -47,8 +47,8 @@ ASFLAGS += $(shell $(CXX) -no-integrated-as -E -x c /dev/null >/dev/null 2>&1 &&
 CFLAGS := $(CFLAGS) $(CCOMMONFLAGS) -std=gnu11 -gdwarf
 CXXFLAGS := $(CXXFLAGS) $(CCOMMONFLAGS) -std=gnu++1z \
 	-fno-exceptions -fno-rtti -gdwarf -ffunction-sections
-DEPCFLAGS = -MD -MF $(DEPSDIR)/$*.d -MP
-DEPCFLAGS_AT = -MD -MF $(DEPSDIR)/$(@F).d -MP
+DEPCFLAGS = -MD -MF $(DEPSDIR)/$(@F).d -MP
+DEPCFLAGS_AT = $(DEPCFLAGS)
 
 KERNELCXXFLAGS = $(CXXFLAGS) $(SANITIZEFLAGS)
 ifeq ($(filter 1,$(SAN) $(UBSAN)),1)
