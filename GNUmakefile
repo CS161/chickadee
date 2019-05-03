@@ -105,11 +105,18 @@ $(OBJDIR)/bootentry.o: $(OBJDIR)/%.o: \
 $(OBJDIR)/%.uo: %.cc $(BUILDSTAMPS)
 	$(call cxxcompile,$(CXXFLAGS) -O1 -DCHICKADEE_PROCESS -c $< -o $@,COMPILE $<)
 
+$(OBJDIR)/%.uo: %.S $(OBJDIR)/u-asm.h $(KERNELBUILDSTAMPS)
+	$(call assemble,-O2 -c $< -o $@,ASSEMBLE $<)
+
 
 # How to make supporting source files
 
-$(OBJDIR)/k-asm.h: kernel.hh x86-64.h build/mkkernelasm.awk $(KERNELBUILDSTAMPS)
+$(OBJDIR)/k-asm.h: kernel.hh lib.hh types.h x86-64.h build/mkkernelasm.awk $(KERNELBUILDSTAMPS)
 	$(call cxxcompile,-dM -E kernel.hh | awk -f build/mkkernelasm.awk | sort > $@,CREATE $@)
+	@if test ! -s $@; then echo '* Error creating $@!' 1>&2; exit 1; fi
+
+$(OBJDIR)/u-asm.h: u-lib.hh lib.hh types.h x86-64.h build/mkkernelasm.awk $(BUILDSTAMPS)
+	$(call cxxcompile,-dM -E u-lib.hh | awk -f build/mkkernelasm.awk | sort > $@,CREATE $@)
 	@if test ! -s $@; then echo '* Error creating $@!' 1>&2; exit 1; fi
 
 $(OBJDIR)/k-initfs.cc: build/mkinitfs.awk \
@@ -150,25 +157,25 @@ $(OBJDIR)/bootsector: $(BOOT_OBJS) boot.ld
 # How to make host program for ensuring a loaded symbol table
 
 $(OBJDIR)/mkchickadeesymtab: build/mkchickadeesymtab.cc $(BUILDSTAMPS)
-	$(call run,$(HOSTCXX) $(CPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS_AT) -g -o $@,HOSTCOMPILE,$<)
+	$(call run,$(HOSTCXX) $(CPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) -g -o $@,HOSTCOMPILE,$<)
 
 
 # How to make host programs for constructing & checking file systems
 
 $(OBJDIR)/%.o: %.cc $(BUILDSTAMPS)
-	$(call run,$(HOSTCXX) $(CPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS_AT) -c -o $@,HOSTCOMPILE,$<)
+	$(call run,$(HOSTCXX) $(CPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) -c -o $@,HOSTCOMPILE,$<)
 
 $(OBJDIR)/%.o: build/%.cc $(BUILDSTAMPS)
-	$(call run,$(HOSTCXX) $(CPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS_AT) -c -o $@,HOSTCOMPILE,$<)
+	$(call run,$(HOSTCXX) $(CPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) -c -o $@,HOSTCOMPILE,$<)
 
 $(OBJDIR)/mkchickadeefs: build/mkchickadeefs.cc $(BUILDSTAMPS)
-	$(call run,$(HOSTCXX) $(CPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS_AT) -o $@,HOSTCOMPILE,$<)
+	$(call run,$(HOSTCXX) $(CPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) -o $@,HOSTCOMPILE,$<)
 
 CHICKADEEFSCK_OBJS = $(OBJDIR)/chickadeefsck.o \
 	$(OBJDIR)/journalreplayer.o \
 	$(OBJDIR)/crc32c.o
 $(OBJDIR)/chickadeefsck: $(CHICKADEEFSCK_OBJS) $(BUILDSTAMPS)
-	$(call run,$(HOSTCXX) $(CPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS_AT) $(CHICKADEEFSCK_OBJS) -o,HOSTLINK,$@)
+	$(call run,$(HOSTCXX) $(CPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) $(CHICKADEEFSCK_OBJS) -o,HOSTLINK,$@)
 
 
 # How to make disk images
