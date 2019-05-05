@@ -9,7 +9,7 @@ int pfd[2] = {-1, -1};
 const char* shared;
 
 static void message(const char* x) {
-    while (!message_lock.test_and_set()) {
+    while (message_lock.test_and_set()) {
         pause();
     }
     console_printf("T%d (P%d): %s\n", sys_gettid(), sys_getpid(), x);
