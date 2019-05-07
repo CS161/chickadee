@@ -65,10 +65,7 @@ void process_setup(pid_t pid, const char* name) {
     assert(r >= 0);
     p->regs_->reg_rsp = MEMSIZE_VIRTUAL;
 
-    int cpu = pid % ncpu;
-    cpus[cpu].runq_lock_.lock_noirq();
-    cpus[cpu].enqueue(p);
-    cpus[cpu].runq_lock_.unlock_noirq();
+    p->wake();
 }
 
 

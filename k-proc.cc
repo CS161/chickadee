@@ -17,8 +17,9 @@ proc::proc()
 
 
 // proc::init_user(pid, pt)
-//    Initialize this `proc` as a new runnable user process with PID `pid`
-//    and initial page table `pt`.
+//    Initialize this `proc` as a new blocked user process with PID `pid`
+//    and initial page table `pt`. Use `proc::wake()` to schedule the
+//    process.
 
 void proc::init_user(pid_t pid, x86_64_pagetable* pt) {
     uintptr_t addr = reinterpret_cast<uintptr_t>(this);
@@ -34,7 +35,7 @@ void proc::init_user(pid_t pid, x86_64_pagetable* pt) {
 
     id_ = pid;
     pagetable_ = pt;
-    state_ = proc::runnable;
+    state_ = proc::blocked;
 
     regs_ = reinterpret_cast<regstate*>(addr + PROCSTACK_SIZE) - 1;
     memset(regs_, 0, sizeof(regstate));
@@ -46,8 +47,8 @@ void proc::init_user(pid_t pid, x86_64_pagetable* pt) {
 
 
 // proc::init_kernel(pid)
-//    Initialize this `proc` as a new kernel process with PID `pid`,
-//    starting at function `f`.
+//    Initialize this `proc` as a new blocked kernel process with
+//    PID `pid`, starting at function `f`.
 
 void proc::init_kernel(pid_t pid, void (*f)(proc*)) {
     uintptr_t addr = reinterpret_cast<uintptr_t>(this);
@@ -55,7 +56,7 @@ void proc::init_kernel(pid_t pid, void (*f)(proc*)) {
 
     id_ = pid;
     pagetable_ = early_pagetable;
-    state_ = proc::runnable;
+    state_ = proc::blocked;
 
     regs_ = reinterpret_cast<regstate*>(addr + PROCSTACK_SIZE) - 1;
     memset(regs_, 0, sizeof(regstate));

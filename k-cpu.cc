@@ -57,9 +57,10 @@ void cpustate::disable_irq(int irqno) {
 
 // cpustate::enqueue(p)
 //    Enqueue `p` on this CPU's run queue. `this->runq_lock_` must
-//    be locked. Does nothing if `p` is on a run queue or is currently
-//    running on this CPU. Otherwise `p` must be resumable (or not
-//    runnable).
+//    be locked, and `p` must not be running on any other CPU.
+//    Does nothing if `p` is on this CPU’s run queue or is currently
+//    running on this CPU; otherwise `p` must be resumable (or not
+//    runnable). Typically called from `proc::wake()`.
 
 void cpustate::enqueue(proc* p) {
     if (current_ != p && !p->runq_links_.is_linked()) {

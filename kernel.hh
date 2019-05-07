@@ -56,8 +56,9 @@ struct __attribute__((aligned(4096))) proc {
     void yield();
     [[noreturn]] void yield_noreturn();
     [[noreturn]] void resume();
-
     inline bool resumable() const;
+
+    inline void wake();
 
     uintptr_t syscall_read(regstate* reg);
     uintptr_t syscall_write(regstate* reg);
@@ -473,6 +474,17 @@ inline bool proc::resumable() const {
     assert(!regs_ || contains(regs_));      // `regs_` points within this
     assert(!yields_ || contains(yields_));  // same for `yields_`
     return regs_ || yields_;
+}
+
+// proc::wake()
+//    If this `proc` is currently blocked, then unblock it (set its state
+//    to `runnable`) and schedule it on its home CPU.
+inline void proc::wake() {
+    spinlock_guard guard(cpus[0].runq_lock_);
+    if (state_ == blocked) {
+        state_ = runnable;
+        cpus[0].enqueue(this);
+    }
 }
 
 // proc::lock_pagetable_read()
