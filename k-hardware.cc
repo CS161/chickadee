@@ -322,7 +322,7 @@ static void vpanic(uintptr_t rsp, uintptr_t rbp, uintptr_t rip,
                    const char* format, va_list val) {
     panicking = true;
 
-    cursorpos = CPOS(24, 80);
+    cursorpos = CPOS(24, 0);
     if (format) {
         // Print panic message to both the screen and the log
         error_printf(-1, COLOR_ERROR, "PANIC: ");

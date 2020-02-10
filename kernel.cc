@@ -180,7 +180,7 @@ uintptr_t proc::syscall(regstate* regs) {
         return 0;
 
     case SYSCALL_PANIC:
-        panic(nullptr);
+        panic_at(0, 0, 0, "process %d called sys_panic()", id_);
         break;                  // will not be reached
 
     case SYSCALL_GETPID:

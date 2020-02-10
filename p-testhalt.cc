@@ -20,6 +20,7 @@ void process_main() {
     } else {
         sys_msleep(300);
         console_printf("testhalt succeeds if you see 0-2 above and QEMU exits after a second\n");
+        console_printf("(QEMU will only exit if you ran with `HALT=1`)\n");
         sys_msleep(1000);
         sys_exit(0);
     }
