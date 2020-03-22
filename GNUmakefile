@@ -227,6 +227,13 @@ run-gdb-graphic: $(QEMUIMAGEFILES) check-qemu
 	$(call run,sleep 0.5; gdb -x build/chickadee.gdb,GDB)
 run-gdb-console: $(QEMUIMAGEFILES) check-qemu-console
 	$(call run,$(QEMU) $(QEMUOPT) -curses -gdb tcp::12949 $(QEMUIMG),QEMU $<)
+run-gdb-paused: run-gdb-$(QEMUDISPLAY)
+	@:
+run-gdb-graphic-paused: $(QEMUIMAGEFILES) check-qemu
+	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -S -gdb tcp::12949 $(QEMUIMG) &,QEMU $<)
+	$(call run,sleep 0.5; gdb -x build/chickadee.gdb,GDB)
+run-gdb-console-paused: $(QEMUIMAGEFILES) check-qemu-console
+	$(call run,$(QEMU) $(QEMUOPT) -curses -S -gdb tcp::12949 $(QEMUIMG),QEMU $<)
 
 run-$(RUNSUFFIX): run
 run-graphic-$(RUNSUFFIX): run-graphic
