@@ -14,8 +14,11 @@ void process_main() {
     sys_kdisplay(KDISPLAY_MEMVIEWER);
 
     // Fork three new copies. (But ignore failures.)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-variable"
     pid_t pid1 = sys_fork();
     pid_t pid2 = sys_fork();
+#pragma GCC diagnostic pop
 
     pid_t p = sys_getpid();
     srand(p);
