@@ -227,12 +227,12 @@ run-gdb-graphic: $(QEMUIMAGEFILES) check-qemu
 	$(call run,sleep 0.5; gdb -x build/chickadee.gdb,GDB)
 run-gdb-console: $(QEMUIMAGEFILES) check-qemu-console
 	$(call run,$(QEMU) $(QEMUOPT) -curses -gdb tcp::12949 $(QEMUIMG),QEMU $<)
-run-gdb-paused: run-gdb-$(QEMUDISPLAY)
+run-gdb-paused: run-gdb-paused-$(QEMUDISPLAY)
 	@:
-run-gdb-graphic-paused: $(QEMUIMAGEFILES) check-qemu
+run-gdb-paused-graphic: $(QEMUIMAGEFILES) check-qemu
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -S -gdb tcp::12949 $(QEMUIMG) &,QEMU $<)
 	$(call run,sleep 0.5; gdb -x build/chickadee.gdb,GDB)
-run-gdb-console-paused: $(QEMUIMAGEFILES) check-qemu-console
+run-gdb-paused-console: $(QEMUIMAGEFILES) check-qemu-console
 	$(call run,$(QEMU) $(QEMUOPT) -curses -S -gdb tcp::12949 $(QEMUIMG),QEMU $<)
 
 run-$(RUNSUFFIX): run
@@ -242,6 +242,9 @@ run-monitor-$(RUNSUFFIX): run-monitor
 run-gdb-$(RUNSUFFIX): run-gdb
 run-gdb-graphic-$(RUNSUFFIX): run-gdb-graphic
 run-gdb-console-$(RUNSUFFIX): run-gdb-console
+run-gdb-paused-$(RUNSUFFIX): run-gdb-paused
+run-gdb-paused-graphic-$(RUNSUFFIX): run-gdb-paused-graphic
+run-gdb-paused-console-$(RUNSUFFIX): run-gdb-paused-console
 
 # Kill all my qemus
 kill:
