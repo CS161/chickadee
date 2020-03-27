@@ -136,7 +136,7 @@ uint16_t memusage::symbol_at(uintptr_t pa) const {
             return 'K' | 0x4000;
         } else if ((v & f_kernel) && (v & f_user)) {
             // kernel-restricted + user-accessible = error
-            log_printf("%p: sharing error, kernel-restricted + user-accessible\n");
+            log_printf("%p: sharing error, kernel-restricted + user-accessible\n", pa);
             return 'E' | 0xF400;
         } else {
             // find lowest process involved with this page

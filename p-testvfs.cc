@@ -82,7 +82,7 @@ void process_main() {
     assert_gt(r, 0);
 
     r = sys_dup2(2, 2);
-    assert_eq(r, 0);
+    assert_eq(r, 2);
 
     r = dprintf(2, "10\n");
     assert_gt(r, 0);
