@@ -98,13 +98,14 @@ Source files
 Build files
 -----------
 
-The main output of the build process is a disk image,
-`chickadeeos.img`. QEMU “boots” off this disk image, but the image
-could conceivably boot on real hardware! The build process also
+The main outputs of the build process are two disk images, `chickadeeboot.img` and 
+`chickadeefs.img`. QEMU “boots” off a disk image, but the image
+could conceivably boot on real hardware! The build process relies on and
 produces other files that can be useful to examine.
 
 | File                         | Description                          |
 | ---------------------------- | ------------------------------------ |
+| `GNUmakefile`                | Instructions on how to build things  |
 | `obj/kernel.asm`             | Kernel assembly (with addresses)     |
 | `obj/kernel.sym`             | Kernel defined symbols               |
 | `obj/p-allocator.asm`, `sym` | Same for process binaries            |

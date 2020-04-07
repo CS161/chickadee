@@ -186,13 +186,17 @@ $(OBJDIR)/chickadeefsck: $(CHICKADEEFSCK_OBJS) $(BUILDSTAMPS)
 # How to make disk images
 
 # If you change the `-f` argument, also change `boot.cc:KERNEL_START_SECTOR`
-chickadeeboot.img: $(OBJDIR)/mkchickadeefs $(OBJDIR)/bootsector $(OBJDIR)/kernel
-	$(call run,$(OBJDIR)/mkchickadeefs -b 4096 -f 16 -s $(OBJDIR)/bootsector $(OBJDIR)/kernel > $@,CREATE $@)
+# The following two items have been formatted to highlight their similarities
+chickadeeboot.img: $(OBJDIR)/mkchickadeefs \
+	$(OBJDIR)/bootsector $(OBJDIR)/kernel
+	$(call run,$(OBJDIR)/mkchickadeefs -b  4096 -f 16       -s \
+	$(OBJDIR)/bootsector $(OBJDIR)/kernel                    > $@,CREATE $@)
 
-chickadeefs.img: $(OBJDIR)/mkchickadeefs \
-	$(OBJDIR)/bootsector $(OBJDIR)/kernel $(DISKFS_CONTENTS) \
-	$(DISKFS_BUILDSTAMP)
-	$(call run,$(OBJDIR)/mkchickadeefs -b 32768 -f 16 -j 64 -s $(OBJDIR)/bootsector $(OBJDIR)/kernel $(DISKFS_CONTENTS) > $@,CREATE $@)
+chickadeefs.img:   $(OBJDIR)/mkchickadeefs \
+	$(OBJDIR)/bootsector $(OBJDIR)/kernel \
+	$(DISKFS_CONTENTS) $(DISKFS_BUILDSTAMP)
+	$(call run,$(OBJDIR)/mkchickadeefs -b 32768 -f 16 -j 64 -s \
+	$(OBJDIR)/bootsector $(OBJDIR)/kernel $(DISKFS_CONTENTS) > $@,CREATE $@)
 
 cleanfs:
 	$(call run,rm -f chickadeefs.img,RM chickadeefs.img)
