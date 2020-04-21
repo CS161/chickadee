@@ -63,37 +63,48 @@ init_boot_pagetable:
         # 0x2000: L2 page table; entries 0 and 510 map 1st 1GB of physmem
         # This weird setup is the minimal page table that maps all of
         # low-canonical, high-canonical, and kernel-text addresses to
-        # the first 1GB of physical memory.
+        # the first 1GB (?) of physical memory.
+        # (Not sure about the 1 GB number. Emperical tests show only 128 MB!)
         movl    $BOOT_PAGETABLE, %edi
-        leal    0x1000 + PTE_P + PTE_W(%edi), %ecx
+        leal    0x1000 + PTE_P + PTE_W(%edi), %ecx      # combine address with flags
         movl    %ecx, (%edi)
         movl    %ecx, 0x800(%edi)
         movl    %ecx, 0xFF8(%edi)
+        # the offsets below are adjusted by -3 to remove the flags!
         movl    $(PTE_P + PTE_W + PTE_PS), -3(%ecx)
         movl    $(PTE_P + PTE_W + PTE_PS), 0xFED(%ecx)
 
-# Switch from real to protected mode:
-#   Up until now, there's been no protection, so we've gotten along perfectly
-#   well without explicitly telling the processor how to translate addresses.
-#   When we switch to protected mode, this is no longer true!
+# Switch from real mode (16-bit) to long mode (64-bit):
+#   Up until now, we have used direct physical memory addressing (real mode)
+#   without explicitly telling the processor how to translate addresses.
+#   When we enable paging, this is no longer true!
 #   We need at least to set up some "segments" that tell the processor it's
 #   OK to run code at any address, or write to any address.
 #   The `gdt` and `gdtdesc` tables below define these segments.
 #   This code loads them into the processor.
 #   We need this setup to ensure the transition to protected mode is smooth.
+#   See https://en.wikipedia.org/wiki/X86-64 for a nice diagram and description of processor modes.
 
-real_to_prot:
+real_to_long:
         movl    %cr4, %eax              # enable physical address extensions
-        orl     $(CR4_PSE | CR4_PAE), %eax
+        orl     $(CR4_PAE), %eax        # https://en.wikipedia.org/wiki/Physical_Address_Extension
         movl    %eax, %cr4
-        movl    %edi, %cr3
 
-        movl    $MSR_IA32_EFER, %ecx    # turn on 64-bit mode
-        rdmsr
+        movl    %edi, %cr3              # set the address of the page table
+
+        movl    $MSR_IA32_EFER, %ecx    # enable long mode (https://wiki.osdev.org/Setting_Up_Long_Mode)
+
+        rdmsr                           # read from the model-specific register into %eax
+                                        #   IA32_EFER_LME is to enable 64-bit mode
+                                        #   IA32_EFER_SCE is to enable syscall/sysret
+                                        #   IA32_EFER_NXE is to allow PTE_XD (eXecute Disabled) in page table entries
         orl     $(IA32_EFER_LME | IA32_EFER_SCE | IA32_EFER_NXE), %eax
-        wrmsr
+        wrmsr                           # write %eax to the model-specific register
 
-        movl    %cr0, %eax              # turn on protected mode
+        movl    %cr0, %eax              # turn on some other features
+                                        #   CR0_PE sets Protection Enable
+                                        #   CR0_WP sets Write Protect
+                                        #   CR0_PG sets CR0_PG
         orl     $(CR0_PE | CR0_WP | CR0_PG), %eax
         movl    %eax, %cr0
 
