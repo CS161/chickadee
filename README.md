@@ -22,7 +22,7 @@ and CPU resets to the standard error. This setting will also cause QEMU to
 quit after encountering a [triple fault][] (normally it will reboot).
 
 `make run-PROGRAM` runs `p-PROGRAM.cc` as the first non-init process. The
-default is `alloc`.
+default is `allocator`.
 
 `make HALT=1 run-PROGRAM` should make QEMU exit once all processes are done.
 
