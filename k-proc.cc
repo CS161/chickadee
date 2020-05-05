@@ -70,6 +70,8 @@ void proc::init_kernel(pid_t pid, void (*f)()) {
 //    Called when `k-exception.S` tries to run a non-runnable proc.
 
 void proc::panic_nonrunnable() {
+    // Note that panic() will prouce a page fault if there is no console
+    // (https://github.com/CS161/chickadee/issues/14)
     panic("Trying to resume proc %d, which is not runnable\n"
           "(proc state %d, last user %%rip %p)",
           id_, pstate_.load(), last_user_rip_);
