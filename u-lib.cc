@@ -36,6 +36,8 @@ int printf(const char* format, ...) {
 
 // panic, assert_fail
 //     Call the SYSCALL_PANIC system call so the kernel loops until Control-C.
+//      Note that panic() will prouce a page fault if there is no console
+//      (https://github.com/CS161/chickadee/issues/14)
 
 void panic(const char* format, ...) {
     va_list val;

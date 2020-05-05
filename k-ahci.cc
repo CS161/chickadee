@@ -175,6 +175,8 @@ void ahcistate::handle_error_interrupt() {
     pr_->serror = ~0U;
     pr_->command |= pcmd_start;
     // XXX must `READ LOG EXT` to clear error
+    // Note that panic() will prouce a page fault if there is no console
+    // (https://github.com/CS161/chickadee/issues/14)
     panic("SATA disk error");
 }
 

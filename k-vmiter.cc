@@ -11,6 +11,8 @@ void vmiter::down() {
         pep_ = &pt->entry[pageindex(va_, level_)];
     }
     if ((*pep_ & PTE_PAMASK) >= 0x100000000UL) {
+        // Note that panic() will prouce a page fault if there is no console
+        // (https://github.com/CS161/chickadee/issues/14)
         panic("Page table %p may contain uninitialized memory!\n"
               "(Page table contents: %p)\n", pt_, *pep_);
     }

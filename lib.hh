@@ -474,6 +474,8 @@ assert_memeq_fail(const char* file, int line, const char* msg,
 
 // panic(format, ...)
 //    Prints the message determined by `format` and fails.
+//      Note that panic() will prouce a page fault if there is no console
+//      (https://github.com/CS161/chickadee/issues/14)
 void __attribute__((noinline, noreturn, cold))
 panic(const char* format, ...);
 
