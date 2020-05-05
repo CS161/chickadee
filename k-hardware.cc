@@ -413,6 +413,8 @@ void __cxa_guard_release(long long* arg) {
 // __cxa_pure_virtual()
 //    Used as a placeholder for pure virtual functions.
 void __cxa_pure_virtual() {
+    // Note that panic() will prouce a page fault if there is no console
+    // (https://github.com/CS161/chickadee/issues/14)
     panic("pure virtual function called in kernel!\n");
 }
 
