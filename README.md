@@ -22,7 +22,11 @@ and CPU resets to the standard error. This setting will also cause QEMU to
 quit after encountering a [triple fault][] (normally it will reboot).
 
 `make run-PROGRAM` runs `p-PROGRAM.cc` as the first non-init process. The
-default is `allocator`.
+default is `allocator`. If you choose an alternate first process, note a 
+couple things:
+
+* An initial process like p-testkalloc.cc calls panic(), but without a console this gives a [page fault](https://github.com/CS161/chickadee/issues/14).
+* build/chickadee.gdb is hard-coded to load symbols for p-allocator.cc, so this file must be [modified](https://github.com/CS161/chickadee/issues/13) if you want to debug an alternate process.
 
 `make HALT=1 run-PROGRAM` should make QEMU exit once all processes are done.
 
