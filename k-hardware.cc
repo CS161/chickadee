@@ -171,7 +171,11 @@ struct log_printer : public printer {
 };
 }
 
+// things get ugly when multiple processes output at the same time!
+static spinlock printLock;
+
 void log_vprintf(const char* format, va_list val) {
+    spinlock_guard guard(printLock);
     log_printer p;
     p.vprintf(0, format, val);
 }
