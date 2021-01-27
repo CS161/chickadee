@@ -3,7 +3,8 @@ all: $(QEMUIMAGEFILES)
 
 # Place local configuration options, such as `CC=clang`, in
 # `config.mk` so you don't have to list them every time.
--include config.mk
+CONFIG ?= config.mk
+-include $(CONFIG)
 
 # `$(V)` controls whether the makefiles print verbose commands (the shell
 # commands run by Make) or brief commands (like `COMPILE`).
@@ -33,6 +34,9 @@ QEMUOPT = -net none -parallel $(LOG) -smp $(NCPU)
 ifeq ($(D),1)
 QEMUOPT += -d int,cpu_reset,guest_errors -no-reboot
 endif
+ifneq ($(NOGDB),1)
+QEMUGDB ?= -gdb tcp::12949
+endif
 
 
 # Sets of object files
@@ -47,7 +51,7 @@ KERNEL_OBJS = $(OBJDIR)/k-exception.ko \
 	$(OBJDIR)/k-ahci.ko $(OBJDIR)/k-chkfs.ko $(OBJDIR)/k-chkfsiter.ko \
 	$(OBJDIR)/k-memviewer.ko $(OBJDIR)/lib.ko $(OBJDIR)/k-initfs.ko
 
-PROCESSES = $(patsubst %.cc,%,$(wildcard p-*.cc))
+PROCESSES ?= $(patsubst %.cc,%,$(wildcard p-*.cc))
 
 PROCESS_LIB_OBJS = $(OBJDIR)/lib.uo $(OBJDIR)/u-lib.uo $(OBJDIR)/crc32c.uo
 
@@ -107,7 +111,7 @@ $(OBJDIR)/bootentry.o: $(OBJDIR)/%.o: \
 $(OBJDIR)/%.uo: %.cc $(BUILDSTAMPS)
 	$(call cxxcompile,$(CXXFLAGS) -O1 -DCHICKADEE_PROCESS -c $< -o $@,COMPILE $<)
 
-$(OBJDIR)/%.uo: %.S $(OBJDIR)/u-asm.h $(KERNELBUILDSTAMPS)
+$(OBJDIR)/%.uo: %.S $(OBJDIR)/u-asm.h $(BUILDSTAMPS)
 	$(call assemble,-O2 -c $< -o $@,ASSEMBLE $<)
 
 
@@ -150,7 +154,7 @@ $(OBJDIR)/kernel: $(OBJDIR)/kernel.full $(OBJDIR)/mkchickadeesymtab
 $(OBJDIR)/%: $(OBJDIR)/%.full
 	$(call run,$(OBJDUMP) -C -S -j .text -j .ctors $< >$@.asm)
 	$(call run,$(NM) -n $< >$@.sym)
-	$(call run,$(OBJCOPY) -j .text -j .rodata -j .data -j .bss -j .ctors -j .init_array $<,STRIP,$@)
+	$(call run,$(QUIETOBJCOPY) -j .text -j .rodata -j .data -j .bss -j .ctors -j .init_array $<,STRIP,$@)
 
 $(OBJDIR)/bootsector: $(BOOT_OBJS) boot.ld
 	$(call link,-T boot.ld -o $@.full $(BOOT_OBJS),LINK)
@@ -174,7 +178,7 @@ $(OBJDIR)/%.o: build/%.cc $(BUILDSTAMPS)
 	$(call run,$(HOSTCXX) $(CPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) -c -o $@,HOSTCOMPILE,$<)
 
 $(OBJDIR)/mkchickadeefs: build/mkchickadeefs.cc $(BUILDSTAMPS)
-	$(call run,$(HOSTCXX) $(CPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) -o $@,HOSTCOMPILE,$<)
+	$(call run,$(HOSTCXX) $(CPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) -g -o $@,HOSTCOMPILE,$<)
 
 CHICKADEEFSCK_OBJS = $(OBJDIR)/chickadeefsck.o \
 	$(OBJDIR)/journalreplayer.o \
@@ -212,12 +216,12 @@ QEMUIMG = -M q35 \
 
 run: run-$(QEMUDISPLAY)
 	@:
-run-graphic: $(QEMUIMAGEFILES) check-qemu
-	@echo '* Run `gdb -x build/chickadee.gdb` to connect gdb to qemu.' 1>&2
-	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -gdb tcp::12949 $(QEMUIMG),QEMU $<)
-run-console: $(QEMUIMAGEFILES) check-qemu-console
-	@echo '* Run `gdb -x build/chickadee.gdb` to connect gdb to qemu.' 1>&2
-	$(call run,$(QEMU) $(QEMUOPT) -curses -gdb tcp::12949 $(QEMUIMG),QEMU $<)
+run-gdb-report:
+	@if test "$(QEMUGDB)" = "-gdb tcp::12949"; then echo '* Run `gdb -x build/weensyos.gdb` to connect gdb to qemu.' 1>&2; fi
+run-graphic: $(QEMUIMAGEFILES) check-qemu run-gdb-report
+	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) $(QEMUGDB) $(QEMUIMG),QEMU $<)
+run-console: $(QEMUIMAGEFILES) check-qemu-console run-gdb-report
+	$(call run,$(QEMU) $(QEMUOPT) -curses $(QEMUGDB) $(QEMUIMG),QEMU $<)
 run-monitor: $(QEMUIMAGEFILES) check-qemu
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -monitor stdio $(QEMUIMG),QEMU $<)
 run-gdb: run-gdb-$(QEMUDISPLAY)

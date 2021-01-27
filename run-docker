@@ -1,0 +1,74 @@
+#! /bin/bash
+
+maindir=""
+destdir=chickadee
+
+fresh=
+if test "$1" = "-f" -o "$1" = "--fresh"; then
+    fresh=1
+    shift
+fi
+if test "$#" -ne 0; then
+    echo "Usage: run-docker [-f | --fresh]" 1>&2
+    exit 1
+fi
+
+if stat --format %i / >/dev/null 2>&1; then
+    statformatarg="--format"
+else
+    statformatarg="-f"
+fi
+myfileid=`stat $statformatarg %d:%i "${BASH_SOURCE[0]}" 2>/dev/null`
+
+dir="`pwd`"
+subdir=""
+while test "$dir" != / -a "$dir" != ""; do
+    thisfileid=`stat $statformatarg %d:%i "$dir"/run-docker 2>/dev/null`
+    if test -n "$thisfileid" -a "$thisfileid" = "$myfileid"; then
+        maindir="$dir"
+        break
+    fi
+    subdir="/`basename "$dir"`$subdir"
+    dir="`dirname "$dir"`"
+done
+
+if test -z "$maindir" && expr "${BASH_SOURCE[0]}" : / >/dev/null 2>&1; then
+    maindir="`dirname "${BASH_SOURCE[0]}"`"
+    subdir=""
+fi
+
+if test -n "$maindir" -a -z "$fresh"; then
+    existing_image="`docker ps -f status=running -f ancestor=cs61:latest -f volume=/host_mnt"$maindir" --no-trunc --format "{{.CreatedAt}},{{.ID}}" | sort -r | head -n 1`"
+    if test -n "$existing_image"; then
+        created_at="`echo $existing_image | sed 's/,.*//'`"
+        image="`echo $existing_image | sed 's/^.*,//'`"
+        image12="`echo $image | head -c 12`"
+        echo "* Using running container $image12, created $created_at" 1>&2
+        echo "- To start a new container, exit then \`./run-docker -f\`" 1>&2
+        echo "- To kill this container, exit then \`docker kill $image12\`" 1>&2
+        exec docker exec -it $image /bin/bash
+    fi
+fi
+
+netarg=
+if test `uname` = Darwin; then
+    if ! netstat -n -a -p tcp | grep '\.6169[  ].*LISTEN' >/dev/null; then
+        netarg="$netarg "'--expose=6169/tcp -p 6169:6169/tcp'
+    fi
+    if ! netstat -n -a -p tcp | grep '\.12949[ 	].*LISTEN' >/dev/null; then
+        netarg="$netarg "'--expose=12949/tcp -p 12949:12949/tcp'
+    fi
+elif test -x /bin/netstat; then
+    if ! netstat -n -a -p tcp | grep '\.6169[  ].*LISTEN' >/dev/null; then
+        netarg="$netarg "'--expose=6169/tcp -p 6169:6169/tcp'
+    fi
+    if ! netstat -n -l -t | grep ':12949[ 	]' >/dev/null; then
+        netarg="$netarg "'--expose=12949/tcp -p 12949:12949/tcp'
+    fi
+fi
+
+if test -n "$maindir"; then
+    exec docker run -it --rm --cap-add=SYS_PTRACE --security-opt seccomp=unconfined -v "$maindir":/home/cs61-user/$destdir -w "/home/cs61-user/$destdir$subdir" $netarg cs61:latest
+else
+    exec docker run -it --rm --cap-add=SYS_PTRACE --security-opt seccomp=unconfined $netarg cs61:latest
+fi

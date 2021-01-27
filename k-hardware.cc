@@ -14,9 +14,9 @@ pcistate pcistate::state;
 
 
 // kalloc_pagetable
-//    Allocate and initialize a new page table. The page is allocated
-//    using `kalloc()`. The page table's high memory is copied from
-//    `early_pagetable`.
+//    Allocate, initialize, and return a new, empty page table. Memory is
+//    allocated using `kalloc()`. The page table's high memory is copied
+//    from `early_pagetable`.
 
 x86_64_pagetable* kalloc_pagetable() {
     x86_64_pagetable* pt = knew<x86_64_pagetable>();
@@ -35,7 +35,7 @@ x86_64_pagetable* kalloc_pagetable() {
 //    new page table, and calls panic() if they aren't.
 
 void set_pagetable(x86_64_pagetable* pagetable) {
-    assert(pagetable != nullptr);          // must not be NULL
+    assert(pagetable != nullptr);          // must not be nullptr
     assert(vmiter(pagetable, HIGHMEM_BASE).pa() == 0);
     assert(vmiter(pagetable, HIGHMEM_BASE).writable());
     assert(!vmiter(pagetable, HIGHMEM_BASE).user());
@@ -114,11 +114,15 @@ void reboot() {
 //    machine if `HALT=1` was specified during kernel build.
 
 void process_halt() {
+    // change keyboard state, hide cursor
     auto& kbd = keyboardstate::get();
     kbd.state_ = keyboardstate::boot;
+    consolestate::get().cursor(false);
+    // maybe halt machine
     if (memfile::initfs_lookup(".halt") >= 0) {
         poweroff();
     }
+    // otherwise yield forever
     while (true) {
         current()->yield();
     }
@@ -222,15 +226,13 @@ bool lookup_symbol(uintptr_t addr, const char** name, uintptr_t* start) {
 
 namespace {
 struct backtracer {
-    uintptr_t rbp_;
-    uintptr_t rsp_;
-    uintptr_t stack_top_;
-
     backtracer(uintptr_t rbp, uintptr_t rsp, uintptr_t stack_top)
         : rbp_(rbp), rsp_(rsp), stack_top_(stack_top) {
+        pt_ = pa2kptr<x86_64_pagetable*>(rdcr3());
+        check();
     }
     bool ok() const {
-        return rbp_ >= rsp_ && stack_top_ - rbp_ >= 16;
+        return rsp_ != 0;
     }
     uintptr_t ret_rip() const {
         uintptr_t* rbpx = reinterpret_cast<uintptr_t*>(rbp_);
@@ -240,6 +242,21 @@ struct backtracer {
         uintptr_t* rbpx = reinterpret_cast<uintptr_t*>(rbp_);
         rsp_ = rbp_ + 16;
         rbp_ = rbpx[0];
+        check();
+    }
+
+private:
+    uintptr_t rbp_;
+    uintptr_t rsp_;
+    uintptr_t stack_top_;
+    x86_64_pagetable* pt_;
+
+    void check() {
+        if (rbp_ < rsp_
+            || stack_top_ - rbp_ < 16
+            || ((vmiter(pt_, rbp_).range_perm(16)) & PTE_P) == 0) {
+            rbp_ = rsp_ = 0;
+        }
     }
 };
 }
@@ -271,7 +288,7 @@ void log_backtrace(const char* prefix, uintptr_t rsp, uintptr_t rbp) {
 }
 
 
-// error_vprintf, error_printf
+// error_vprintf
 //    Print debugging messages to the console and to the host's
 //    `log.txt` file via `log_printf`.
 
@@ -322,7 +339,7 @@ static void vpanic(uintptr_t rsp, uintptr_t rbp, uintptr_t rip,
                    const char* format, va_list val) {
     panicking = true;
 
-    cursorpos = CPOS(24, 0);
+    cursorpos = CPOS(24, 80);
     if (format) {
         // Print panic message to both the screen and the log
         error_printf(-1, COLOR_ERROR, "PANIC: ");
@@ -363,8 +380,12 @@ void panic_at(uintptr_t rsp, uintptr_t rbp, uintptr_t rip,
     fail();
 }
 
-void assert_fail(const char* file, int line, const char* msg) {
+void assert_fail(const char* file, int line, const char* msg,
+                 const char* description) {
     cursorpos = CPOS(23, 0);
+    if (description) {
+        error_printf("%s:%d: %s\n", file, line, description);
+    }
     error_printf("%s:%d: kernel assertion '%s' failed\n", file, line, msg);
     error_print_backtrace(rdrsp(), rdrbp());
     fail();

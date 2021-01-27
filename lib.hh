@@ -20,6 +20,7 @@ void* memchr(const void* s, int c, size_t n);
 size_t strlen(const char* s);
 size_t strnlen(const char* s, size_t maxlen);
 char* strcpy(char* dst, const char* src);
+char* strncpy(char* dst, const char* src, size_t maxlen);
 int strcmp(const char* a, const char* b);
 int strncmp(const char* a, const char* b, size_t maxlen);
 int strcasecmp(const char* a, const char* b);
@@ -45,70 +46,41 @@ void srand(unsigned seed);
 int rand(int min, int max);
 
 
-// Returns the offset of `member` relative to the beginning of a struct type
+// Return the offset of `member` relative to the beginning of a struct type
 #ifndef offsetof
 #define offsetof(type, member)  __builtin_offsetof(type, member)
 #endif
 
-// Returns the number of elements in an array
+// Return the number of elements in an array
 #define arraysize(array)        (sizeof(array) / sizeof(array[0]))
 
 
-// Type information
+// Arithmetic
 
-// printfmt<T>
-//    `printfmt<T>::spec` defines a printf specifier for type T.
-//    E.g., `printfmt<int>::spec` is `"d"`.
-
-template <typename T> struct printfmt {};
-template <> struct printfmt<bool>           { static constexpr char spec[] = "d"; };
-template <> struct printfmt<char>           { static constexpr char spec[] = "c"; };
-template <> struct printfmt<signed char>    { static constexpr char spec[] = "d"; };
-template <> struct printfmt<unsigned char>  { static constexpr char spec[] = "u"; };
-template <> struct printfmt<short>          { static constexpr char spec[] = "d"; };
-template <> struct printfmt<unsigned short> { static constexpr char spec[] = "u"; };
-template <> struct printfmt<int>            { static constexpr char spec[] = "d"; };
-template <> struct printfmt<unsigned>       { static constexpr char spec[] = "u"; };
-template <> struct printfmt<long>           { static constexpr char spec[] = "ld"; };
-template <> struct printfmt<unsigned long>  { static constexpr char spec[] = "lu"; };
-template <typename T> struct printfmt<T*>   { static constexpr char spec[] = "p"; };
-
-template <typename T> constexpr char printfmt<T*>::spec[];
-
-
-// Min, max, and round-to-multiple operations
-
+// min(a, b, ...)
+//    Return the minimum of the arguments.
 template <typename T>
 inline constexpr T min(T a, T b) {
     return a < b ? a : b;
 }
-template <typename T>
-inline constexpr T min(T a, T b, T c) {
-    return min(min(a, b), c);
+template <typename T, typename... Rest>
+inline constexpr T min(T a, T b, Rest... c) {
+    return min(min(a, b), c...);
 }
+
+// max(a, b, ...)
+//    Return the maximum of the arguments.
 template <typename T>
 inline constexpr T max(T a, T b) {
     return b < a ? a : b;
 }
-template <typename T>
-inline constexpr T max(T a, T b, T c) {
-    return max(max(a, b), c);
+template <typename T, typename... Rest>
+inline constexpr T max(T a, T b, Rest... c) {
+    return max(max(a, b), c...);
 }
-
-template <typename T>
-inline constexpr T round_down(T x, unsigned multiple) {
-    static_assert(std::is_unsigned<T>::value, "T must be unsigned");
-    return x - (x % multiple);
-}
-template <typename T>
-inline constexpr T round_up(T x, unsigned multiple) {
-    static_assert(std::is_unsigned<T>::value, "T must be unsigned");
-    return round_down(x + multiple - 1, multiple);
-}
-
 
 // msb(x)
-//    Returns the index of most significant one bit in `x`, plus one.
+//    Return index of most significant one bit in `x`, plus one.
 //    Returns 0 if `x == 0`.
 inline constexpr int msb(int x) {
     return x ? sizeof(x) * 8 - __builtin_clz(x) : 0;
@@ -130,7 +102,7 @@ inline constexpr int msb(unsigned long long x) {
 }
 
 // lsb(x)
-//    Returns the index of least significant one bit in `x`, plus one.
+//    Return index of least significant one bit in `x`, plus one.
 //    Returns 0 if `x == 0`.
 inline constexpr int lsb(int x) {
     return __builtin_ffs(x);
@@ -151,8 +123,28 @@ inline constexpr int lsb(unsigned long long x) {
     return __builtin_ffsll(x);
 }
 
+// round_down(x, m)
+//    Return the largest multiple of `m` less than or equal to `x`.
+//    Equivalently, round `x` down to the nearest multiple of `m`.
+template <typename T>
+inline constexpr T round_down(T x, unsigned m) {
+    static_assert(std::is_unsigned<T>::value, "T must be unsigned");
+    return x - (x % m);
+}
+
+// round_up(x, m)
+//    Return the smallest multiple of `m` greater than or equal to `x`.
+//    Equivalently, round `x` up to the nearest multiple of `m`.
+template <typename T>
+inline constexpr T round_up(T x, unsigned m) {
+    static_assert(std::is_unsigned<T>::value, "T must be unsigned");
+    return round_down(x + m - 1, m);
+}
+
 // round_down_pow2(x)
-//    Rounds x down to the nearest power of 2.
+//    Return the largest power of 2 less than or equal to `x`.
+//    Equivalently, round `x` down to the nearest power of 2.
+//    Returns 0 if `x == 0`.
 template <typename T>
 inline constexpr T round_down_pow2(T x) {
     static_assert(std::is_unsigned<T>::value, "T must be unsigned");
@@ -160,7 +152,9 @@ inline constexpr T round_down_pow2(T x) {
 }
 
 // round_up_pow2(x)
-//    Rounds x up to the nearest power of 2.
+//    Return the smallest power of 2 greater than or equal to `x`.
+//    Equivalently, round `x` up to the nearest power of 2.
+//    Returns 0 if `x == 0`.
 template <typename T>
 inline constexpr T round_up_pow2(T x) {
     static_assert(std::is_unsigned<T>::value, "T must be unsigned");
@@ -357,7 +351,7 @@ void console_clear();
 
 
 // console_puts(cursor, color, s, len)
-//    Writes a string to the CGA console. Writes exactly `len` characters.
+//    Write a string to the CGA console. Writes exactly `len` characters.
 //
 //    The `cursor` argument is a cursor position, such as `CPOS(r, c)`
 //    for row number `r` and column number `c`. The `color` argument
@@ -369,7 +363,7 @@ int console_puts(int cpos, int color, const char* s, size_t len);
 
 
 // console_printf(cursor, color, format, ...)
-//    Formats and prints a message to the CGA console.
+//    Format and print a message to the CGA console.
 //
 //    The `format` argument supports some of the C printf function's escapes:
 //    %d (to print an integer in decimal notation), %u (to print an unsigned
@@ -417,17 +411,40 @@ void error_printf(const char* format, ...)
     __attribute__((noinline, cold));
 
 
+// Type information
+
+// printfmt<T>
+//    `printfmt<T>::spec` defines a printf specifier for type T.
+//    E.g., `printfmt<int>::spec` is `"d"`.
+
+template <typename T> struct printfmt {};
+template <> struct printfmt<bool>           { static constexpr char spec[] = "d"; };
+template <> struct printfmt<char>           { static constexpr char spec[] = "c"; };
+template <> struct printfmt<signed char>    { static constexpr char spec[] = "d"; };
+template <> struct printfmt<unsigned char>  { static constexpr char spec[] = "u"; };
+template <> struct printfmt<short>          { static constexpr char spec[] = "d"; };
+template <> struct printfmt<unsigned short> { static constexpr char spec[] = "u"; };
+template <> struct printfmt<int>            { static constexpr char spec[] = "d"; };
+template <> struct printfmt<unsigned>       { static constexpr char spec[] = "u"; };
+template <> struct printfmt<long>           { static constexpr char spec[] = "ld"; };
+template <> struct printfmt<unsigned long>  { static constexpr char spec[] = "lu"; };
+template <typename T> struct printfmt<T*>   { static constexpr char spec[] = "p"; };
+
+template <typename T> constexpr char printfmt<T*>::spec[];
+
+
 // Assertions
 
 // assert(x)
-//    If `x == 0`, prints a message and fails.
-#define assert(x)           do {                                        \
+//    If `x == 0`, print a message and fail.
+#define assert(x, ...)       do {                                       \
         if (!(x)) {                                                     \
-            assert_fail(__FILE__, __LINE__, #x);                        \
+            assert_fail(__FILE__, __LINE__, #x, ## __VA_ARGS__);        \
         }                                                               \
-    } while (0)
-void __attribute__((noinline, noreturn, cold))
-assert_fail(const char* file, int line, const char* msg);
+    } while (false)
+__attribute__((noinline, noreturn, cold))
+void assert_fail(const char* file, int line, const char* msg,
+                 const char* description = nullptr);
 
 
 // assert_[eq, ne, lt, le, gt, ge](x, y)
@@ -460,7 +477,7 @@ assert_op_fail(const char* file, int line, const char* msg,
 
 
 // assert_memeq(x, y, sz)
-//    If `memcmp(x, y, sz) != 0`, prints a message and fails.
+//    If `memcmp(x, y, sz) != 0`, print a message and fail.
 #define assert_memeq(x, y, sz)    do {                                  \
         auto __x = (x); auto __y = (y); size_t __sz = (sz);             \
         if (memcmp(__x, __y, __sz) != 0) {                              \
@@ -473,7 +490,7 @@ assert_memeq_fail(const char* file, int line, const char* msg,
 
 
 // panic(format, ...)
-//    Prints the message determined by `format` and fails.
+//    Print the message determined by `format` and fail.
 void __attribute__((noinline, noreturn, cold))
 panic(const char* format, ...);
 

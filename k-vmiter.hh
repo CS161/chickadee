@@ -11,47 +11,68 @@
 
 class vmiter {
   public:
-    // initialize a `vmiter` for `pt` pointing at `va`
+    // Initialize a `vmiter` for `pt`, with initial virtual address `va`
     inline vmiter(x86_64_pagetable* pt, uintptr_t va = 0);
     inline vmiter(const proc* p, uintptr_t va = 0);
 
-    inline uintptr_t va() const;      // current virtual address
-    inline uintptr_t last_va() const; // one past last va in this range
-    inline bool low() const;          // is va low?
-    inline uint64_t pa() const;       // current physical address
+    // Return current virtual address
+    inline uintptr_t va() const;
+    // Return one past last virtual address in this mapping range
+    inline uintptr_t last_va() const;
+    // Return true iff `va() <= VA_LOWMAX` (is a low canonical address)
+    inline bool low() const;
+    // Return physical address mapped at `va()`,
+    // or `(uintptr_t) -1` if `va()` is unmapped
+    inline uint64_t pa() const;
+    // Return a kernel-accessible pointer corresponding to `pa()`,
+    // or `nullptr` if `va()` is unmapped
     template <typename T = void*>
-    inline T kptr() const;            // kernel pointer for pa()
-    inline uint64_t perm() const;     // current permissions
-    inline bool perm(uint64_t p) const; // are all permissions `p` enabled?
-    inline bool present() const;      // is va present?
-    inline bool writable() const;     // is va writable?
-    inline bool user() const;         // is va user-accessible (unprivileged)?
+    inline T kptr() const;
 
-    inline vmiter& find(uintptr_t va);   // change virtual address to `va`
-    inline vmiter& operator+=(intptr_t delta);  // advance `va` by `delta`
+    // Return permissions of current mapping.
+    // Returns 0 unless `PTE_P` is set.
+    inline uint64_t perm() const;
+    // Return true iff `va()` is present (`PTE_P`)
+    inline bool present() const;
+    // Return true iff `va()` is present and writable (`PTE_P|PTE_W`)
+    inline bool writable() const;
+    // Return true iff `va()` is present and unprivileged (`PTE_P|PTE_U`)
+    inline bool user() const;
+    // Return intersection of permissions in [va(), va() + sz)
+    uint64_t range_perm(size_t sz) const;
+    // Return true iff `(perm() & desired_perm) == desired_perm`
+    inline bool perm(uint64_t desired_perm) const;
+    // Return true iff `(range_perm(sz) & desired_perm) == desired_perm`
+    inline bool range_perm(size_t sz, uint64_t desired_perm) const;
+
+
+    // Move to virtual address `va`; return `*this`
+    inline vmiter& find(uintptr_t va);
+    // Advance to virtual address `va() + delta`; return `*this`
+    inline vmiter& operator+=(intptr_t delta);
+    // Advance to virtual address `va() - delta`; return `*this`
     inline vmiter& operator-=(intptr_t delta);
-
-    // move to next page-aligned va, skipping large empty regions
-    // Never skips present pages.
+    // Move to next larger page-aligned virtual address, skipping large
+    // non-present regions
     void next();
-
-    // move to next page-aligned va with different perm/pa (i.e., `last_va()`)
-    // Like next(), but also skips present pages.
+    // Move to `last_va()`
     void next_range();
 
-    // map current va to `pa` with permissions `perm`
-    // Current va must be page-aligned. Calls `kalloc` to allocate
-    // page table pages if necessary. Panics on failure.
+    // Map current virtual address to `pa` with permissions `perm`.
+    // The current virtual address must be page-aligned. Calls `kalloc`
+    // to allocate page table pages if necessary; panics on failure.
     inline void map(uintptr_t pa, int perm);
+    // Same, but map a kernel pointer
     inline void map(void* kptr, int perm);
 
-    // Like `map`, but returns 0 on success and -1 on failure.
-    int try_map(uintptr_t pa, int perm)
-        __attribute__((warn_unused_result));
-    inline int try_map(void* kptr, int perm)
-        __attribute__((warn_unused_result));
+    // Map current virtual address to `pa` with permissions `perm`.
+    // The current virtual address must be page-aligned. Calls `kalloc`
+    // to allocate page table pages if necessary; returns 0 on success
+    // and -1 on failure.
+    [[gnu::warn_unused_result]] int try_map(uintptr_t pa, int perm);
+    [[gnu::warn_unused_result]] inline int try_map(void* kptr, int perm);
 
-    // free mapped page and clear mapping. Like `kfree(kptr()); map(0, 0)`
+    // Free mapped page and clear mapping. Like `kfree(kptr()); map(0, 0)`
     inline void kfree_page();
 
   private:
@@ -78,25 +99,43 @@ class vmiter {
 // }
 // kfree(pt);
 // ```
-// Note that `ptiter` will never visit the level 4 page table page.
+// Note that `ptiter` will never visit the root (level-4) page table page.
 
 class ptiter {
   public:
-    // initialize a `ptiter` for `pt` pointing at `va`
-    inline ptiter(x86_64_pagetable* pt, uintptr_t va = 0);
-    inline ptiter(const proc* p, uintptr_t va = 0);
+    // Initialize a physical iterator for `pt` with initial virtual address 0
+    inline ptiter(x86_64_pagetable* pt);
+    inline ptiter(const proc* p);
 
-    inline uintptr_t va() const;            // current virtual address
-    inline uintptr_t last_va() const;       // one past last va covered by ptp
-    inline bool active() const;             // does va exist?
-    inline bool low() const;                // is va low?
-    inline int level() const;               // current level (0-2)
-    inline x86_64_pagetable* ptp() const;   // current page table page
-    inline uintptr_t ptp_pa() const;        // physical address of ptp
-    inline void kfree_ptp();                // `kfree(ptp())` + clear mapping
+    // Return true once `ptiter` has iterated over all page table pages
+    // (not including the top-level page table page)
+    inline bool done() const;
 
-    // move to next page table page in depth-first order
+    // Return physical address of current page table page
+    inline uintptr_t pa() const;
+    // Return kernel-accessible pointer to the current page table page
+    inline x86_64_pagetable* kptr() const;
+    // Move to next page table page in depth-first order
     inline void next();
+
+    // Return current virtual address
+    inline uintptr_t va() const;
+    // Return one past the last virtual address in this mapping range
+    inline uintptr_t last_va() const;
+    // Return true iff `va() <= VA_LOWMAX` (is low canonical)
+    inline bool low() const;
+    // Return level of current page table page (0-2)
+    inline int level() const;
+
+    // Return first virtual address covered by entry `idx` in current pt
+    inline uintptr_t entry_va(unsigned idx) const;
+    // Return one past the last virtual address covered by entry
+    inline uintptr_t entry_last_va(unsigned idx) const;
+    // Return current page table entry
+    inline x86_64_pageentry_t entry(unsigned idx) const;
+
+    // Free current page table page (`kptr()`) and unmap current entry
+    inline void kfree_ptp();
 
   private:
     x86_64_pagetable* pt_;
@@ -138,27 +177,32 @@ inline uint64_t vmiter::pa() const {
 }
 template <typename T>
 inline T vmiter::kptr() const {
-    assert(*pep_ & PTE_P);
-    return pa2kptr<T>(pa());
-}
-inline uint64_t vmiter::perm() const {
     if (*pep_ & PTE_P) {
-        return *pep_ & perm_;
+        return pa2kptr<T>(pa());
     } else {
-        return 0;
+        return nullptr;
     }
 }
-inline bool vmiter::perm(uint64_t p) const {
-    return (*pep_ & perm_ & p) == p;
+inline uint64_t vmiter::perm() const {
+    // Returns 0-0xFFF. (XXX Does not track PTE_XD.)
+    // Returns 0 unless `(*pep_ & perm_ & PTE_P) != 0`.
+    uint64_t ph = *pep_ & perm_;
+    return ph & -(ph & PTE_P);
+}
+inline bool vmiter::perm(uint64_t desired_perm) const {
+    return (perm() & desired_perm) == desired_perm;
 }
 inline bool vmiter::present() const {
-    return (*pep_ & PTE_P) != 0;
+    return perm(PTE_P);
 }
 inline bool vmiter::writable() const {
     return perm(PTE_P | PTE_W);
 }
 inline bool vmiter::user() const {
     return perm(PTE_P | PTE_U);
+}
+inline bool vmiter::range_perm(size_t sz, uint64_t desired_perm) const {
+    return (range_perm(sz) & desired_perm) == desired_perm;
 }
 inline vmiter& vmiter::find(uintptr_t va) {
     real_find(va);
@@ -175,7 +219,7 @@ inline void vmiter::next_range() {
 }
 inline void vmiter::map(uintptr_t pa, int perm) {
     int r = try_map(pa, perm);
-    assert(r == 0);
+    assert(r == 0, "vmiter::map failed");
 }
 inline void vmiter::map(void* kp, int perm) {
     map(kptr2pa(kp), perm);
@@ -191,12 +235,12 @@ inline void vmiter::kfree_page() {
     *pep_ = 0;
 }
 
-inline ptiter::ptiter(x86_64_pagetable* pt, uintptr_t va)
+inline ptiter::ptiter(x86_64_pagetable* pt)
     : pt_(pt) {
-    go(va);
+    go(0);
 }
-inline ptiter::ptiter(const proc* p, uintptr_t va)
-    : ptiter(p->pagetable_, va) {
+inline ptiter::ptiter(const proc* p)
+    : ptiter(p->pagetable_) {
 }
 inline uintptr_t ptiter::va() const {
     return va_ & ~pageoffmask(level_);
@@ -204,11 +248,11 @@ inline uintptr_t ptiter::va() const {
 inline uintptr_t ptiter::last_va() const {
     return (va_ | pageoffmask(level_)) + 1;
 }
-inline bool ptiter::active() const {
-    return va_ <= VA_NONCANONMAX;
-}
 inline bool ptiter::low() const {
     return va_ <= VA_LOWMAX;
+}
+inline bool ptiter::done() const {
+    return va_ > VA_NONCANONMAX;
 }
 inline int ptiter::level() const {
     return level_ - 1;
@@ -216,14 +260,24 @@ inline int ptiter::level() const {
 inline void ptiter::next() {
     down(true);
 }
-inline uintptr_t ptiter::ptp_pa() const {
+inline uintptr_t ptiter::pa() const {
     return *pep_ & PTE_PAMASK;
 }
-inline x86_64_pagetable* ptiter::ptp() const {
-    return pa2kptr<x86_64_pagetable*>(ptp_pa());
+inline x86_64_pagetable* ptiter::kptr() const {
+    return pa2kptr<x86_64_pagetable*>(pa());
+}
+inline uintptr_t ptiter::entry_va(unsigned idx) const {
+    return va() + idx * (pageoffmask(level_ - 1) + 1);
+}
+inline uintptr_t ptiter::entry_last_va(unsigned idx) const {
+    return va() + (idx + 1) * (pageoffmask(level_ - 1) + 1);
+}
+inline x86_64_pageentry_t ptiter::entry(unsigned idx) const {
+    assert(idx < (1U << PAGEINDEXBITS));
+    return kptr()->entry[idx];
 }
 inline void ptiter::kfree_ptp() {
-    kfree(ptp());
+    kfree(kptr());
     *pep_ = 0;
 }
 

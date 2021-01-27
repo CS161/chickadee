@@ -172,11 +172,11 @@ restore_and_iret:
         testb $1, 12(%rsp)             // `reg_swapgs & 1`
         jnz 1f
 
-        // returning to kernel mode
+        // return to kernel mode
         addq $24, %rsp
         iretq
 
-1:      // returning to user mode
+1:      // return to user mode
         cli                            // prevent interrupts after `swapgs`
         swapgs
         pop %gs
@@ -186,6 +186,7 @@ restore_and_iret:
 
 // syscall_entry
 //    Kernel entry point for the `syscall` instruction
+
 .globl syscall_entry
 syscall_entry:
         swapgs
@@ -201,8 +202,8 @@ syscall_entry:
 
         subq $8, %rsp                  // error code unused
         pushq $-1                      // reg_swapgs, reg_intno
-        push %gs
-        push %fs
+        push %gs   // must restore
+        push %fs   // must restore
         pushq %r15 // callee saved
         pushq %r14 // callee saved
         pushq %r13 // callee saved
@@ -233,10 +234,16 @@ syscall_entry:
         cmpl $PROC_RUNNABLE, 24(%rdi)
         jne panic_nonrunnable
 
-        addq $(8 * 19), %rsp
+        addq $(8 * 15), %rsp           // skip general-purpose registers
+
+        pop %fs                        // restore `%fs` and `%gs`
         cli                            // prevent interrupts after `swapgs`
         swapgs
+        pop %gs
+
+        addq $(8 * 2), %rsp
         iretq
+
 
 panic_nonrunnable:
         call _ZN4proc17panic_nonrunnableEv
@@ -332,9 +339,10 @@ resume_regstate_fail:
         jmp 1f
 resume_yieldstate_fail:
         movq $proc_contains_yields_assert, %rdx
-1:      xorl %esi, %esi
+1:      xorl %ecx, %ecx
+        xorl %esi, %esi
         movq $k_exception_str, %rdi
-        call _Z11assert_failPKciS0_
+        call _Z11assert_failPKciS0_S0_
 1:      jmp 1b
 
 

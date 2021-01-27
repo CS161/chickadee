@@ -1,6 +1,12 @@
 #include "kernel.hh"
 #include "k-vmiter.hh"
 
+// k-memviewer.cc
+//
+//    The `memusage` class tracks memory usage by walking page tables,
+//    looks for errors, and prints the memory map to the console.
+
+
 class memusage {
   public:
     // tracks physical addresses in the range [0, maxpa)
@@ -31,10 +37,10 @@ class memusage {
     // both as kernel-only and process-associated.
 
 
-    // refresh the memory map from current state
+    // Refresh the memory map from current state
     void refresh();
 
-    // return the symbol (character & color) associated with `pa`
+    // Return the symbol (character & color) associated with `pa`
     uint16_t symbol_at(uintptr_t pa) const;
 
   private:
@@ -47,6 +53,12 @@ class memusage {
             v_[pa / PAGESIZE] |= flags;
         }
     }
+    // return one of the processes set in a mark
+    static int marked_pid(unsigned v) {
+        return lsb(v >> 2);
+    }
+    // print an error about a page table
+    void page_error(uintptr_t pa, const char* desc, int pid) const;
 };
 
 
@@ -86,7 +98,7 @@ void memusage::refresh() {
             auto irqs = p->lock_pagetable_read();
             if (p->pagetable_ && p->pagetable_ != early_pagetable) {
                 for (ptiter it(p); it.low(); it.next()) {
-                    mark(it.ptp_pa(), f_kernel | f_process(pid));
+                    mark(it.pa(), f_kernel | f_process(pid));
                 }
                 mark(ka2pa(p->pagetable_), f_kernel | f_process(pid));
 
@@ -104,6 +116,13 @@ void memusage::refresh() {
     }
 }
 
+void memusage::page_error(uintptr_t pa, const char* desc, int pid) const {
+    const char* fmt = pid >= 0
+        ? "PAGE TABLE ERROR: %lx: %s (pid %d)\n"
+        : "PAGE TABLE ERROR: %lx: %s\n";
+    error_printf(CPOS(22, 0), COLOR_ERROR, fmt, pa, desc, pid);
+    log_printf(fmt, pa, desc, pid);
+}
 
 uint16_t memusage::symbol_at(uintptr_t pa) const {
     auto range = physical_ranges.find(pa);
@@ -136,14 +155,12 @@ uint16_t memusage::symbol_at(uintptr_t pa) const {
             return 'K' | 0x4000;
         } else if ((v & f_kernel) && (v & f_user)) {
             // kernel-restricted + user-accessible = error
-            log_printf("%p: sharing error, kernel-restricted + user-accessible\n", pa);
+            page_error(pa, "sharing error, kernel-restricted + user-accessible\n",
+                       marked_pid(v));
             return 'E' | 0xF400;
         } else {
             // find lowest process involved with this page
-            int pid = 1;
-            while (!(v & f_process(pid))) {
-                ++pid;
-            }
+            pid_t pid = marked_pid(v);
             // foreground color is that associated with `pid`
             static const uint8_t colors[] = { 0xF, 0xC, 0xA, 0x9, 0xE };
             uint16_t ch = colors[pid % 5] << 8;
@@ -193,6 +210,7 @@ static void console_memviewer_virtual(memusage& mu, proc* vmp) {
 
 
 void console_memviewer(proc* vmp) {
+    // track physical memory
     static memusage mu;
     mu.refresh();
     // must be called with `ptable_lock` held

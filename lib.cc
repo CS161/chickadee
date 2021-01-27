@@ -1,5 +1,8 @@
 #include "lib.hh"
 #include "x86-64.h"
+#if CHICKADEE_KERNEL
+#include "k-devices.hh" /* for consolestate */
+#endif
 
 // lib.cc
 //
@@ -85,6 +88,19 @@ char* strcpy(char* dst, const char* src) {
     do {
         *d++ = *src++;
     } while (d[-1]);
+    return dst;
+}
+
+char* strncpy(char* dst, const char* src, size_t maxlen) {
+    char* d = dst;
+    while (maxlen > 0 && *src != '\0') {
+        *d++ = *src++;
+        --maxlen;
+    }
+    while (maxlen > 0) {
+        *d++ = '\0';
+        --maxlen;
+    }
     return dst;
 }
 
@@ -511,8 +527,7 @@ void console_clear() {
     }
     cursorpos = 0;
 #if CHICKADEE_KERNEL
-    extern void console_show_cursor();
-    console_show_cursor();
+    consolestate::get().cursor();
 #endif
 }
 
@@ -557,8 +572,7 @@ __noinline
 void console_printer::move_cursor() {
     cursorpos = cell_ - console;
 #if CHICKADEE_KERNEL
-    extern void console_show_cursor();
-    console_show_cursor();
+    consolestate::get().cursor();
 #endif
 }
 

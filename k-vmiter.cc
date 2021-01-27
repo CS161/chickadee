@@ -2,9 +2,32 @@
 
 const x86_64_pageentry_t vmiter::zero_pe = 0;
 
+uint64_t vmiter::range_perm(size_t sz) const {
+    uint64_t p = perm();
+    size_t rsz = pageoffmask(level_) + 1;
+    if ((p & PTE_P) != 0 && sz > rsz) {
+        if (sz > ((int64_t) va() < 0 ? 0 : VA_LOWEND) - va()) {
+            return 0;
+        }
+        vmiter it(*this);
+        sz += va() & (rsz - 1);
+        do {
+            sz -= rsz;
+            it.next_range();
+            p &= it.perm();
+            rsz = pageoffmask(it.level_) + 1;
+        } while ((p & PTE_P) != 0 && sz > rsz);
+    }
+    if ((p & PTE_P) != 0) {
+        return p;
+    } else {
+        return 0;
+    }
+}
+
 void vmiter::down() {
     while (level_ > 0 && (*pep_ & (PTE_P | PTE_PS)) == PTE_P) {
-        perm_ &= *pep_;
+        perm_ &= *pep_ | ~(PTE_P | PTE_W | PTE_U);
         --level_;
         uintptr_t pa = *pep_ & PTE_PAMASK;
         x86_64_pagetable* pt = pa2kptr<x86_64_pagetable*>(pa);
@@ -27,7 +50,7 @@ void vmiter::real_find(uintptr_t va) {
             pep_ = const_cast<x86_64_pageentry_t*>(&zero_pe);
         }
     } else {
-        int curidx = (reinterpret_cast<uintptr_t>(pep_) & PAGEOFFMASK) >> 3;
+        int curidx = (reinterpret_cast<uintptr_t>(pep_) % PAGESIZE) >> 3;
         pep_ += pageindex(va, level_) - curidx;
     }
     va_ = va;
@@ -46,13 +69,17 @@ int vmiter::try_map(uintptr_t pa, int perm) {
     if (pa == (uintptr_t) -1 && perm == 0) {
         pa = 0;
     }
-    assert(!(va_ & PAGEOFFMASK));
+    // virtual address is page-aligned
+    assert((va_ % PAGESIZE) == 0, "vmiter::try_map va not aligned");
     if (perm & PTE_P) {
-        assert(pa != (uintptr_t) -1);
-        assert((pa & PTE_PAMASK) == pa);
+        // if mapping present, physical address is page-aligned
+        assert(pa != (uintptr_t) -1, "vmiter::try_map mapping nonexistent pa");
+        assert((pa & PTE_PAMASK) == pa, "vmiter::try_map pa not aligned");
     } else {
-        assert(!(pa & PTE_P));
+        assert((pa & PTE_P) == 0, "vmiter::try_map invalid pa");
     }
+    // new permissions (`perm`) cannot be less restrictive than permissions
+    // imposed by higher-level page tables (`perm_`)
     assert(!(perm & ~perm_ & (PTE_P | PTE_W | PTE_U)));
 
     while (level_ > 0 && perm) {

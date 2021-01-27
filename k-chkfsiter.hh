@@ -8,21 +8,21 @@ class chkfs_fileiter {
     static constexpr size_t blocksize = chkfs::blocksize;
 
 
-    // initialize an iterator for `ino` at file offset `off`
+    // Initialize an iterator for `ino` at file offset `off`.
     // The caller must have a reference on `ino`.
     chkfs_fileiter(chkfs::inode* ino, off_t off = 0);
     NO_COPY_OR_ASSIGN(chkfs_fileiter);
     ~chkfs_fileiter();
 
-    // return the inode
+    // Return the inode
     inline chkfs::inode* inode() const;
 
-    // return the current file offset
+    // Return the current file offset
     inline off_t offset() const;
-    // return true iff the offset is within the file (i.e., in some extent)
+    // Return true iff the offset is within the file (i.e., in some extent)
     inline bool active() const;
-    // return true iff the offset points at data
-    inline bool present() const;
+    // Return true iff the offset does not point at data
+    inline bool empty() const;
 
     // Return the block number corresponding to the current file offset.
     // Returns 0 if there is no block stored for the current offset.
@@ -30,15 +30,15 @@ class chkfs_fileiter {
     // Return a buffer cache entry containing the current file offset’s data.
     // Returns nullptr if there is no block stored for the current offset.
     inline bcentry* get_disk_entry() const;
-    // return the file offset relative to the current block
+    // Return the file offset relative to the current block
     inline unsigned block_relative_offset() const;
 
 
     // Move the iterator to file offset `off`. Returns `*this`.
     chkfs_fileiter& find(off_t off);
-    // Like `find(offset() + delta)`.
+    // Like `find(offset() + delta)`
     inline chkfs_fileiter& operator+=(ssize_t delta);
-    // Like `find(offset() - delta)`.
+    // Like `find(offset() - delta)`
     inline chkfs_fileiter& operator-=(ssize_t delta);
 
 
@@ -104,11 +104,11 @@ inline bool chkfs_fileiter::active() const {
 inline unsigned chkfs_fileiter::block_relative_offset() const {
     return off_ % blocksize;
 }
-inline bool chkfs_fileiter::present() const {
-    return eptr_ && eptr_->first != 0;
+inline bool chkfs_fileiter::empty() const {
+    return !eptr_ || eptr_->first == 0;
 }
 inline auto chkfs_fileiter::blocknum() const -> blocknum_t {
-    if (eptr_ && eptr_->first != 0) {
+    if (!empty()) {
         return eptr_->first + (off_ - eoff_) / blocksize;
     } else {
         return 0;

@@ -221,7 +221,7 @@ static pid_t create_child(char** words, char nextch,
         if (words[1] && isdigit((unsigned char) words[1][0])) {
             char* endl;
             exit_status = strtol(words[1], &endl, 10);
-            if (*endl != '\0') {
+            if (*endl != '\0' || exit_status < 0) {
                 exit_status = -2;
             }
         } else if (words[1]) {
@@ -246,10 +246,16 @@ static pid_t create_child(char** words, char nextch,
             sys_close(pfd[1]);
         }
         if (exit_status == -1) {
-            exit_status = sys_execv(words[0], words);
-        } else if (exit_status == -2) {
-            dprintf(2, "exit: numeric argument required\n");
+            // normal command execution
+            int r = sys_execv(words[0], words);
+            dprintf(2, "%s: execv failed (error %d)\n", words[0], r);
             exit_status = 1;
+        } else {
+            // `exit` command
+            if (exit_status == -2) {
+                dprintf(2, "exit: numeric argument required\n");
+                exit_status = 1;
+            }
         }
         sys_exit(exit_status);
     }

@@ -60,6 +60,8 @@ LDFLAGS := $(LDFLAGS) -Os --gc-sections -z max-page-size=0x1000 \
 	-static -nostdlib -nostartfiles
 LDFLAGS	+= $(shell $(LD) -m elf_x86_64 --help >/dev/null 2>&1 && echo -m elf_x86_64)
 
+QUIETOBJCOPY = sh build/quietobjcopy.sh $(OBJCOPY)
+
 
 # Dependencies
 DEPSDIR := .deps
@@ -154,7 +156,7 @@ always:
 # These targets don't correspond to files
 .PHONY: all always clean realclean distclean cleanfs fsck \
 	run run-graphic run-console run-monitor \
-	run-gdb run-gdb-graphic run-gdb-console \
+	run-gdb run-gdb-graphic run-gdb-console run-gdb-report \
 	check-qemu-console check-qemu kill \
 	run-% run-graphic-% run-console-% run-monitor-% \
 	run-gdb-% run-gdb-graphic-% run-gdb-console-%

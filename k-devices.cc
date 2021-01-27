@@ -27,7 +27,7 @@
 #define KEY_NUMLOCK     0xFE
 #define KEY_SCROLLLOCK  0xFF
 
-#define CKEY(cn)        0x80 + cn
+#define CKEY(cn)        (0x80 + cn)
 
 static const uint8_t keymap[256] = {
     /*0x00*/ 0, 033, CKEY(0), CKEY(1), CKEY(2), CKEY(3), CKEY(4), CKEY(5),
@@ -122,10 +122,6 @@ int keyboard_readc() {
 // the global `keyboardstate` singleton
 keyboardstate keyboardstate::kbd;
 
-keyboardstate::keyboardstate()
-    : pos_(0), len_(0), eol_(0), state_(boot) {
-}
-
 void keyboardstate::handle_interrupt() {
     auto irqs = lock_.lock();
 
@@ -209,22 +205,39 @@ void keyboardstate::consume(size_t n) {
 
 consolestate consolestate::console;
 
-// console_show_cursor()
+// consolestate::cursor()
 //    Displays the console cursor at the current `cursorpos` position.
 
-void console_show_cursor() {
-    static std::atomic<int> displayed_cpos = -1;
-    static spinlock cursor_lock;
+void consolestate::cursor() {
     int cpos = cursorpos;
     if (cpos >= 0
         && cpos < CONSOLE_ROWS * CONSOLE_COLUMNS
-        && displayed_cpos.load(std::memory_order_relaxed) != cpos) {
-        spinlock_guard guard(cursor_lock);
+        && cursor_show_.load(std::memory_order_relaxed)
+        && displayed_cpos_.load(std::memory_order_relaxed) != cpos) {
+        spinlock_guard guard(cursor_lock_);
         outb(0x3D4, 15);
         outb(0x3D5, cpos % 256);
         outb(0x3D4, 14);
         outb(0x3D5, cpos / 256);
-        displayed_cpos = cpos;
+        displayed_cpos_ = cpos;
+    }
+}
+
+
+// consolestate::cursor(show)
+//    Enables or disables the cursor depending on `show`.
+
+void consolestate::cursor(bool show) {
+    {
+        spinlock_guard guard(cursor_lock_);
+        cursor_show_.store(show, std::memory_order_relaxed);
+        outb(0x3D4, 10);
+        outb(0x3D5, show ? 0x0E : 0x20);
+        outb(0x3D4, 11);
+        outb(0x3D5, show ? 0x0F : 0x20);
+    }
+    if (show) {
+        cursor();
     }
 }
 

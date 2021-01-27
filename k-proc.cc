@@ -71,8 +71,8 @@ void proc::init_kernel(pid_t pid, void (*f)()) {
 
 void proc::panic_nonrunnable() {
     panic("Trying to resume proc %d, which is not runnable\n"
-          "(proc state %d, last user %%rip %p)",
-          id_, pstate_.load(), last_user_rip_);
+          "(proc state %d, recent user %%rip %p)",
+          id_, pstate_.load(), recent_user_rip_);
 }
 
 

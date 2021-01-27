@@ -59,9 +59,9 @@ init_boot_pagetable:
         rep stosl
 
         # set up boot page table
-        # 0x1000: L1 page table; entries 0, 256, and 511 point to:
-        # 0x2000: L2 page table; entries 0 and 510 map 1st 1GB of physmem
-        # This weird setup is the minimal page table that maps all of
+        # 0x1000: L4 page table; entries 0, 256, and 511 point to:
+        # 0x2000: L3 page table; entries 0 and 510 map 1st 1GB of physmem
+        # This is the minimal page table that maps all of
         # low-canonical, high-canonical, and kernel-text addresses to
         # the first 1GB of physical memory.
         movl    $BOOT_PAGETABLE, %edi

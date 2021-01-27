@@ -2,11 +2,6 @@
 #define CHICKADEE_K_DEVICES_HH
 #include "kernel.hh"
 
-// console_show_cursor()
-//    Displays the console cursor to the current position (`cursorpos`).
-void console_show_cursor();
-
-
 // keyboardstate: keyboard buffer and keyboard interrupts
 
 #define KEY_UP          0xC0
@@ -23,10 +18,10 @@ void console_show_cursor();
 struct keyboardstate {
     spinlock lock_;
     char buf_[256];
-    unsigned pos_;      // next position to read
-    unsigned len_;      // number of characters in buffer
-    unsigned eol_;      // position in buffer of most recent \n
-    enum { boot, input, fail } state_;
+    unsigned pos_ = 0;      // next position to read
+    unsigned len_ = 0;      // number of characters in buffer
+    unsigned eol_ = 0;      // position in buffer of most recent \n
+    enum { boot, input, fail } state_ = boot;
 
     static keyboardstate& get() {
         return kbd;
@@ -46,7 +41,7 @@ struct keyboardstate {
 
  private:
     static keyboardstate kbd;
-    keyboardstate();
+    keyboardstate() = default;
 
     void maybe_echo(int ch);
 };
@@ -61,9 +56,16 @@ struct consolestate {
         return console;
     }
 
+    void cursor();
+    void cursor(bool show);
+
  private:
     static consolestate console;
     consolestate() = default;
+
+    spinlock cursor_lock_;
+    std::atomic<bool> cursor_show_ = true;
+    std::atomic<int> displayed_cpos_ = -1;
 };
 
 

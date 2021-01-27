@@ -136,7 +136,7 @@ class ioapicstate {
 
 
 inline lapicstate& lapicstate::get() {
-    return *reinterpret_cast<lapicstate*>(pa2ka(lapic_pa));
+    return *pa2kptr<lapicstate*>(lapic_pa);
 }
 inline uint32_t lapicstate::id() const {
     return read(reg_id) >> 24;
@@ -168,7 +168,7 @@ inline void lapicstate::write(int reg, uint32_t v) {
 }
 
 inline ioapicstate& ioapicstate::get() {
-    return *reinterpret_cast<ioapicstate*>(pa2ka(ioapic_pa));
+    return *pa2kptr<ioapicstate*>(ioapic_pa);
 }
 inline uint32_t ioapicstate::id() const {
     return read(reg_id) >> 24;

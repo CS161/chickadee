@@ -55,10 +55,13 @@ int error_vprintf(int cpos, int color, const char* format, va_list val) {
     return console_vprintf(cpos, color, format, val);
 }
 
-void assert_fail(const char* file, int line, const char* msg) {
-    error_printf(CPOS(23, 0), COLOR_ERROR,
-                 "%s:%d: user assertion '%s' failed\n",
-                 file, line, msg);
+void assert_fail(const char* file, int line, const char* msg,
+                 const char* description) {
+    cursorpos = CPOS(23, 0);
+    if (description) {
+        error_printf("%s:%d: %s\n", file, line, description);
+    }
+    error_printf("%s:%d: user assertion '%s' failed\n", file, line, msg);
     sys_panic(nullptr);
 }
 

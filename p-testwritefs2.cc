@@ -222,8 +222,8 @@ void process_main() {
     sys_close(f);
 
 
-    // extend the file to use an indirect block
-    printf("%s:%d: extend to indirect", __FILE__, __LINE__);
+    // make a big file
+    printf("%s:%d: extend more", __FILE__, __LINE__);
 
     size_t bbsz = prepare_bigbuf();
 

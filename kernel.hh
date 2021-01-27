@@ -28,13 +28,13 @@ struct __attribute__((aligned(4096))) proc {
     };
 
     // These four members must come first:
-    pid_t id_ = 0;                             // process ID
-    regstate* regs_ = nullptr;                 // process's current registers
-    yieldstate* yields_ = nullptr;             // process's current yield state
-    std::atomic<int> pstate_ = ps_blank;       // process state
+    pid_t id_ = 0;                             // Process ID
+    regstate* regs_ = nullptr;                 // Process's current registers
+    yieldstate* yields_ = nullptr;             // Process's current yield state
+    std::atomic<int> pstate_ = ps_blank;       // Process state
 
-    x86_64_pagetable* pagetable_ = nullptr;    // process's page table
-    uintptr_t last_user_rip_ = 0;              // last user-mode %rip
+    x86_64_pagetable* pagetable_ = nullptr;    // Process's page table
+    uintptr_t recent_user_rip_ = 0;            // Most recent user-mode %rip
 #if HAVE_SANITIZERS
     int sanitizer_status_ = 0;
 #endif
@@ -344,10 +344,10 @@ inline __attribute__((malloc)) T* knew(Args&&... args) {
 void init_kalloc();
 
 
-// initialize hardware and CPUs
+// Initialize hardware and CPUs
 void init_hardware();
 
-// query machine configuration
+// Query machine configuration
 unsigned machine_ncpu();
 unsigned machine_pci_irq(int pci_addr, int intr_pin);
 
@@ -355,34 +355,37 @@ struct ahcistate;
 extern ahcistate* sata_disk;
 
 
-// early page table (only kernel mappings)
+// Early page table (only kernel mappings)
 extern x86_64_pagetable early_pagetable[3];
 
-// allocate and initialize a new level-4 page table
+// Allocate and initialize a new, empty page table
 x86_64_pagetable* kalloc_pagetable();
 
-// change current page table
+// Change current page table
 void set_pagetable(x86_64_pagetable* pagetable);
 
+// Print memory viewer
+void console_memviewer(proc* p);
 
-// start the kernel
+
+// Start the kernel
 [[noreturn]] void kernel_start(const char* command);
 
-// turn off the virtual machine
+// Turn off the virtual machine
 [[noreturn]] void poweroff();
 
-// reboot the virtual machine
+// Reboot the virtual machine
 [[noreturn]] void reboot();
 
-// call after last process exits
+// Call after last process exits
 [[noreturn]] void process_halt();
 
 
 // log_printf, log_vprintf
 //    Print debugging messages to the host's `log.txt` file. We run QEMU
 //    so that messages written to the QEMU "parallel port" end up in `log.txt`.
-void log_printf(const char* format, ...) __attribute__((noinline));
-void log_vprintf(const char* format, va_list val) __attribute__((noinline));
+__noinline void log_printf(const char* format, ...);
+__noinline void log_vprintf(const char* format, va_list val);
 
 
 // log_backtrace
@@ -401,7 +404,7 @@ bool lookup_symbol(uintptr_t addr, const char** name, uintptr_t* start);
 
 
 #if HAVE_SANITIZERS
-// sanitizer functions
+// Sanitizer functions
 void init_sanitizers();
 void disable_asan();
 void enable_asan();

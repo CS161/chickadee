@@ -17,7 +17,7 @@ std::atomic<unsigned long> ticks;
 // display type; initially KDISPLAY_CONSOLE
 std::atomic<int> kdisplay;
 
-static void kdisplay_ontick();
+static void tick();
 static void boot_process_start(pid_t pid, const char* program_name);
 
 
@@ -94,11 +94,11 @@ void proc::exception(regstate* regs) {
 
     // Record most recent user-mode %rip.
     if ((regs->reg_cs & 3) != 0) {
-        last_user_rip_ = regs->reg_rip;
+        recent_user_rip_ = regs->reg_rip;
     }
 
     // Show the current cursor location.
-    console_show_cursor();
+    consolestate::get().cursor();
 
 
     // Actually handle the exception.
@@ -107,8 +107,7 @@ void proc::exception(regstate* regs) {
     case INT_IRQ + IRQ_TIMER: {
         cpustate* cpu = this_cpu();
         if (cpu->cpuindex_ == 0) {
-            ++ticks;
-            kdisplay_ontick();
+            tick();
         }
         lapicstate::get().ack();
         regs_ = regs;
@@ -168,7 +167,7 @@ uintptr_t proc::syscall(regstate* regs) {
     //log_printf("proc %d: syscall %ld @%p\n", id_, regs->reg_rax, regs->reg_rip);
 
     // Record most recent user-mode %rip.
-    last_user_rip_ = regs->reg_rip;
+    recent_user_rip_ = regs->reg_rip;
 
     switch (regs->reg_rax) {
 
@@ -383,13 +382,20 @@ uintptr_t proc::syscall_readdiskfile(regstate* regs) {
 //    Uses `console_memviewer()`, a function defined in `k-memviewer.cc`.
 
 static void memshow() {
-    static unsigned last_ticks = 0;
+    static unsigned long last_redisplay = 0;
+    static unsigned long last_switch = 0;
     static int showing = 1;
 
-    // switch to a new process every 0.25 sec
-    if (last_ticks == 0 || ticks - last_ticks >= HZ / 2) {
-        last_ticks = ticks;
+    // redisplay every 0.04 sec
+    if (last_redisplay != 0 && ticks - last_redisplay < HZ / 25) {
+        return;
+    }
+    last_redisplay = ticks;
+
+    // switch to a new process every 0.5 sec
+    if (ticks - last_switch >= HZ / 2) {
         showing = (showing + 1) % NPROC;
+        last_switch = ticks;
     }
 
     spinlock_guard guard(ptable_lock);
@@ -403,16 +409,24 @@ static void memshow() {
         ++search;
     }
 
-    extern void console_memviewer(proc* vmp);
     console_memviewer(ptable[showing]);
+    if (!ptable[showing]) {
+        console_printf(CPOS(10, 29), 0x0F00, "VIRTUAL ADDRESS SPACE\n"
+            "                          [All processes have exited]\n"
+            "\n\n\n\n\n\n\n\n\n\n\n");
+    }
 }
 
 
-// kdisplay_ontick()
-//    Shows the currently-configured kdisplay. Called once every tick
-//    (every 0.01 sec) by CPU 0.
+// tick()
+//    Called once every tick (0.01 sec, 1/HZ) by CPU 0. Updates the `ticks`
+//    counter and performs other periodic maintenance tasks.
 
-void kdisplay_ontick() {
+void tick() {
+    // Update current time
+    ++ticks;
+
+    // Update memviewer display
     if (kdisplay.load(std::memory_order_relaxed) == KDISPLAY_MEMVIEWER) {
         memshow();
     }
