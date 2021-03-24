@@ -87,9 +87,13 @@ CHICKADEE_FIRST_PROCESS ?= allocator
 ifneq ($(strip $(CHICKADEE_FIRST_PROCESS)),$(DEP_CHICKADEE_FIRST_PROCESS))
 FIRST_PROCESS_BUILDSTAMP := $(shell echo "DEP_CHICKADEE_FIRST_PROCESS:=$(CHICKADEE_FIRST_PROCESS)" > $(DEPSDIR)/_first_process.d)
 $(OBJDIR)/k-firstprocess.h: always
+$(OBJDIR)/chickadee.gdb: always
 endif
 ifeq ($(wildcard $(OBJDIR)/k-firstprocess.h),)
 KERNELBUILDSTAMPS += $(OBJDIR)/k-firstprocess.h
+endif
+ifeq ($(wildcard $(OBJDIR)/chickadee.gdb),)
+KERNELBUILDSTAMPS += $(OBJDIR)/chickadee.gdb
 endif
 
 
@@ -127,6 +131,9 @@ $(OBJDIR)/u-asm.h: u-lib.hh lib.hh types.h x86-64.h build/mkkernelasm.awk $(BUIL
 
 $(OBJDIR)/k-firstprocess.h:
 	$(call run,echo '#ifndef CHICKADEE_FIRST_PROCESS' >$@; echo '#define CHICKADEE_FIRST_PROCESS "$(CHICKADEE_FIRST_PROCESS)"' >>$@; echo '#endif' >>$@,CREATE $@)
+
+$(OBJDIR)/chickadee.gdb:
+	$(call run,echo 'add-symbol-file obj/p-$(CHICKADEE_FIRST_PROCESS).full 0x100000' >$@,CREATE $@)
 
 $(OBJDIR)/k-initfs.cc: build/mkinitfs.awk \
 	$(INITFS_CONTENTS) $(INITFS_BUILDSTAMP) $(KERNELBUILDSTAMPS)
