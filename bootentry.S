@@ -47,7 +47,7 @@ notify_bios64:
         # Notify the BIOS (the machine's firmware) to optimize itself
         # for x86-64 code. https://wiki.osdev.org/X86-64
         movw    $0xEC00, %ax
-        movw    $2, %dx
+        mov     $2, %bl
         int     $0x15
 
 init_boot_pagetable:
