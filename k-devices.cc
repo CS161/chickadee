@@ -210,6 +210,9 @@ consolestate consolestate::console;
 
 void consolestate::cursor() {
     int cpos = cursorpos;
+    if (cpos == CONSOLE_ROWS * CONSOLE_COLUMNS) {
+        --cpos;
+    }
     if (cpos >= 0
         && cpos < CONSOLE_ROWS * CONSOLE_COLUMNS
         && cursor_show_.load(std::memory_order_relaxed)

@@ -47,7 +47,8 @@ void panic(const char* format, ...) {
     if (len > 0 && buf[len - 1] != '\n') {
         strcpy(buf + len - (len == (int) sizeof(buf) - 1), "\n");
     }
-    (void) console_printf(CPOS(23, 0), 0xC000, "%s", buf);
+    int cpos = consoletype == CONSOLE_NORMAL ? -1 : CPOS(23, 0);
+    (void) console_printf(cpos, 0xC000, "%s", buf);
     sys_panic(nullptr);
 }
 
@@ -57,7 +58,9 @@ int error_vprintf(int cpos, int color, const char* format, va_list val) {
 
 void assert_fail(const char* file, int line, const char* msg,
                  const char* description) {
-    cursorpos = CPOS(23, 0);
+    if (consoletype != CONSOLE_NORMAL) {
+        cursorpos = CPOS(23, 0);
+    }
     if (description) {
         error_printf("%s:%d: %s\n", file, line, description);
     }

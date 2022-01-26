@@ -70,7 +70,8 @@ SECTIONS {
     PROVIDE(_kernel_end = .);
 
     PROVIDE(console = 0xFFFFFFFF800B8000);
-    PROVIDE(cursorpos = 0xFFFFFFFF800B8FFC);
+    PROVIDE(cursorpos = 0xFFFFFFFF800B8FF8);
+    PROVIDE(consoletype = 0xFFFFFFFF800B8FFC);
 
     PROVIDE(early_pagetable_low = early_pagetable & 0xFFFF);
     PROVIDE(early_gdt_low = early_gdt & 0xFFFF);

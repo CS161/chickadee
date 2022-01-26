@@ -11,8 +11,9 @@
 
 extern "C" {
 
-// memcpy, memmove, memset, memcmp, memchr, strlen, strnlen, strcpy, strcmp,
-// strncmp, strchr, strtoul, strtol
+// memcpy, memmove, memset, memcmp, memchr, strlen, strnlen,
+// strcpy, strncpy, strlcpy, strcmp, strncmp, strchr,
+// strtoul, strtol
 //    We must provide our own implementations.
 
 void* memcpy(void* dst, const void* src, size_t n) {
@@ -87,27 +88,35 @@ char* strcpy(char* dst, const char* src) {
     char* d = dst;
     do {
         *d++ = *src++;
-    } while (d[-1]);
+    } while (d[-1] != '\0');
     return dst;
 }
 
 char* strncpy(char* dst, const char* src, size_t maxlen) {
-    char* d = dst;
-    while (maxlen > 0 && *src != '\0') {
+    char* d;
+    for (d = dst; maxlen != 0 && *src != '\0'; --maxlen) {
         *d++ = *src++;
-        --maxlen;
     }
-    while (maxlen > 0) {
+    for (; maxlen != 0; --maxlen) {
         *d++ = '\0';
-        --maxlen;
     }
     return dst;
+}
+
+size_t strlcpy(char* dst, const char* src, size_t maxlen) {
+    size_t n = strlen(src);
+    if (maxlen) {
+        size_t nn = n > maxlen - 1 ? maxlen - 1 : n;
+        memcpy(dst, src, nn);
+        dst[nn] = '\0';
+    }
+    return n;
 }
 
 int strcmp(const char* a, const char* b) {
     while (true) {
         unsigned char ac = *a, bc = *b;
-        if (ac == 0 || bc == 0 || ac != bc) {
+        if (ac == '\0' || bc == '\0' || ac != bc) {
             return (ac > bc) - (ac < bc);
         }
         ++a, ++b;
@@ -116,8 +125,8 @@ int strcmp(const char* a, const char* b) {
 
 int strncmp(const char* a, const char* b, size_t n) {
     while (true) {
-        unsigned char ac = n ? *a : 0, bc = n ? *b : 0;
-        if (ac == 0 || bc == 0 || ac != bc) {
+        unsigned char ac = n ? *a : '\0', bc = n ? *b : '\0';
+        if (ac == '\0' || bc == '\0' || ac != bc) {
             return (ac > bc) - (ac < bc);
         }
         ++a, ++b, --n;
@@ -128,7 +137,7 @@ int strcasecmp(const char* a, const char* b) {
     while (true) {
         unsigned char ac = tolower((unsigned char) *a);
         unsigned char bc = tolower((unsigned char) *b);
-        if (ac == 0 || bc == 0 || ac != bc) {
+        if (ac == '\0' || bc == '\0' || ac != bc) {
             return (ac > bc) - (ac < bc);
         }
         ++a, ++b;
@@ -137,9 +146,9 @@ int strcasecmp(const char* a, const char* b) {
 
 int strncasecmp(const char* a, const char* b, size_t n) {
     while (true) {
-        unsigned char ac = n ? tolower((unsigned char) *a) : 0;
-        unsigned char bc = n ? tolower((unsigned char) *b) : 0;
-        if (ac == 0 || bc == 0 || ac != bc) {
+        unsigned char ac = n ? tolower((unsigned char) *a) : '\0';
+        unsigned char bc = n ? tolower((unsigned char) *b) : '\0';
+        if (ac == '\0' || bc == '\0' || ac != bc) {
             return (ac > bc) - (ac < bc);
         }
         ++a, ++b, --n;
@@ -147,7 +156,7 @@ int strncasecmp(const char* a, const char* b, size_t n) {
 }
 
 char* strchr(const char* s, int c) {
-    while (*s && *s != (char) c) {
+    while (*s != '\0' && *s != (char) c) {
         ++s;
     }
     if (*s == (char) c) {
@@ -157,33 +166,99 @@ char* strchr(const char* s, int c) {
     }
 }
 
-unsigned long strtoul(const char* s, char** endptr, int base) {
-    while (isspace(*s)) {
-        ++s;
+char* strstr(const char* hs, const char* ns) {
+    size_t i = 0, j = 0;
+    while (hs[i] != '\0' && ns[j] != '\0') {
+        if (hs[i + j] == ns[j]) {
+            ++j;
+        } else {
+            ++i;
+            j = 0;
+        }
     }
-    bool negative = *s == '-';
-    s += negative || *s == '+';
+    if (ns[j] == '\0') {
+        return const_cast<char*>(&hs[i]);
+    } else {
+        return nullptr;
+    }
+}
+
+static inline void strtol_fix_base(const char*& t, int& base) {
     if (base == 0) {
-        if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
-            base = 16;
-            s += 2;
-        } else if (s[0] == '0') {
-            base = 8;
+        if (t[0] == '0') {
+            if (t[1] == 'x' || t[1] == 'X') {
+                base = 16;
+                t += 2;
+            } else if (t[1] == 'o' || t[1] == 'O') {
+                base = 8;
+                t += 2;
+            } else if (t[1] == 'b' || t[1] == 'B') {
+                base = 2;
+                t += 2;
+            } else {
+                base = 8;
+            }
         } else {
             base = 10;
         }
-    } else if (base == 16 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
-        s += 2;
+    } else if (base == 16 && t[0] == '0' && (t[1] == 'x' || t[1] == 'X')) {
+        t += 2;
     }
+}
+
+unsigned long strtoul(const char* s, char** endptr, int base) {
+    const char* t = s;
+    while (isspace(*t)) {
+        ++t;
+    }
+    bool negative = *t == '-';
+    t += negative || *t == '+';
+    strtol_fix_base(t, base);
+    unsigned long x = 0;
+    auto [p, ec] = from_chars(t, nullptr, x, base);
+    if (endptr) {
+        *endptr = const_cast<char*>(ec == E_INVAL ? s : p);
+    }
+    if (ec == E_RANGE) {
+        x = -1UL;
+    }
+    return negative ? -x : x;
+}
+
+long strtol(const char* s, char** endptr, int base) {
+    const char* t = s;
+    while (isspace(*t)) {
+        ++t;
+    }
+    bool negative = *t == '-';
+    t += negative || *t == '+';
+    strtol_fix_base(t, base);
+    unsigned long x = 0;
+    auto [p, ec] = from_chars(t, nullptr, x, base);
+    if (endptr) {
+        *endptr = const_cast<char*>(ec == E_INVAL ? s : p);
+    }
+    unsigned long bound = (1UL << (8 * sizeof(unsigned long) - 1)) - !negative;
+    if (ec == E_RANGE || x > bound) {
+        x = bound;
+    }
+    return long(negative ? -x : x);
+}
+
+} // extern "C"
+
+from_chars_result from_chars(const char* first, const char* last,
+                             unsigned long& value, int base) {
     unsigned long x = 0;
     bool overflow = false;
-    while (true) {
+    const char* s = first;
+    while (s != last) {
         unsigned digit;
         if (*s >= '0' && *s < '0' + base) {
             digit = *s - '0';
-        } else if (base > 10 && *s >= 'a' && *s < 'a' + base - 10) {
+        } else if (*s >= 'a' && *s < 'a' + base - 10) {
             digit = *s - 'a' + 10;
-        } else if (base > 10 && *s >= 'A' && *s < 'A' + base - 10) {
+        } else if (*s >= 'A' && *s < 'A' + base - 10) {
             digit = *s - 'A' + 10;
         } else {
             break;
@@ -195,38 +270,31 @@ unsigned long strtoul(const char* s, char** endptr, int base) {
         }
         ++s;
     }
-    if (endptr) {
-        *endptr = const_cast<char*>(s);
+    if (s == first) {
+        return from_chars_result{s, E_INVAL};
+    } else if (overflow) {
+        return from_chars_result{s, E_RANGE};
+    } else {
+        value = x;
+        return from_chars_result{s, 0};
     }
-    if (overflow) {
-        x = -1UL;
-    }
-    if (negative) {
-        x = -x;
-    }
-    return x;
 }
 
-long strtol(const char* s, char** endptr, int base) {
-    while (isspace(*s)) {
-        ++s;
+from_chars_result from_chars(const char* first, const char* last,
+                             long& value, int base) {
+    bool negative = first != last && *first == '-';
+    unsigned long x = 0;
+    auto [p, ec] = from_chars(first + negative, last, x, base);
+    if (ec == E_INVAL) {
+        return from_chars_result{first, E_INVAL};
+    } else if (ec == E_RANGE
+               || x > (1UL << (8 * sizeof(unsigned long) - 1)) - !negative) {
+        return from_chars_result{p, E_RANGE};
+    } else {
+        value = negative ? -x : x;
+        return from_chars_result{p, 0};
     }
-    bool negative = *s == '-';
-    if (negative) {
-        ++s;
-    }
-    unsigned long u = strtoul(s, endptr, base);
-    unsigned long bound = (1UL << (8 * sizeof(unsigned long) - 1)) - !negative;
-    if (u > bound) {
-        u = bound;
-    }
-    if (negative) {
-        u = -u;
-    }
-    return long(u);
 }
-
-} // extern "C"
 
 
 // rand, srand
@@ -277,7 +345,21 @@ constexpr char printfmt<unsigned long>::spec[];
 // printer::vprintf
 //    Format and print a string into a generic printer object.
 
-static char* fill_numbuf(char* numbuf_end, unsigned long val, int base) {
+#define FLAG_ALT                (1<<0)
+#define FLAG_ZERO               (1<<1)
+#define FLAG_LEFTJUSTIFY        (1<<2)
+#define FLAG_SPACEPOSITIVE      (1<<3)
+#define FLAG_PLUSPOSITIVE       (1<<4)
+#define FLAG_THOUSANDS          (1<<5)
+static const char flag_chars[] = "#0- +'";
+
+#define FLAG_NUMERIC            (1<<6)
+#define FLAG_SIGNED             (1<<7)
+#define FLAG_NEGATIVE           (1<<8)
+#define FLAG_ALT2               (1<<9)
+
+static char* print_number(char* buf, size_t sz,
+                          unsigned long val, int base, int flags) {
     static const char upper_digits[] = "0123456789ABCDEF";
     static const char lower_digits[] = "0123456789abcdef";
 
@@ -287,28 +369,28 @@ static char* fill_numbuf(char* numbuf_end, unsigned long val, int base) {
         base = -base;
     }
 
-    *--numbuf_end = '\0';
+    char* pos = buf + sz;
+    *--pos = '\0';
+    char* thousands_pos;
+    if (flags & FLAG_THOUSANDS) {
+        thousands_pos = pos - (base == 10 ? 3 : 4);
+    } else {
+        thousands_pos = nullptr;
+    }
     do {
-        *--numbuf_end = digits[val % base];
-        val /= base;
-    } while (val != 0);
-    return numbuf_end;
+        if (pos == thousands_pos) {
+            *--pos = base == 10 ? ',' : '\'';
+            thousands_pos = pos - (base == 10 ? 3 : 4);
+        } else {
+            *--pos = digits[val % base];
+            val /= base;
+        }
+    } while (val != 0 && pos != buf);
+    return pos;
 }
 
-#define FLAG_ALT                (1<<0)
-#define FLAG_ZERO               (1<<1)
-#define FLAG_LEFTJUSTIFY        (1<<2)
-#define FLAG_SPACEPOSITIVE      (1<<3)
-#define FLAG_PLUSPOSITIVE       (1<<4)
-static const char flag_chars[] = "#0- +";
-
-#define FLAG_NUMERIC            (1<<5)
-#define FLAG_SIGNED             (1<<6)
-#define FLAG_NEGATIVE           (1<<7)
-#define FLAG_ALT2               (1<<8)
-
 void printer::vprintf(int color, const char* format, va_list val) {
-#define NUMBUFSIZ 24
+#define NUMBUFSIZ 32
     char numbuf[NUMBUFSIZ];
 
     for (; *format; ++format) {
@@ -422,7 +504,7 @@ void printer::vprintf(int color, const char* format, va_list val) {
         }
 
         if (flags & FLAG_NUMERIC) {
-            data = fill_numbuf(numbuf + NUMBUFSIZ, num, base);
+            data = print_number(numbuf, NUMBUFSIZ, num, base, flags);
         }
 
         const char* prefix = "";
@@ -536,7 +618,7 @@ void console_clear() {
 //    Put a string to the console, starting at the given cursor position.
 
 struct console_printer : public printer {
-    uint16_t* cell_;
+    volatile uint16_t* cell_;
     bool scroll_;
     console_printer(int cpos, bool scroll);
     inline void putc(unsigned char c, int color) override;
@@ -556,12 +638,14 @@ console_printer::console_printer(int cpos, bool scroll)
 
 __noinline
 void console_printer::scroll() {
-    assert(cell_ >= console + CONSOLE_ROWS * CONSOLE_COLUMNS);
+    assert(cell_ >= console + END_CPOS);
     if (scroll_) {
-        memmove(console, console + CONSOLE_COLUMNS,
-                (CONSOLE_ROWS - 1) * CONSOLE_COLUMNS * sizeof(*console));
-        memset(console + (CONSOLE_ROWS - 1) * CONSOLE_COLUMNS,
-               0, CONSOLE_COLUMNS * sizeof(*console));
+        for (int i = 0; i != END_CPOS - CONSOLE_COLUMNS; ++i) {
+            console[i] = console[i + CONSOLE_COLUMNS];
+        }
+        for (int i = END_CPOS - CONSOLE_COLUMNS; i != END_CPOS; ++i) {
+            console[i] = 0;
+        }
         cell_ -= CONSOLE_COLUMNS;
     } else {
         cell_ = console;
@@ -577,7 +661,7 @@ void console_printer::move_cursor() {
 }
 
 inline void console_printer::putc(unsigned char c, int color) {
-    while (cell_ >= console + CONSOLE_ROWS * CONSOLE_COLUMNS) {
+    while (cell_ >= console + END_CPOS) {
         scroll();
     }
     if (c == '\n') {
@@ -685,7 +769,8 @@ void assert_memeq_fail(const char* file, int line, const char* msg,
     size_t epos = pos + 10 < sz ? pos + 10 : sz;
     const char* ellipsis1 = spos > 0 ? "..." : "";
     const char* ellipsis2 = epos < sz ? "..." : "";
-    error_printf(CPOS(22, 0), COLOR_ERROR,
+    int cpos = consoletype == CONSOLE_NORMAL ? -1 : CPOS(22, 0);
+    error_printf(cpos, COLOR_ERROR,
                  "%s:%d: \"%s%.*s%s\" != \"%s%.*s%s\" @%zu\n",
                  file, line,
                  ellipsis1, int(epos - spos), x + spos, ellipsis2,

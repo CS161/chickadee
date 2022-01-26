@@ -2,67 +2,50 @@
 
 const x86_64_pageentry_t vmiter::zero_pe = 0;
 
-uint64_t vmiter::range_perm(size_t sz) const {
-    uint64_t p = perm();
-    size_t rsz = pageoffmask(level_) + 1;
-    if ((p & PTE_P) != 0 && sz > rsz) {
-        if (sz > ((int64_t) va() < 0 ? 0 : VA_LOWEND) - va()) {
-            return 0;
-        }
-        vmiter it(*this);
-        sz += va() & (rsz - 1);
-        do {
-            sz -= rsz;
-            it.next_range();
-            p &= it.perm();
-            rsz = pageoffmask(it.level_) + 1;
-        } while ((p & PTE_P) != 0 && sz > rsz);
-    }
-    if ((p & PTE_P) != 0) {
-        return p;
-    } else {
-        return 0;
-    }
-}
-
 void vmiter::down() {
-    while (level_ > 0 && (*pep_ & (PTE_P | PTE_PS)) == PTE_P) {
+    while (lbits_ > PAGEOFFBITS && (*pep_ & (PTE_P | PTE_PS)) == PTE_P) {
         perm_ &= *pep_ | ~(PTE_P | PTE_W | PTE_U);
-        --level_;
+        lbits_ -= PAGEINDEXBITS;
         uintptr_t pa = *pep_ & PTE_PAMASK;
         x86_64_pagetable* pt = pa2kptr<x86_64_pagetable*>(pa);
-        pep_ = &pt->entry[pageindex(va_, level_)];
+        pep_ = &pt->entry[(va_ >> lbits_) & 0x1FF];
     }
-    if ((*pep_ & PTE_PAMASK) >= 0x100000000UL) {
+    if ((*pep_ & PTE_PAMASK) >= 0x100000000UL
+        && lbits_ < PAGEOFFBITS + 2 * PAGEINDEXBITS) {
         panic("Page table %p may contain uninitialized memory!\n"
               "(Page table contents: %p)\n", pt_, *pep_);
     }
 }
 
-void vmiter::real_find(uintptr_t va) {
-    if (level_ == 3 || ((va_ ^ va) & ~pageoffmask(level_ + 1)) != 0) {
-        level_ = 3;
-        if (va_is_canonical(va)) {
-            perm_ = initial_perm;
-            pep_ = &pt_->entry[pageindex(va, level_)];
-        } else {
-            perm_ = 0;
-            pep_ = const_cast<x86_64_pageentry_t*>(&zero_pe);
-        }
-    } else {
+void vmiter::real_find(uintptr_t va, bool stepping) {
+    if (stepping && va == 0) {
+        lbits_ = done_lbits;
+        perm_ = 0;
+        pep_ = const_cast<x86_64_pageentry_t*>(&zero_pe);
+    } else if (lbits_ < initial_lbits
+               && ((va_ ^ va) & (~uintptr_t(0) << (lbits_ + PAGEINDEXBITS))) != 0) {
+        // stepping to next entry in current page table level
         int curidx = (reinterpret_cast<uintptr_t>(pep_) % PAGESIZE) >> 3;
-        pep_ += pageindex(va, level_) - curidx;
+        pep_ += ((va >> lbits_) & 0x1FF) - curidx;
+    } else if (!va_is_canonical(va)) {
+        lbits_ = noncanonical_lbits;
+        perm_ = 0;
+        pep_ = const_cast<x86_64_pageentry_t*>(&zero_pe);
+    } else {
+        lbits_ = initial_lbits;
+        perm_ = initial_perm;
+        pep_ = &pt_->entry[(va >> lbits_) & 0x1FF];
     }
     va_ = va;
     down();
 }
 
 void vmiter::next() {
-    int level = 0;
-    if (level_ > 0 && !perm()) {
-        level = level_;
+    int lbits = PAGEOFFBITS;
+    if (lbits_ > PAGEOFFBITS && !perm()) {
+        lbits = lbits_;
     }
-    real_find((va_ | pageoffmask(level)) + 1);
+    real_find((va_ | lbits_mask(lbits)) + 1, true);
 }
 
 int vmiter::try_map(uintptr_t pa, int perm) {
@@ -82,7 +65,7 @@ int vmiter::try_map(uintptr_t pa, int perm) {
     // imposed by higher-level page tables (`perm_`)
     assert(!(perm & ~perm_ & (PTE_P | PTE_W | PTE_U)));
 
-    while (level_ > 0 && perm) {
+    while (lbits_ > PAGEOFFBITS && perm) {
         assert(!(*pep_ & PTE_P));
         x86_64_pagetable* pt = knew<x86_64_pagetable>();
         if (!pt) {
@@ -94,7 +77,7 @@ int vmiter::try_map(uintptr_t pa, int perm) {
         down();
     }
 
-    if (level_ == 0) {
+    if (lbits_ == PAGEOFFBITS) {
         std::atomic_thread_fence(std::memory_order_release);
         *pep_ = pa | perm;
     }
@@ -102,39 +85,50 @@ int vmiter::try_map(uintptr_t pa, int perm) {
 }
 
 
-void ptiter::go(uintptr_t va) {
-    level_ = 3;
-    pep_ = &pt_->entry[pageindex(va, level_)];
-    va_ = va;
+uint64_t vmiter::range_perm(size_t sz) const {
+    uint64_t p = perm();
+    uintptr_t sva = va_;
+    while (p && sz > last_va() - va()) {
+        sz -= last_va() - va();
+        const_cast<vmiter*>(this)->next_range();
+        p &= va() ? perm() : 0;
+    }
+    const_cast<vmiter*>(this)->find(sva);
+    return p;
+}
+
+
+ptiter::ptiter(x86_64_pagetable* pt)
+    : pt_(pt), pep_(&pt_->entry[0]), lbits_(vmiter::initial_lbits), va_(0) {
     down(false);
 }
 
 void ptiter::down(bool skip) {
-    int stop_level = 1;
-    while (true) {
-        if ((*pep_ & (PTE_P | PTE_PS)) == PTE_P && !skip) {
-            if (level_ == stop_level) {
+    int stop_lbits = PAGEOFFBITS + PAGEINDEXBITS;
+    while (lbits_ < vmiter::done_lbits) {
+        if (!skip && (*pep_ & (PTE_P | PTE_PS)) == PTE_P) {
+            if (lbits_ == stop_lbits) {
                 break;
             } else {
-                --level_;
+                lbits_ -= PAGEINDEXBITS;
                 uintptr_t pa = *pep_ & PTE_PAMASK;
                 x86_64_pagetable* pt = pa2kptr<x86_64_pagetable*>(pa);
-                pep_ = &pt->entry[pageindex(va_, level_)];
+                pep_ = &pt->entry[(va_ >> lbits_) & 0x1FF];
             }
         } else {
-            uintptr_t va = (va_ | pageoffmask(level_)) + 1;
-            if ((va ^ va_) & ~pageoffmask(level_ + 1)) {
+            uintptr_t va = (va_ | vmiter::lbits_mask(lbits_)) + 1;
+            if ((va ^ va_) & ~vmiter::lbits_mask(lbits_ + PAGEINDEXBITS)) {
                 // up one level
-                if (level_ == 3) {
-                    va_ = VA_NONCANONMAX + 1;
-                    return;
+                if (va == 0 && lbits_ == vmiter::initial_lbits) {
+                    lbits_ = vmiter::done_lbits;
+                    break;
                 }
-                stop_level = level_ + 1;
-                level_ = 3;
-                pep_ = &pt_->entry[pageindex(va_, level_)];
+                stop_lbits = lbits_ + PAGEINDEXBITS;
+                lbits_ = vmiter::initial_lbits;
+                pep_ = &pt_->entry[(va_ >> lbits_) & 0x1FF];
             } else {
                 ++pep_;
-                va_ = va;
+                va_ = va_is_canonical(va) ? va : VA_HIGHMIN;
             }
             skip = false;
         }

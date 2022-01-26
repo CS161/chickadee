@@ -24,7 +24,7 @@ struct elf_program;
 // Process descriptor type
 struct __attribute__((aligned(4096))) proc {
     enum pstate_t {
-        ps_blank = 0, ps_runnable = PROC_RUNNABLE, ps_broken
+        ps_blank = 0, ps_runnable = PROC_RUNNABLE, ps_faulted
     };
 
     // These four members must come first:

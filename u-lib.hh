@@ -93,10 +93,10 @@ inline void sys_pause() {
     make_syscall(SYSCALL_PAUSE);
 }
 
-// sys_kdisplay(display_type)
-//    Set the display type (one of the KDISPLAY constants).
-inline int sys_kdisplay(int display_type) {
-    return make_syscall(SYSCALL_KDISPLAY, display_type);
+// sys_consoletype(type)
+//    Set the type of console display (CONSOLE_NORMAL or CONSOLE_MEMVIEWER).
+inline int sys_consoletype(int type) {
+    return make_syscall(SYSCALL_CONSOLETYPE, type);
 }
 
 // sys_panic(msg)

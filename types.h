@@ -62,4 +62,10 @@ inline T* mem_container(U* ptr, U (T::* mem_ptr)) {
 #define __always_inline static inline __attribute__((always_inline))
 #endif
 
+#if __cplusplus
+#define __constexpr constexpr
+#else
+#define __constexpr
+#endif
+
 #endif /* !CHICKADEE_TYPES_H */

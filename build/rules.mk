@@ -7,10 +7,10 @@ CCPREFIX ?=
 
 ifeq ($(CCPREFIX),)
 ifeq ($(origin CC),default)
-CC      := $(shell build/findgcc.sh $(CC))
+CC      := $(shell $(SHELL) build/findgcc.sh $(CC))
 endif
 ifeq ($(origin CXX),default)
-CXX     := $(shell build/findgcc.sh $(CXX))
+CXX     := $(shell $(SHELL) build/findgcc.sh $(CXX))
 endif
 else
 CC      = $(CCPREFIX)cc
@@ -157,7 +157,7 @@ always:
 .PHONY: all always clean realclean distclean cleanfs fsck \
 	run run-graphic run-console run-monitor \
 	run-gdb run-gdb-graphic run-gdb-console run-gdb-report \
-	check-qemu-console check-qemu kill \
+	check-qemu-console check-qemu stop kill \
 	run-% run-graphic-% run-console-% run-monitor-% \
 	run-gdb-% run-gdb-graphic-% run-gdb-console-%
 

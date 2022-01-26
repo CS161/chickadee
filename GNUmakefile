@@ -60,8 +60,8 @@ INITFS_CONTENTS = \
 	$(patsubst %,obj/%,$(PROCESSES))
 
 INITFS_PARAMS ?=
-ifeq ($(HALT),1)
-INITFS_PARAMS += .halt=1
+ifneq ($(HALT),)
+INITFS_PARAMS += .halt="$(HALT)"
 endif
 
 DISKFS_CONTENTS = \
@@ -240,7 +240,7 @@ run-gdb-$(RUNSUFFIX): run-gdb
 run-gdb-graphic-$(RUNSUFFIX): run-gdb-graphic
 run-gdb-console-$(RUNSUFFIX): run-gdb-console
 
-# Kill all my qemus
-kill:
+# Stop all my qemus
+stop kill:
 	-killall -u $$(whoami) $(QEMU)
 	@sleep 0.2; if ps -U $$(whoami) | grep $(QEMU) >/dev/null; then killall -9 -u $$(whoami) $(QEMU); fi

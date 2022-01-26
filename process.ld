@@ -58,7 +58,8 @@ SECTIONS {
     PROVIDE(end = .);
 
     PROVIDE(console = 0xB8000);
-    PROVIDE(cursorpos = 0xB8FFC);
+    PROVIDE(cursorpos = 0xB8FF8);
+    PROVIDE(consoletype = 0xB8FFC);
 
     /DISCARD/ : { *(.eh_frame .note.GNU-stack) }
 }

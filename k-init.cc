@@ -5,12 +5,6 @@
 #include "k-devices.hh"
 #include "elf.h"
 
-// symtab: reference to kernel symbol table; useful for debugging.
-// The `mkchickadeesymtab` function fills this structure in.
-elf_symtabref symtab = {
-    reinterpret_cast<elf_symbol*>(0xFFFFFFFF81000000), 0, nullptr, 0
-};
-
 // sata_disk: pointer to the first SATA disk found
 ahcistate* sata_disk;
 
@@ -226,6 +220,7 @@ void init_physical_ranges() {
                         round_up(ktext2pa(_kernel_end), PAGESIZE),
                         mem_kernel);
     // reserve memory for debugging facilities
+    extern elf_symtabref symtab;
     if (symtab.size) {
         auto sympa = ktext2pa(symtab.sym);
         physical_ranges.set(round_down(sympa, PAGESIZE),

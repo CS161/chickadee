@@ -21,11 +21,13 @@ size_t strlen(const char* s);
 size_t strnlen(const char* s, size_t maxlen);
 char* strcpy(char* dst, const char* src);
 char* strncpy(char* dst, const char* src, size_t maxlen);
+size_t strlcpy(char* dst, const char* src, size_t maxlen);
 int strcmp(const char* a, const char* b);
 int strncmp(const char* a, const char* b, size_t maxlen);
 int strcasecmp(const char* a, const char* b);
 int strncasecmp(const char* a, const char* b, size_t maxlen);
 char* strchr(const char* s, int c);
+char* strstr(const char* haystack, const char* needle);
 long strtol(const char* s, char** endptr = nullptr, int base = 0);
 unsigned long strtoul(const char* s, char** endptr = nullptr, int base = 0);
 ssize_t snprintf(char* s, size_t size, const char* format, ...);
@@ -44,6 +46,15 @@ inline int toupper(int c);
 int rand();
 void srand(unsigned seed);
 int rand(int min, int max);
+
+struct from_chars_result {
+    const char* ptr;
+    int ec;
+};
+from_chars_result from_chars(const char* first, const char* last,
+                             long& value, int base = 10);
+from_chars_result from_chars(const char* first, const char* last,
+                             unsigned long& value, int base = 10);
 
 
 // Return the offset of `member` relative to the beginning of a struct type
@@ -247,7 +258,7 @@ struct bitset_view {
 #define SYSCALL_GETPID          1
 #define SYSCALL_YIELD           2
 #define SYSCALL_PAUSE           3
-#define SYSCALL_KDISPLAY        4
+#define SYSCALL_CONSOLETYPE     4
 #define SYSCALL_PANIC           5
 #define SYSCALL_PAGE_ALLOC      6
 #define SYSCALL_FORK            7
@@ -295,6 +306,7 @@ struct bitset_view {
 #define E_NXIO          -6         // No such device or address
 #define E_PERM          -1         // Operation not permitted
 #define E_PIPE          -32        // Broken pipe
+#define E_RANGE         -34        // Out of range
 #define E_SPIPE         -29        // Illegal seek
 #define E_SRCH          -3         // No such process
 #define E_TXTBSY        -26        // Text file busy
@@ -309,39 +321,40 @@ inline bool is_error(uintptr_t r) {
 
 // System call constants
 
-// sys_kdisplay() types
-#define KDISPLAY_CONSOLE        0
-#define KDISPLAY_MEMVIEWER      1
-
 // sys_waitpid() options
-#define W_NOHANG                1
+#define W_NOHANG            1
 
 // sys_open() flags
-#define OF_READ                 1
-#define OF_WRITE                2
-#define OF_CREATE               4
-#define OF_CREAT                OF_CREATE     // ¯\_(ツ)_/¯
-#define OF_TRUNC                8
+#define OF_READ             1
+#define OF_WRITE            2
+#define OF_CREATE           4
+#define OF_CREAT            OF_CREATE     // ¯\_(ツ)_/¯
+#define OF_TRUNC            8
 
 // sys_lseek() origins
-#define LSEEK_SET               0    // Seek from beginning of file
-#define LSEEK_CUR               1    // Seek from current position
-#define LSEEK_END               2    // Seek from end of file
-#define LSEEK_SIZE              3    // Do not seek; return file size
+#define LSEEK_SET           0    // Seek from beginning of file
+#define LSEEK_CUR           1    // Seek from current position
+#define LSEEK_END           2    // Seek from end of file
+#define LSEEK_SIZE          3    // Do not seek; return file size
 
 
 // CGA console printing
 
-#define CPOS(row, col)  ((row) * 80 + (col))
-#define CROW(cpos)      ((cpos) / 80)
-#define CCOL(cpos)      ((cpos) % 80)
-
-#define CONSOLE_COLUMNS 80
-#define CONSOLE_ROWS    25
-extern uint16_t console[CONSOLE_ROWS * CONSOLE_COLUMNS];
+#define CONSOLE_COLUMNS     80
+#define CONSOLE_ROWS        25
+#define CPOS(row, col)      ((row) * 80 + (col))
+#define CROW(cpos)          ((cpos) / 80)
+#define CCOL(cpos)          ((cpos) % 80)
+#define END_CPOS            (CONSOLE_ROWS * CONSOLE_COLUMNS)
+extern volatile uint16_t console[CONSOLE_ROWS * CONSOLE_COLUMNS];
 
 // current position of the cursor (80 * ROW + COL)
 extern volatile int cursorpos;
+
+// types of console display
+#define CONSOLE_NORMAL      0
+#define CONSOLE_MEMVIEWER   1
+extern volatile int consoletype;
 
 // console_clear
 //    Erases the console and moves the cursor to the upper left (CPOS(0, 0)).
@@ -401,14 +414,14 @@ struct printer {
 // error_printf(cursor, color, format, ...)
 //    Like `console_printf`, but `color` defaults to `COLOR_ERROR`, and
 //    in the kernel, the message is also printed to the log.
-int error_printf(int cpos, int color, const char* format, ...)
-    __attribute__((noinline, cold));
-int error_vprintf(int cpos, int color, const char* format, va_list val)
-    __attribute__((noinline, cold));
-void error_printf(int color, const char* format, ...)
-    __attribute__((noinline, cold));
-void error_printf(const char* format, ...)
-    __attribute__((noinline, cold));
+__attribute__((noinline, cold))
+int error_printf(int cpos, int color, const char* format, ...);
+__attribute__((noinline, cold))
+int error_vprintf(int cpos, int color, const char* format, va_list val);
+__attribute__((noinline, cold))
+void error_printf(int color, const char* format, ...);
+__attribute__((noinline, cold))
+void error_printf(const char* format, ...);
 
 
 // Type information
@@ -465,9 +478,9 @@ void assert_fail(const char* file, int line, const char* msg,
 #define assert_ge(x, y) assert_op(x, >=, y)
 
 template <typename T>
-void __attribute__((noinline, noreturn, cold))
-assert_op_fail(const char* file, int line, const char* msg,
-               const T& x, const char* op, const T& y) {
+__attribute__((noinline, noreturn, cold))
+void assert_op_fail(const char* file, int line, const char* msg,
+                    const T& x, const char* op, const T& y) {
     char fmt[48];
     snprintf(fmt, sizeof(fmt), "%%s:%%d: expected %%%s %s %%%s\n",
              printfmt<T>::spec, op, printfmt<T>::spec);
@@ -484,20 +497,20 @@ assert_op_fail(const char* file, int line, const char* msg,
             assert_memeq_fail(__FILE__, __LINE__, "memcmp(" #x ", " #y ", " #sz ") == 0", __x, __y, __sz); \
         }                                                               \
     } while (0)
-void __attribute__((noinline, noreturn, cold))
-assert_memeq_fail(const char* file, int line, const char* msg,
-                  const char* x, const char* y, size_t sz);
+__attribute__((noinline, noreturn, cold))
+void assert_memeq_fail(const char* file, int line, const char* msg,
+                       const char* x, const char* y, size_t sz);
 
 
 // panic(format, ...)
 //    Print the message determined by `format` and fail.
-void __attribute__((noinline, noreturn, cold))
-panic(const char* format, ...);
+__attribute__((noinline, noreturn, cold))
+void panic(const char* format, ...);
 
 #if CHICKADEE_KERNEL
-void __attribute__((noinline, noreturn, cold))
-panic_at(uintptr_t rsp, uintptr_t rbp, uintptr_t rip,
-         const char* format, ...);
+struct regstate;
+__attribute__((noinline, noreturn, cold))
+void panic_at(const regstate& regs, const char* format, ...);
 #endif
 
 

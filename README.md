@@ -4,30 +4,32 @@ Chickadee OS
 This is Chickadee, a teaching operating system built for Harvard’s
 [CS 161].
 
-Quickstart: `make run` or `make run-PROGRAM`
+Quickstart: `make run` or `make run-PROGRAM` will run the OS using the
+[QEMU] emulator.
 
 Make targets
 ------------
 
-`make NCPU=N run` will run the OS with `N` virtual CPUs (default is 2). Close
+`make NCPU=N run` runs the OS with `N` virtual CPUs (default is 2). Close
 the QEMU window, or type `q` inside it, to exit the OS.
 
-`make run-console` will run the OS in the console window.
+`make run-console` runs the OS in the console window.
 
-`make SAN=1 run` to run with sanitizers enabled.
+`make SAN=1 run` runs with sanitizers enabled.
 
-Normally Chickadee’s debug log is written to `log.txt`. `make LOG=stdio run`
-will redirect the debug log to the standard output, and `make
-LOG=file:FILENAME run` will redirect it to `FILENAME`.
+Chickadee’s debug log is written to `log.txt` by default. `make
+LOG=stdio run` redirects the debug log to the standard output, and
+`make LOG=file:FILENAME run` redirects it to `FILENAME`.
 
-Run `make D=1 run` to ask QEMU to print verbose information about interrupts
+`make D=1 run` tells QEMU to print verbose information about interrupts
 and CPU resets to the standard error. This setting will also cause QEMU to
 quit after encountering a [triple fault][] (normally it will reboot).
 
 `make run-PROGRAM` runs `p-PROGRAM.cc` as the first non-init process. The
 default is `alloc`.
 
-`make HALT=1 run-PROGRAM` should make QEMU exit once all processes are done.
+`make HALT=10 run-PROGRAM` should make QEMU exit 10 ticks (that is, 0.1 sec)
+after all processes exit.
 
 Troubleshooting
 ---------------
@@ -39,7 +41,8 @@ OS has become unresponsive).
   will kill the embedded OS.
 
 * If QEMU is running in a terminal window (in Docker, for instance), then
-  press `Alt-2`. This will bring up the QEMU Monitor, which looks like this:
+  press `Alt-2` (or `Option-2`). This will bring up the QEMU Monitor, which
+  looks like this:
 
     ```
     compat_monitor0 console
@@ -52,10 +55,14 @@ OS has become unresponsive).
     command to restore it.
 
     If `Alt-2` does not work, you may need to configure your terminal to
-    properly send the Alt key. For instance, on Mac OS X’s Terminal, go to
-    Terminal > Preferences > Keyboard and select “Use Option as Meta key”. You
-    can also configure a special keyboard shortcut that sends the `Escape 2`
+    properly send the Alt key. For instance, on Mac OS X’s Terminal, go to the
+    Edit menu, select “Use Option as Meta key”, and press `Option-2`. You can
+    also configure a special keyboard shortcut that sends the `Escape 2`
     sequence.
+
+* Run `make stop` in another terminal. This will kill all QEMU processes you
+  own. (If you’re using Docker, this other terminal must be open to the same
+  Docker instance.)
 
 Run `make run-gdb` to start up the OS with support for GDB debugging. This
 will start the OS, but not GDB. You must run `gdb -x build/weensyos.gdb` to
@@ -71,12 +78,12 @@ Source files
 
 ### Common files
 
-| File            | Description                  |
-| --------------- | ---------------------------- |
-| `types.h`       | Type definitions             |
-| `lib.hh/cc`     | C library                    |
-| `x86-64.h`      | x86-64 hardware definitions  |
-| `elf.h`         | ELF64 structures             |
+| File            | Description                            |
+| --------------- | -------------------------------------- |
+| `types.h`       | Type definitions                       |
+| `lib.hh/cc`     | C library                              |
+| `x86-64.h`      | x86-64 hardware definitions            |
+| `elf.h`         | ELF64 structures for loading programs  |
 
 ### Boot loader
 
@@ -144,3 +151,5 @@ produces other files that can be useful to examine.
 
 [CS 161]: https://read.seas.harvard.edu/cs161/2021/
 [triple fault]: https://en.wikipedia.org/wiki/Triple_fault
+[QEMU]: https://qemu.org/
+[Homebrew]: https://brew.sh/

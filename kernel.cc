@@ -14,9 +14,6 @@
 // # timer interrupts so far on CPU 0
 std::atomic<unsigned long> ticks;
 
-// display type; initially KDISPLAY_CONSOLE
-std::atomic<int> kdisplay;
-
 static void tick();
 static void boot_process_start(pid_t pid, const char* program_name);
 
@@ -27,6 +24,7 @@ static void boot_process_start(pid_t pid, const char* program_name);
 
 void kernel_start(const char* command) {
     init_hardware();
+    consoletype = CONSOLE_NORMAL;
     console_clear();
 
     // set up process descriptors
@@ -124,15 +122,14 @@ void proc::exception(regstate* regs) {
                 ? "protection problem" : "missing page";
 
         if ((regs->reg_cs & 3) == 0) {
-            panic_at(regs->reg_rsp, regs->reg_rbp, regs->reg_rip,
-                     "Kernel page fault for %p (%s %s)!\n",
+            panic_at(*regs, "Kernel page fault for %p (%s %s)!\n",
                      addr, operation, problem);
         }
 
         error_printf(CPOS(24, 0), 0x0C00,
                      "Process %d page fault for %p (%s %s, rip=%p)!\n",
                      id_, addr, operation, problem, regs->reg_rip);
-        pstate_ = proc::ps_broken;
+        pstate_ = proc::ps_faulted;
         yield();
         break;
     }
@@ -145,8 +142,7 @@ void proc::exception(regstate* regs) {
         if (sata_disk && regs->reg_intno == INT_IRQ + sata_disk->irq_) {
             sata_disk->handle_interrupt();
         } else {
-            panic_at(regs->reg_rsp, regs->reg_rbp, regs->reg_rip,
-                     "Unexpected exception %d!\n", regs->reg_intno);
+            panic_at(*regs, "Unexpected exception %d!\n", regs->reg_intno);
         }
         break;                  /* will not be reached */
 
@@ -171,15 +167,15 @@ uintptr_t proc::syscall(regstate* regs) {
 
     switch (regs->reg_rax) {
 
-    case SYSCALL_KDISPLAY:
-        if (kdisplay != (int) regs->reg_rdi) {
+    case SYSCALL_CONSOLETYPE:
+        if (consoletype != (int) regs->reg_rdi) {
             console_clear();
         }
-        kdisplay = regs->reg_rdi;
+        consoletype = regs->reg_rdi;
         return 0;
 
     case SYSCALL_PANIC:
-        panic_at(0, 0, 0, "process %d called sys_panic()", id_);
+        panic_at(*regs, "process %d called sys_panic()", id_);
         break;                  // will not be reached
 
     case SYSCALL_GETPID:
@@ -411,7 +407,7 @@ static void memshow() {
 
     console_memviewer(ptable[showing]);
     if (!ptable[showing]) {
-        console_printf(CPOS(10, 29), 0x0F00, "VIRTUAL ADDRESS SPACE\n"
+        console_printf(CPOS(10, 26), 0x0F00, "   VIRTUAL ADDRESS SPACE\n"
             "                          [All processes have exited]\n"
             "\n\n\n\n\n\n\n\n\n\n\n");
     }
@@ -426,8 +422,8 @@ void tick() {
     // Update current time
     ++ticks;
 
-    // Update memviewer display
-    if (kdisplay.load(std::memory_order_relaxed) == KDISPLAY_MEMVIEWER) {
+    // Update display
+    if (consoletype == CONSOLE_MEMVIEWER) {
         memshow();
     }
 }

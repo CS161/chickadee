@@ -9,7 +9,7 @@ uint8_t* heap_top;
 uint8_t* stack_bottom;
 
 void process_main() {
-    sys_kdisplay(KDISPLAY_MEMVIEWER);
+    sys_consoletype(CONSOLE_MEMVIEWER);
 
     // First process never allocates; it alternates between forking children
     // and yielding; sometimes it exits. Each forked child allocates.

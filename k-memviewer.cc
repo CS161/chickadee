@@ -88,7 +88,7 @@ void memusage::refresh() {
         }
     }
 
-    // walk process page tables
+    // mark pages accessible from process page tables
     assert(ptable_lock.is_locked());
     for (int pid = 1; pid < NPROC; ++pid) {
         proc* p = ptable[pid];
@@ -102,7 +102,7 @@ void memusage::refresh() {
                 }
                 mark(ka2pa(p->pagetable_), f_kernel | f_process(pid));
 
-                for (vmiter it(p); it.low(); ) {
+                for (vmiter it(p, 0); it.low(); ) {
                     if (it.user()) {
                         mark(it.pa(), f_user | f_process(pid));
                         it.next();
@@ -157,7 +157,7 @@ uint16_t memusage::symbol_at(uintptr_t pa) const {
             // kernel-restricted + user-accessible = error
             page_error(pa, "sharing error, kernel-restricted + user-accessible\n",
                        marked_pid(v));
-            return 'E' | 0xF400;
+            return '*' | 0xF400;
         } else {
             // find lowest process involved with this page
             pid_t pid = marked_pid(v);
@@ -166,7 +166,7 @@ uint16_t memusage::symbol_at(uintptr_t pa) const {
             uint16_t ch = colors[pid % 5] << 8;
             if (v & f_kernel) {
                 // kernel page: dark red background
-                ch |= 0x4000;
+                ch = 0x4000 | (ch == 0x0C00 ? 0x0F00 : ch);
             }
             if (v > (f_process(pid) | f_kernel | f_user)) {
                 // shared page
@@ -183,10 +183,12 @@ uint16_t memusage::symbol_at(uintptr_t pa) const {
 
 
 static void console_memviewer_virtual(memusage& mu, proc* vmp) {
+    const char* statemsg = vmp->pstate_ == proc::ps_faulted ? " (faulted)" : "";
     console_printf(CPOS(10, 26), 0x0F00,
-                   "VIRTUAL ADDRESS SPACE FOR %d\n", vmp->id_);
+                   "VIRTUAL ADDRESS SPACE FOR %d%C%s\n", vmp->id_,
+                   0x0700, statemsg);
 
-    for (vmiter it(vmp);
+    for (vmiter it(vmp, 0);
          it.va() < memusage::max_view_va;
          it += PAGESIZE) {
         unsigned long pn = it.va() / PAGESIZE;
@@ -200,8 +202,12 @@ static void console_memviewer_virtual(memusage& mu, proc* vmp) {
         } else {
             ch = mu.symbol_at(it.pa());
             if (it.user()) { // switch foreground & background colors
-                uint16_t z = (ch & 0x0F00) ^ ((ch & 0xF000) >> 4);
-                ch ^= z | (z << 4);
+                if (ch == (0x0F00 | 'S')) {
+                    ch ^= 0xFE00;
+                } else {
+                    uint16_t z = (ch & 0x0F00) ^ ((ch & 0xF000) >> 4);
+                    ch ^= z | (z << 4);
+                }
             }
         }
         console[CPOS(11 + pn/64, 12 + pn%64)] = ch;
@@ -222,7 +228,7 @@ void console_memviewer(proc* vmp) {
 
     for (int pn = 0; pn * PAGESIZE < memusage::max_view_pa; ++pn) {
         if (pn % 64 == 0) {
-            console_printf(CPOS(1 + pn/64, 3), 0x0F00, "0x%06X", pn << 12);
+            console_printf(CPOS(1 + pn/64, 3), 0x0F00, "0x%06X ", pn << 12);
         }
         console[CPOS(1 + pn/64, 12 + pn%64)] = mu.symbol_at(pn * PAGESIZE);
     }
