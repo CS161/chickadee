@@ -14,8 +14,8 @@
 //   the boot device (hard drive) into memory at address 0x7C00, and jumps to
 //   that address.
 //
-//   The boot loader is contained in bootstart.S and boot.c. Control starts
-//   in bootstart.S, which initializes the CPU and sets up a stack, then
+//   The boot loader is contained in bootentry.S and boot.cc. Control starts
+//   in bootentry.S, which initializes the CPU and sets up a stack, then
 //   transfers here. This code reads in the kernel image and calls the
 //   kernel.
 //

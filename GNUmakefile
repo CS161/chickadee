@@ -217,7 +217,7 @@ QEMUIMG = -M q35 \
 run: run-$(QEMUDISPLAY)
 	@:
 run-gdb-report:
-	@if test "$(QEMUGDB)" = "-gdb tcp::12949"; then echo '* Run `gdb -x build/weensyos.gdb` to connect gdb to qemu.' 1>&2; fi
+	@if test "$(QEMUGDB)" = "-gdb tcp::12949"; then echo '* Run `gdb -x build/chickadee.gdb` to connect gdb to qemu.' 1>&2; fi
 run-graphic: $(QEMUIMAGEFILES) check-qemu run-gdb-report
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) $(QEMUGDB) $(QEMUIMG),QEMU $<)
 run-console: $(QEMUIMAGEFILES) check-qemu-console run-gdb-report
