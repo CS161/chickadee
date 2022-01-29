@@ -13,8 +13,8 @@ ifeq ($(origin CXX),default)
 CXX     := $(shell $(SHELL) build/findgcc.sh $(CXX))
 endif
 else
-CC      = $(CCPREFIX)cc
-CXX     = $(CCPREFIX)c++
+CC      = $(CCPREFIX)gcc
+CXX     = $(CCPREFIX)g++
 endif
 LD      = $(CCPREFIX)ld
 OBJCOPY = $(CCPREFIX)objcopy
@@ -57,7 +57,7 @@ endif
 
 # Linker flags
 LDFLAGS := $(LDFLAGS) -Os --gc-sections -z max-page-size=0x1000 \
-	-static -nostdlib -nostartfiles
+	-static -nostdlib
 LDFLAGS	+= $(shell $(LD) -m elf_x86_64 --help >/dev/null 2>&1 && echo -m elf_x86_64)
 
 QUIETOBJCOPY = sh build/quietobjcopy.sh $(OBJCOPY)
