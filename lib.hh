@@ -254,7 +254,6 @@ struct bitset_view {
 
 // System call numbers (passed in `%rax` at `syscall` time)
 
-// Used in pset 1:
 #define SYSCALL_GETPID          1
 #define SYSCALL_YIELD           2
 #define SYSCALL_PAUSE           3
@@ -262,7 +261,6 @@ struct bitset_view {
 #define SYSCALL_PANIC           5
 #define SYSCALL_PAGE_ALLOC      6
 #define SYSCALL_FORK            7
-// Used in later psets:
 #define SYSCALL_EXIT            8
 #define SYSCALL_READ            9
 #define SYSCALL_WRITE           10
