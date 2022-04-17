@@ -19,7 +19,7 @@ int dprintf(int fd, const char* format, ...) {
 
 
 // printf
-//    Like `printf(1, ...)`.
+//    Like `dprintf(1, ...)`.
 
 int printf(const char* format, ...) {
     char buf[513];
