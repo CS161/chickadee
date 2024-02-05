@@ -26,7 +26,10 @@ void process_main() {
         assert(p2 != initial_pid && p2 != intermediate_pid && p2 != p1);
     }
 
-    // console_printf("testforksimple succeeded.\n");
+    console_printf(CPOS(final_pid - 1, 0), 0x700,
+                   "testforksimple %d [%d] %d [%d] %d succeeded.\n",
+                   initial_pid, p1, intermediate_pid, p2, final_pid);
+
     // This test runs before `sys_exit` is implemented, so we can’t use it.
     while (true) {
     }
