@@ -168,12 +168,12 @@ void ahcistate::handle_error_interrupt() {
         }
     }
     // SATA AHCI 1.3.1 §6.2.2.2
-    pr_->command &= ~pcmd_start;
+    pr_->command = pr_->command & ~pcmd_start;
     while (pr_->command & pcmd_command_running) {
         pause();
     }
     pr_->serror = ~0U;
-    pr_->command |= pcmd_start;
+    pr_->command = pr_->command | pcmd_start;
     // XXX must `READ LOG EXT` to clear error
     panic("SATA disk error");
 }
@@ -230,7 +230,7 @@ ahcistate::ahcistate(int pci_addr, int sata_port, volatile regs* dr)
     pci.enable(pci_addr_);
 
     // place port in idle state
-    pr_->command &= ~uint32_t(pcmd_rfis_enable | pcmd_start);
+    pr_->command = pr_->command & ~uint32_t(pcmd_rfis_enable | pcmd_start);
     while (pr_->command & (pcmd_command_running | pcmd_rfis_running)) {
         pause();
     }
@@ -245,7 +245,7 @@ ahcistate::ahcistate(int pci_addr, int sata_port, volatile regs* dr)
 
     // clear errors and power up
     pr_->serror = ~0U;
-    pr_->command |= pcmd_power_up;
+    pr_->command = pr_->command | pcmd_power_up;
 
     // configure interrupts
     pr_->interrupt_status = ~0U; // clear pending interrupts
@@ -253,10 +253,10 @@ ahcistate::ahcistate(int pci_addr, int sata_port, volatile regs* dr)
     pr_->interrupt_enable = interrupt_device_to_host
         | interrupt_ncq_complete
         | interrupt_error_mask;
-    dr_->ghc |= ghc_interrupt_enable;
+    dr_->ghc = dr_->ghc | ghc_interrupt_enable;
 
     // wait for functional device
-    pr_->command |= pcmd_rfis_enable;
+    pr_->command = pr_->command | pcmd_rfis_enable;
     while ((pr_->rstatus & (rstatus_busy | rstatus_datareq)) != 0
            || !sstatus_active(pr_->sstatus)) {
         pause();
@@ -269,7 +269,7 @@ ahcistate::ahcistate(int pci_addr, int sata_port, volatile regs* dr)
         pause();
     }
     // NB QEMU does not implement PxCMD.CLO/pcmd_rfis_clear
-    pr_->command |= pcmd_start;
+    pr_->command = pr_->command | pcmd_start;
 
     // send IDENTIFY DEVICE command and check results
     uint16_t devid[256];
