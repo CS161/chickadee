@@ -478,7 +478,7 @@ ap_rest:
         // compute `&cpus[my_CPU_number]`
         shll $12, %edi
         addq $cpus, %rdi
-        // initialize %rsp to the top if that cpustate
+        // initialize %rsp to the top of that cpustate
         leaq CPUSTACK_SIZE(%rdi), %rsp
         // call `cpus[my_CPU_number].init_ap()`.
         // This two-stage jump switches to high virtual addresses.
