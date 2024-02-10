@@ -24,7 +24,7 @@ struct elf_program;
 // Process descriptor type
 struct __attribute__((aligned(4096))) proc {
     enum pstate_t {
-        ps_blank = 0, ps_runnable = PROC_RUNNABLE, ps_faulted
+        ps_blank = 0, ps_runnable = PROC_RUNNABLE, ps_faulted, ps_blocked
     };
 
     // These four members must come first:
@@ -39,7 +39,9 @@ struct __attribute__((aligned(4096))) proc {
     int sanitizer_status_ = 0;
 #endif
 
-    list_links runq_links_;
+    // Per-CPU run queue, controlled by cpustate::runq_lock_
+    list_links runq_links_;                    // Links for run queue
+    int runq_cpu_ = -1;                        // CPU index of recent run queue
 
 
     proc();
@@ -62,6 +64,7 @@ struct __attribute__((aligned(4096))) proc {
     [[noreturn]] void panic_nonrunnable();
 
     inline bool resumable() const;
+    inline void unblock();
 
     int syscall_fork(regstate* regs);
 
@@ -367,6 +370,9 @@ void set_pagetable(x86_64_pagetable* pagetable);
 // Print memory viewer
 void console_memviewer(proc* p);
 
+// Run wait queue ktests
+int ktest_wait_queues();
+
 
 // Start the kernel
 [[noreturn]] void kernel_start(const char* command);
@@ -475,6 +481,18 @@ inline bool proc::resumable() const {
     assert(!regs_ || contains(regs_));      // `regs_` points within this
     assert(!yields_ || contains(yields_));  // same for `yields_`
     return regs_ || yields_;
+}
+
+// proc::unblock()
+//    If this task is blocked, then mark it as runnable and schedule it
+//    on its home CPU. An atomic compare-and-swap changes the `pstate_`;
+//    this is in case a task concurrently running on another CPU
+//    sets its `pstate_` to some other value, such as `ps_faulted`.
+inline void proc::unblock() {
+    int s = ps_blocked;
+    if (pstate_.compare_exchange_strong(s, ps_runnable)) {
+        cpus[runq_cpu_].enqueue(this);
+    }
 }
 
 // proc::lock_pagetable_read()

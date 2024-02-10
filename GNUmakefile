@@ -33,7 +33,9 @@ NCPU = 2
 LOG ?= file:log.txt
 QEMUOPT = -net none -parallel $(LOG) -smp $(NCPU)
 ifeq ($(D),1)
-QEMUOPT += -d int,cpu_reset,guest_errors -no-reboot
+QEMUOPT += -d int,cpu_reset,guest_errors -no-reboot -D qemu.log
+else ifeq ($(D),2)
+QEMUOPT += -d guest_errors -no-reboot -D qemu.log
 endif
 ifneq ($(NOGDB),1)
 QEMUGDB ?= -gdb tcp::12949
@@ -41,6 +43,8 @@ endif
 ifeq ($(STOP),1)
 QEMUOPT += -S
 endif
+
+QEMURANDSEED := $(strip $(shell od -N8 -tu8 -An /dev/urandom))
 
 
 # Sets of object files
@@ -51,9 +55,10 @@ KERNEL_OBJS = $(OBJDIR)/k-exception.ko \
 	$(OBJDIR)/kernel.ko $(OBJDIR)/k-cpu.ko $(OBJDIR)/k-proc.ko \
 	$(OBJDIR)/k-alloc.ko $(OBJDIR)/k-vmiter.ko $(OBJDIR)/k-devices.ko \
 	$(OBJDIR)/k-init.ko $(OBJDIR)/k-hardware.ko $(OBJDIR)/k-mpspec.ko \
-	$(OBJDIR)/crc32c.ko \
+	$(OBJDIR)/lib.ko $(OBJDIR)/crc32c.ko \
 	$(OBJDIR)/k-ahci.ko $(OBJDIR)/k-chkfs.ko $(OBJDIR)/k-chkfsiter.ko \
-	$(OBJDIR)/k-memviewer.ko $(OBJDIR)/lib.ko $(OBJDIR)/k-initfs.ko
+	$(OBJDIR)/k-memviewer.ko $(OBJDIR)/k-testwait.ko \
+	$(OBJDIR)/k-initfs.ko
 
 PROCESSES ?= $(patsubst %.cc,%,$(wildcard p-*.cc))
 
@@ -220,7 +225,8 @@ QEMUIMG = -M q35 \
 	-drive file=chickadeeboot.img,if=none,format=raw,id=bootdisk \
 	-device ide-hd,drive=bootdisk,bus=piix4-ide.0 \
 	-drive file=chickadeefs.img,if=none,format=raw,id=maindisk \
-	-device ide-hd,drive=maindisk,bus=ide.0
+	-device ide-hd,drive=maindisk,bus=ide.0 \
+	-device loader,addr=0xff8,data=$(QEMURANDSEED),data-len=8
 
 run: run-$(QEMUDISPLAY)
 	@:

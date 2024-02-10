@@ -21,9 +21,9 @@ Chickadee’s debug log is written to `log.txt` by default. `make
 LOG=stdio run` redirects the debug log to the standard output, and
 `make LOG=file:FILENAME run` redirects it to `FILENAME`.
 
-`make D=1 run` tells QEMU to print verbose information about interrupts
-and CPU resets to the standard error. This setting will also cause QEMU to
-quit after encountering a [triple fault][] (normally it will reboot).
+`make D=1 run` tells QEMU to print verbose information about interrupts and
+CPU resets to the file `qemu.log`. This setting will also cause QEMU to quit
+after encountering a [triple fault][] (normally it will reboot).
 
 `make run-PROGRAM` runs `p-PROGRAM.cc` as the first non-init process. The
 default is `alloc`.

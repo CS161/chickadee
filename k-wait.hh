@@ -14,24 +14,34 @@ inline waiter::waiter() {
 }
 
 inline waiter::~waiter() {
-    // optional error-checking code
+    assert(!links_.is_linked());
+    // Feel free to add more sanity checks if you’d like!
 }
 
 inline void waiter::prepare(wait_queue& wq) {
+    assert(!links_.is_linked());
+    p_ = current();
+    wq_ = &wq;
     // your code here
 }
 
-inline void waiter::block() {
-    assert(p_ == current());
+inline void waiter::maybe_block() {
+    assert(p_ == current() && wq_ != nullptr);
+    // Thanks to concurrent wakeups, `p_->pstate_` might or might not equal
+    // `proc::ps_blocked`, and `links_` might or might not be linked.
+    // When the function returns, `p_->pstate_` MUST NOT equal
+    // `proc::ps_blocked`, and `links_` MUST NOT be linked.
     // your code here
 }
 
 inline void waiter::clear() {
+    assert(p_ == current() && wq_ != nullptr);
     // your code here
 }
 
 inline void waiter::wake() {
-    // your code here
+    assert(!links_.is_linked());
+    p_->unblock();
 }
 
 
@@ -44,7 +54,7 @@ inline void waiter::block_until(wait_queue& wq, F predicate) {
         if (predicate()) {
             break;
         }
-        block();
+        maybe_block();
     }
     clear();
 }
@@ -63,7 +73,7 @@ inline void waiter::block_until(wait_queue& wq, F predicate,
             break;
         }
         lock.unlock(irqs);
-        block();
+        maybe_block();
         irqs = lock.lock();
     }
     clear();

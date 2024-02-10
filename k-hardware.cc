@@ -403,6 +403,7 @@ static void error_print_backtrace(const regstate& regs,
 
 static void vpanic(const regstate& regs, x86_64_pagetable* pt,
                    const char* format, va_list val) {
+    cli();
     panicking = true;
 
     // Print panic message to both the screen and the log

@@ -4,6 +4,7 @@
 #include <utility>
 #include "x86-64.h"
 inline void adjust_this_cpu_spinlock_depth(int delta);
+#define LOCK_DEBUG_PAUSE 1
 
 
 struct irqstate {
@@ -82,6 +83,9 @@ struct spinlock {
     }
     void unlock_noirq() {
         f_.clear();
+#if LOCK_DEBUG_PAUSE
+        pause();
+#endif
     }
 
     void clear() {

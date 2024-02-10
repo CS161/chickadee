@@ -65,6 +65,7 @@ void cpustate::enqueue(proc* p) {
     if (current_ != p && !p->runq_links_.is_linked()) {
         assert(p->resumable() || p->pstate_ != proc::ps_runnable);
         runq_.push_back(p);
+        p->runq_cpu_ = cpuindex_;
     }
 }
 
