@@ -73,19 +73,25 @@ struct spinlock {
         irqs.restore();
     }
 
+    inline void debug_pause() {
+#if LOCK_DEBUG_PAUSE
+        pause();
+#endif
+    }
+
     void lock_noirq() {
+        debug_pause();
         while (f_.test_and_set()) {
             pause();
         }
     }
     bool trylock_noirq() {
+        debug_pause();
         return !f_.test_and_set();
     }
     void unlock_noirq() {
         f_.clear();
-#if LOCK_DEBUG_PAUSE
-        pause();
-#endif
+        debug_pause();
     }
 
     void clear() {
