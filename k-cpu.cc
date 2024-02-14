@@ -62,10 +62,12 @@ void cpustate::disable_irq(int irqno) {
 
 void cpustate::enqueue(proc* p) {
     spinlock_guard guard(runq_lock_);
+    if (p->runq_cpu_ == -1) {
+        p->runq_cpu_ = cpuindex_;
+    }
     if (current_ != p && !p->runq_links_.is_linked()) {
         assert(p->resumable() || p->pstate_ != proc::ps_runnable);
         runq_.push_back(p);
-        p->runq_cpu_ = cpuindex_;
     }
 }
 
@@ -96,21 +98,24 @@ void cpustate::schedule(proc* yielding_from) {
     while (!current_
            || current_->pstate_ != proc::ps_runnable
            || current_ == yielding_from) {
+        proc* prev = current_;
+
         runq_lock_.lock_noirq();
 
         // re-enqueue old current if necessary
-        proc* prev = current_;
         if (prev && prev->pstate_ == proc::ps_runnable) {
             assert(prev->resumable());
-            assert(!prev->runq_links_.is_linked());
-            runq_.push_back(prev);
+            if (!prev->runq_links_.is_linked()) {
+                runq_.push_back(prev);
+            }
         }
 
         // run idle task as last resort
         current_ = runq_.empty() ? idle_task_ : runq_.pop_front();
 
         runq_lock_.unlock_noirq();
-        // no need to skip `current_` if no other runnable procs
+
+        // no need to skip `yielding_from` if no other runnable procs
         yielding_from = nullptr;
     }
 
@@ -137,4 +142,5 @@ void cpustate::init_idle_task() {
     assert(!idle_task_);
     idle_task_ = knew<proc>();
     idle_task_->init_kernel(-1, idle);
+    idle_task_->runq_cpu_ = cpuindex_;
 }
