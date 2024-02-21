@@ -49,6 +49,8 @@ struct wq_reporter {
 }
 
 static void wq_tester() {
+    cli();
+
     // determine own ID
     proc* p = current();
     int id = 0;
