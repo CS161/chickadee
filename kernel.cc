@@ -16,6 +16,7 @@ std::atomic<unsigned long> ticks;
 
 static void tick();
 static void boot_process_start(pid_t pid, const char* program_name);
+void find_mapped_memory();
 
 
 // kernel_start(command)
@@ -23,6 +24,8 @@ static void boot_process_start(pid_t pid, const char* program_name);
 //    string is an optional string passed from the boot loader.
 
 void kernel_start(const char* command) {
+    // find_mapped_memory();    // uncomment this to test the boot page table
+    
     init_hardware();
     consoletype = CONSOLE_NORMAL;
     console_clear();
@@ -433,3 +436,37 @@ void tick() {
         memshow();
     }
 }
+
+/* The comment at init_boot_pagetable in bootentry.s says that 1 GB of RAM
+ * is mapped. It appears that only 128 MB is mapped. That is, when we write
+ * to one address, can we find the value when we read from the other address?
+ * Disable optimizations so we can step through this in a debugger.
+ */
+#pragma GCC push_options
+#pragma GCC optimize ("O0")
+
+void find_mapped_memory() {
+    long lowCanonical = 0x0;
+    long highCanonical = 0xffff800000000000;
+    long kernel = 0xffffffff80000000;
+    char magic = 0x42;
+    for (long i = 0x7ffffff; i < 0x80000000; ++i) {
+        char* p1 = (char*) (lowCanonical + i);
+        char* p2 = ((char*) highCanonical + i);
+        char* p3 = ((char*) kernel + i);
+        *p1 = magic;
+        char c1 = *p1;
+        char c2 = *p2;
+        char c3 = *p3;
+        if (c1 != magic) {
+            *p2 = magic;
+            c2 = *p2;
+            c1 = *p1;     // break here!
+        }
+        c1 = c2;  // avoid compiler warnings
+        c2 = c3;
+        c3 = c1;
+    }
+}
+
+#pragma GCC pop_options
