@@ -45,7 +45,8 @@ void proc::init_user(pid_t pid, x86_64_pagetable* pt) {
 
 // proc::init_kernel(pid, f)
 //    Initialize this `proc` as a new kernel process with PID `pid`,
-//    starting at function `f`.
+//    starting at function `f`. The kernel task runs with interrupts
+//    enabled.
 
 void proc::init_kernel(pid_t pid, void (*f)()) {
     uintptr_t addr = reinterpret_cast<uintptr_t>(this);
