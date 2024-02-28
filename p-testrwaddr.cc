@@ -59,6 +59,6 @@ void process_main() {
     assert_gt(r, 0);
 
 
-    console_printf("testrwaddr succeeded.\n");
+    console_printf(COLOR_SUCCESS, "testrwaddr succeeded!\n");
     sys_exit(0);
 }

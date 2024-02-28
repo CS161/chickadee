@@ -65,7 +65,7 @@ OS has become unresponsive).
   Docker instance.)
 
 Run `make run-gdb` to start up the OS with support for GDB debugging. This
-will start the OS, but not GDB. You must run `gdb -x build/weensyos.gdb` to
+will start the OS, but not GDB. You must run `gdb -ix build/chickadee.gdb` to
 connect to the running emulator; when GDB connects, it will stop the OS and
 wait for instructions.
 
@@ -139,7 +139,7 @@ Build files
 -----------
 
 The main output of the build process is a disk image,
-`chickadeeos.img`. QEMU “boots” off this disk image, but the image
+`chickadeeboot.img`. QEMU “boots” off this disk image, but the image
 could conceivably boot on real hardware! The build process also
 produces other files that can be useful to examine.
 

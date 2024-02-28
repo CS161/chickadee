@@ -194,6 +194,6 @@ void process_main() {
     assert_eq(n, 0);
 
 
-    console_printf("testpipe succeeded.\n");
+    console_printf(COLOR_SUCCESS, "testpipe succeeded!\n");
     sys_exit(0);
 }
