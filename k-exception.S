@@ -77,18 +77,18 @@ exception_handler %exception_number
 // Exception entry point
 //    Most exception handlers jump here.
 exception_entry:
-        /* On entry, the stack looks like this:
+        /* When exception_entry begins, the stack looks like this:
            +-----------------------+ <- %rsp
-           | reg_intno, reg_swapgs |    0(%rsp)
-           | reg_errcode           |    8(%rsp)
-           | %rip                  |    16(%rsp)
-           | %cs                   |    24(%rsp)
-           | %rflags               |    32(%rsp)
-           | %rsp                  |    40(%rsp)
-           | %ss                   |    48(%rsp)
+           | reg_intno, reg_swapgs |    0(%rsp)  -- pushed by exception handler
+           | reg_errcode           |    8(%rsp)  -- pushed by exception handler
+           | %rip                  |    16(%rsp) -- pushed by CPU
+           | %cs                   |    24(%rsp) -- pushed by CPU
+           | %rflags               |    32(%rsp) -- pushed by CPU
+           | %rsp                  |    40(%rsp) -- pushed by CPU
+           | %ss                   |    48(%rsp) -- pushed by CPU
            ...                   ...
 
-           This data should be stored on the current kernel task stack.
+           This data needs to be stored on the current kernel task stack.
            It’s already there if the exception happened in kernel mode.
            Otherwise, we must move it there. */
 
@@ -478,7 +478,7 @@ ap_rest:
         // compute `&cpus[my_CPU_number]`
         shll $12, %edi
         addq $cpus, %rdi
-        // initialize %rsp to the top if that cpustate
+        // initialize %rsp to the top of that cpustate
         leaq CPUSTACK_SIZE(%rdi), %rsp
         // call `cpus[my_CPU_number].init_ap()`.
         // This two-stage jump switches to high virtual addresses.

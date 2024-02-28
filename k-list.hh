@@ -88,6 +88,7 @@ inline bool list_links::empty() const {
 
 inline void list_links::erase() {
     assert(next_ && prev_);
+    assert(next_->prev_ == this && prev_->next_ == this);
     prev_->next_ = next_;
     next_->prev_ = prev_;
     reset();

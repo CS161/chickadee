@@ -45,8 +45,34 @@ inline int toupper(int c);
 #define RAND_MAX 0x7FFFFFFF
 int rand();
 void srand(unsigned seed);
+
+// rand(min, max)
+//    Return a pseudorandom number roughly evenly distributed between
+//    `min` and `max`, inclusive. Requires `min <= max` and
+//    `max - min <= RAND_MAX`.
 int rand(int min, int max);
 
+// rand_engine
+//    A `rand`-style pseudorandom number generator lacking global state.
+struct rand_engine {
+    using result_type = unsigned;
+    unsigned long seed_;
+
+    inline rand_engine()                   { seed(819234718U); }
+    inline rand_engine(unsigned s)         { seed(s); }
+    inline rand_engine(unsigned long s)    { seed(s); }
+    inline static constexpr unsigned min() { return 0; }
+    inline static constexpr unsigned max() { return RAND_MAX; }
+    inline void seed(unsigned s)           { seed(((unsigned long) s) << 32 | s); }
+    inline void seed(unsigned long s)      { seed_ = s; }
+    unsigned operator()();
+    unsigned operator()(unsigned min, unsigned max);
+    int operator()(int min, int max);
+};
+
+// from_chars
+//    C++-style functions that parse integers from the start of a string,
+//    with error detection.
 struct from_chars_result {
     const char* ptr;
     int ec;
@@ -280,6 +306,7 @@ struct bitset_view {
 #define SYSCALL_GETTID          22
 #define SYSCALL_CLONE           23
 #define SYSCALL_TEXIT           24
+#define SYSCALL_KTEST           25
 
 // Add new system calls here.
 // Your numbers should be >=128 to avoid conflicts.
@@ -360,7 +387,8 @@ extern volatile int consoletype;
 //    Erases the console and moves the cursor to the upper left (CPOS(0, 0)).
 void console_clear();
 
-#define COLOR_ERROR 0xC000
+#define COLOR_ERROR         0xC000
+#define COLOR_SUCCESS       0x0A00
 
 
 // console_puts(cursor, color, s, len)

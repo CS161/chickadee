@@ -184,9 +184,9 @@ void keyboardstate::maybe_echo(int ch) {
         consolestate::get().lock_.lock_noirq();
         if (ch == 0x08) {
             if (cursorpos > 0) {
-                --cursorpos;
+                cursorpos = cursorpos - 1;
                 console_printf(" ");
-                --cursorpos;
+                cursorpos = cursorpos - 1;
             }
         } else if (ch != 0x04) {
             console_printf(0x0300, "%c", ch);

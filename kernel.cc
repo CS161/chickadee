@@ -178,6 +178,12 @@ uintptr_t proc::syscall(regstate* regs) {
         panic_at(*regs, "process %d called sys_panic()", id_);
         break;                  // will not be reached
 
+    case SYSCALL_KTEST:
+        if (regs->reg_rdi == 1) {
+            return ktest_wait_queues();
+        }
+        return -1;
+
     case SYSCALL_GETPID:
         return id_;
 

@@ -21,7 +21,7 @@ struct waiter {
     inline ~waiter();
     NO_COPY_OR_ASSIGN(waiter);
     inline void prepare(wait_queue& wq);
-    inline void block();
+    inline void maybe_block();
     inline void clear();
     inline void wake();
 

@@ -1,5 +1,6 @@
 QEMUIMAGEFILES = chickadeeboot.img chickadeefs.img
 all: $(QEMUIMAGEFILES)
+include build/flags.mk
 
 # Place local configuration options, such as `CC=clang`, in
 # `config.mk` so you don't have to list them every time.
@@ -32,11 +33,18 @@ NCPU = 2
 LOG ?= file:log.txt
 QEMUOPT = -net none -parallel $(LOG) -smp $(NCPU)
 ifeq ($(D),1)
-QEMUOPT += -d int,cpu_reset,guest_errors -no-reboot
+QEMUOPT += -d int,cpu_reset,guest_errors -no-reboot -D qemu.log
+else ifeq ($(D),2)
+QEMUOPT += -d guest_errors -no-reboot -D qemu.log
 endif
 ifneq ($(NOGDB),1)
 QEMUGDB ?= -gdb tcp::12949
 endif
+ifeq ($(STOP),1)
+QEMUOPT += -S
+endif
+
+QEMURANDSEED := $(strip $(shell od -N8 -tu8 -An /dev/urandom))
 
 
 # Sets of object files
@@ -47,9 +55,10 @@ KERNEL_OBJS = $(OBJDIR)/k-exception.ko \
 	$(OBJDIR)/kernel.ko $(OBJDIR)/k-cpu.ko $(OBJDIR)/k-proc.ko \
 	$(OBJDIR)/k-alloc.ko $(OBJDIR)/k-vmiter.ko $(OBJDIR)/k-devices.ko \
 	$(OBJDIR)/k-init.ko $(OBJDIR)/k-hardware.ko $(OBJDIR)/k-mpspec.ko \
-	$(OBJDIR)/crc32c.ko \
+	$(OBJDIR)/lib.ko $(OBJDIR)/crc32c.ko \
 	$(OBJDIR)/k-ahci.ko $(OBJDIR)/k-chkfs.ko $(OBJDIR)/k-chkfsiter.ko \
-	$(OBJDIR)/k-memviewer.ko $(OBJDIR)/lib.ko $(OBJDIR)/k-initfs.ko
+	$(OBJDIR)/k-memviewer.ko $(OBJDIR)/k-testwait.ko \
+	$(OBJDIR)/k-initfs.ko
 
 PROCESSES ?= $(patsubst %.cc,%,$(wildcard p-*.cc))
 
@@ -87,6 +96,7 @@ CHICKADEE_FIRST_PROCESS ?= allocator
 ifneq ($(strip $(CHICKADEE_FIRST_PROCESS)),$(DEP_CHICKADEE_FIRST_PROCESS))
 FIRST_PROCESS_BUILDSTAMP := $(shell echo "DEP_CHICKADEE_FIRST_PROCESS:=$(CHICKADEE_FIRST_PROCESS)" > $(DEPSDIR)/_first_process.d)
 $(OBJDIR)/k-firstprocess.h: always
+$(OBJDIR)/firstprocess.gdb: always
 endif
 ifeq ($(wildcard $(OBJDIR)/k-firstprocess.h),)
 KERNELBUILDSTAMPS += $(OBJDIR)/k-firstprocess.h
@@ -135,11 +145,14 @@ $(OBJDIR)/k-initfs.cc: build/mkinitfs.awk \
 $(OBJDIR)/k-initfs.ko: $(OBJDIR)/k-initfs.cc
 	$(call cxxcompile,$(KERNELCXXFLAGS) -O2 -DCHICKADEE_KERNEL -mcmodel=kernel -c $< -o $@,COMPILE $<)
 
+$(OBJDIR)/firstprocess.gdb:
+	$(call run,echo "add-symbol-file obj/p-$(CHICKADEE_FIRST_PROCESS).full 0x100000" > $@,CREATE $@)
+
 
 # How to make binaries and the boot sector
 
 $(OBJDIR)/kernel.full: $(KERNEL_OBJS) $(INITFS_CONTENTS) kernel.ld
-	$(call link,-T kernel.ld -o $@ $(KERNEL_OBJS) -b binary $(INITFS_CONTENTS),LINK)
+	$(call link,-T kernel.ld -z noexecstack -o $@ $(KERNEL_OBJS) -b binary $(INITFS_CONTENTS),LINK)
 
 $(OBJDIR)/p-%.full: $(OBJDIR)/p-%.uo $(PROCESS_LIB_OBJS) process.ld
 	$(call link,-T process.ld -o $@ $< $(PROCESS_LIB_OBJS),LINK)
@@ -157,7 +170,7 @@ $(OBJDIR)/%: $(OBJDIR)/%.full
 	$(call run,$(QUIETOBJCOPY) -j .text -j .rodata -j .data -j .bss -j .ctors -j .init_array $<,STRIP,$@)
 
 $(OBJDIR)/bootsector: $(BOOT_OBJS) boot.ld
-	$(call link,-T boot.ld -o $@.full $(BOOT_OBJS),LINK)
+	$(call link,-T boot.ld -z noexecstack -o $@.full $(BOOT_OBJS),LINK)
 	$(call run,$(OBJDUMP) -C -S $@.full >$@.asm)
 	$(call run,$(NM) -n $@.full >$@.sym)
 	$(call run,$(OBJCOPY) -S -O binary -j .text $@.full $@)
@@ -166,25 +179,25 @@ $(OBJDIR)/bootsector: $(BOOT_OBJS) boot.ld
 # How to make host program for ensuring a loaded symbol table
 
 $(OBJDIR)/mkchickadeesymtab: build/mkchickadeesymtab.cc $(BUILDSTAMPS)
-	$(call run,$(HOSTCXX) $(CPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) -g -o $@,HOSTCOMPILE,$<)
+	$(call run,$(HOSTCXX) $(HOSTCPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) -g -o $@,HOSTCOMPILE,$<)
 
 
 # How to make host programs for constructing & checking file systems
 
 $(OBJDIR)/%.o: %.cc $(BUILDSTAMPS)
-	$(call run,$(HOSTCXX) $(CPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) -c -o $@,HOSTCOMPILE,$<)
+	$(call run,$(HOSTCXX) $(HOSTCPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) -c -o $@,HOSTCOMPILE,$<)
 
 $(OBJDIR)/%.o: build/%.cc $(BUILDSTAMPS)
-	$(call run,$(HOSTCXX) $(CPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) -c -o $@,HOSTCOMPILE,$<)
+	$(call run,$(HOSTCXX) $(HOSTCPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) -c -o $@,HOSTCOMPILE,$<)
 
 $(OBJDIR)/mkchickadeefs: build/mkchickadeefs.cc $(BUILDSTAMPS)
-	$(call run,$(HOSTCXX) $(CPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) -g -o $@,HOSTCOMPILE,$<)
+	$(call run,$(HOSTCXX) $(HOSTCPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) -g -o $@,HOSTCOMPILE,$<)
 
 CHICKADEEFSCK_OBJS = $(OBJDIR)/chickadeefsck.o \
 	$(OBJDIR)/journalreplayer.o \
 	$(OBJDIR)/crc32c.o
 $(OBJDIR)/chickadeefsck: $(CHICKADEEFSCK_OBJS) $(BUILDSTAMPS)
-	$(call run,$(HOSTCXX) $(CPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) $(CHICKADEEFSCK_OBJS) -o,HOSTLINK,$@)
+	$(call run,$(HOSTCXX) $(HOSTCPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) $(CHICKADEEFSCK_OBJS) -o,HOSTLINK,$@)
 
 
 # How to make disk images
@@ -212,25 +225,26 @@ QEMUIMG = -M q35 \
 	-drive file=chickadeeboot.img,if=none,format=raw,id=bootdisk \
 	-device ide-hd,drive=bootdisk,bus=piix4-ide.0 \
 	-drive file=chickadeefs.img,if=none,format=raw,id=maindisk \
-	-device ide-hd,drive=maindisk,bus=ide.0
+	-device ide-hd,drive=maindisk,bus=ide.0 \
+	-device loader,addr=0xff8,data=$(QEMURANDSEED),data-len=8
 
 run: run-$(QEMUDISPLAY)
 	@:
 run-gdb-report:
-	@if test "$(QEMUGDB)" = "-gdb tcp::12949"; then echo '* Run `gdb -x build/weensyos.gdb` to connect gdb to qemu.' 1>&2; fi
+	@if test "$(QEMUGDB)" = "-gdb tcp::12949"; then echo '* Run `gdb -ix build/chickadee.gdb` to connect gdb to qemu.' 1>&2; fi
 run-graphic: $(QEMUIMAGEFILES) check-qemu run-gdb-report
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) $(QEMUGDB) $(QEMUIMG),QEMU $<)
 run-console: $(QEMUIMAGEFILES) check-qemu-console run-gdb-report
-	$(call run,$(QEMU) $(QEMUOPT) -curses $(QEMUGDB) $(QEMUIMG),QEMU $<)
+	$(call run,$(QEMU) $(QEMUOPT) -display curses $(QEMUGDB) $(QEMUIMG),QEMU $<)
 run-monitor: $(QEMUIMAGEFILES) check-qemu
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -monitor stdio $(QEMUIMG),QEMU $<)
 run-gdb: run-gdb-$(QEMUDISPLAY)
 	@:
 run-gdb-graphic: $(QEMUIMAGEFILES) check-qemu
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -gdb tcp::12949 $(QEMUIMG) &,QEMU $<)
-	$(call run,sleep 0.5; gdb -x build/chickadee.gdb,GDB)
+	$(call run,sleep 0.5; gdb -ix build/chickadee.gdb,GDB)
 run-gdb-console: $(QEMUIMAGEFILES) check-qemu-console
-	$(call run,$(QEMU) $(QEMUOPT) -curses -gdb tcp::12949 $(QEMUIMG),QEMU $<)
+	$(call run,$(QEMU) $(QEMUOPT) -display curses -gdb tcp::12949 $(QEMUIMG),QEMU $<)
 
 run-$(RUNSUFFIX): run
 run-graphic-$(RUNSUFFIX): run-graphic

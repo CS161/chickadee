@@ -20,17 +20,21 @@ while test "$#" -ne 0; do
             platform=linux/arm64
             shift
         else
-            echo "\`cs61-run-docker --arm\` only works on ARM64 hosts" 1>&2
+            echo "\`run-docker --arm\` only works on ARM64 hosts" 1>&2
             exit 1
         fi
     elif test "$1" = "-x" -o "$1" = "--x86-64" -o "$1" = "--x86_64" -o "$1" = "--amd64"; then
         platform=linux/amd64
+        shift
+    elif test "(" "$1" = "-t" -o "$1" = "--tag" ")" -a "$#" -gt 1; then
+        tag="$2"
+        shift 2
     else
         armtext=
         if test "$arch" = "arm64" -o "$arch" = "aarch64"; then
             armtext=" [-a|--arm] [-x|--x86-64]"
         fi
-        echo "Usage: cs61-run-docker [-f|--fresh]$armtext [-V|--verbose]" 1>&2
+        echo "Usage: run-docker [-f|--fresh] [-t|--tag TAG]$armtext [-V|--verbose]" 1>&2
         exit 1
     fi
 done
@@ -40,9 +44,9 @@ elif test -z "$platform"; then
     platform=linux/amd64
 fi
 if test -z "$tag" -a "$platform" = linux/arm64; then
-    tag=cs61:arm64
+    tag=chickadee:arm64
 elif test -z "$tag"; then
-    tag=cs61:latest
+    tag=chickadee:latest
 fi
 
 
@@ -80,7 +84,7 @@ fi
 ssharg=
 sshenvarg=
 if test -n "$SSH_AUTH_SOCK" -a "`uname`" = Darwin; then
-    ssharg=" -v /run/host-services/ssh-auth.sock:/run/host-services/ssh-auth.sock"
+    ssharg=" --mount type=bind,src=/run/host-services/ssh-auth.sock,target=/run/host-services/ssh-auth.sock"
     sshenvarg=" -e SSH_AUTH_SOCK=/run/host-services/ssh-auth.sock"
 fi
 

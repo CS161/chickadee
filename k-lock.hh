@@ -4,6 +4,7 @@
 #include <utility>
 #include "x86-64.h"
 inline void adjust_this_cpu_spinlock_depth(int delta);
+#define LOCK_DEBUG_PAUSE 1
 
 
 struct irqstate {
@@ -45,7 +46,7 @@ struct irqstate {
 
 struct spinlock {
     spinlock() {
-        f_.f.clear();
+        f_.clear();
     }
 
     irqstate lock() {
@@ -72,32 +73,37 @@ struct spinlock {
         irqs.restore();
     }
 
+    inline void debug_pause() {
+#if LOCK_DEBUG_PAUSE
+        pause();
+#endif
+    }
+
     void lock_noirq() {
-        while (f_.f.test_and_set()) {
+        debug_pause();
+        while (f_.test_and_set()) {
             pause();
         }
     }
     bool trylock_noirq() {
-        return !f_.f.test_and_set();
+        debug_pause();
+        return !f_.test_and_set();
     }
     void unlock_noirq() {
-        f_.f.clear();
+        f_.clear();
+        debug_pause();
     }
 
     void clear() {
-        f_.f.clear();
+        f_.clear();
     }
 
     bool is_locked() const {
-        static_assert(sizeof(f_) == 1, "expect atomic_flag to occupy 1 byte");
-        return f_.alias.load(std::memory_order_relaxed) != 0;
+        return f_.test(std::memory_order_relaxed);
     }
 
 private:
-    union {
-        std::atomic_flag f;
-        std::atomic<unsigned char> alias;
-    } f_;
+    std::atomic_flag f_;
 };
 
 

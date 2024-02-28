@@ -89,6 +89,6 @@ void process_main() {
         sys_msleep(50); // loop because a long `msleep` could be interrupted
     }
     console_printf("ppid tests with exit succeed\n");
-    console_printf("testppid succeeded.\n");
+    console_printf(COLOR_SUCCESS, "testppid succeeded!\n");
     sys_exit(0);
 }

@@ -13,52 +13,41 @@ ifeq ($(origin CXX),default)
 CXX     := $(shell $(SHELL) build/findgcc.sh $(CXX))
 endif
 else
-CC      = $(CCPREFIX)cc
-CXX     = $(CCPREFIX)c++
+# Override implicit settings, allow user settings
+ifeq ($(origin CC),default)
+CC      := $(CCPREFIX)cc
 endif
-LD      = $(CCPREFIX)ld
-OBJCOPY = $(CCPREFIX)objcopy
-OBJDUMP = $(CCPREFIX)objdump
-NM      = $(CCPREFIX)nm
-STRIP   = $(CCPREFIX)strip
+ifeq ($(origin CXX),default)
+CXX     := $(CCPREFIX)c++
+endif
+ifeq ($(origin LD),default)
+LD      := $(CCPREFIX)ld
+endif
+endif
+
+OBJCOPY ?= $(CCPREFIX)objcopy
+OBJDUMP ?= $(CCPREFIX)objdump
+NM      ?= $(CCPREFIX)nm
+STRIP   ?= $(CCPREFIX)strip
 
 # Native commands
-HOSTCC  = cc
-HOSTCXX = c++
-TAR     = tar
-PERL    = perl
-HOSTCFLAGS := $(CFLAGS) -std=gnu11 -Wall -W
-HOSTCXXFLAGS := $(CXXFLAGS) -std=gnu++1z -Wall -W
+HOSTCC  ?= cc
+HOSTCXX ?= c++
+TAR     ?= tar
+PERL    ?= perl
 
-# Compiler flags
-# -Os is required for the boot loader to fit within 512 bytes;
-# -ffreestanding means there is no standard library.
-CPPFLAGS := $(DEFS) -I.
-
-CCOMMONFLAGS := -m64 -mno-mmx -mno-sse -mno-sse2 -mno-sse3 \
-	-mno-3dnow -ffreestanding -fno-omit-frame-pointer -fno-pic \
-	-fno-stack-protector \
-	-Wall -W -Wshadow -Wno-format -Wno-unused-parameter
-
-ASFLAGS := $(CCOMMONFLAGS)
+# Update flags based on `make` options and program support
 ASFLAGS += $(shell $(CXX) -no-integrated-as -E -x c /dev/null >/dev/null 2>&1 && echo -no-integrated-as)
-CFLAGS := $(CFLAGS) $(CCOMMONFLAGS) -std=gnu11 -gdwarf
-CXXFLAGS := $(CXXFLAGS) $(CCOMMONFLAGS) -std=gnu++1z \
-	-fno-exceptions -fno-rtti -gdwarf -ffunction-sections
-DEPCFLAGS = -MD -MF $(DEPSDIR)/$(@F).d -MP
 
-KERNELCXXFLAGS = $(CXXFLAGS) -mno-red-zone $(SANITIZEFLAGS)
+LDFLAGS += $(shell $(LD) -m elf_x86_64 --help >/dev/null 2>&1 && echo "-m elf_x86_64")
+LDFLAGS += $(shell $(LD) --no-warn-rwx-segments --help >/dev/null 2>&1 && echo "--no-warn-rwx-segments")
+
 ifeq ($(filter 1,$(SAN) $(UBSAN)),1)
 KERNEL_OBJS += $(OBJDIR)/k-sanitizers.ko
 KERNELCXXFLAGS += -DHAVE_SANITIZERS
 SANITIZEFLAGS := -fsanitize=undefined -fsanitize=kernel-address
 $(OBJDIR)/k-alloc.ko $(OBJDIR)/k-sanitizers.ko: SANITIZEFLAGS :=
 endif
-
-# Linker flags
-LDFLAGS := $(LDFLAGS) -Os --gc-sections -z max-page-size=0x1000 \
-	-static -nostdlib -nostartfiles
-LDFLAGS	+= $(shell $(LD) -m elf_x86_64 --help >/dev/null 2>&1 && echo -m elf_x86_64)
 
 QUIETOBJCOPY = sh build/quietobjcopy.sh $(OBJCOPY)
 
@@ -71,19 +60,21 @@ DEPFILES := $(wildcard $(DEPSDIR)/*.d)
 ifneq ($(DEPFILES),)
 include $(DEPFILES)
 endif
+-include build/devrules.mk
 
 ifneq ($(DEP_CC),$(CC) $(CPPFLAGS) $(CFLAGS) $(DEPCFLAGS) $(O) _ $(LDFLAGS))
 DEP_CC := $(shell mkdir -p $(DEPSDIR); echo >$(BUILDSTAMP); echo "DEP_CC:=$(CC) $(CPPFLAGS) $(CFLAGS) $(DEPCFLAGS) $(O) _ $(LDFLAGS)" >$(DEPSDIR)/_cc.d; echo "DEP_PREFER_GCC:=$(PREFER_GCC)" >>$(DEPSDIR)/_cc.d)
 endif
-ifneq ($(DEP_CXX),$(CXX) $(CPPFLAGS) $(DEPCFLAGS) $(CXXFLAGS) $(O) _ $(HOSTCXXFLAGS))
-DEP_CXX := $(shell mkdir -p $(DEPSDIR); echo >$(BUILDSTAMP); echo "DEP_CXX:=$(CXX) $(CPPFLAGS) $(DEPCFLAGS) $(CXXFLAGS) $(O) _ $(HOSTCXXFLAGS)" >$(DEPSDIR)/_cxx.d)
+ifneq ($(DEP_CXX),$(CXX) $(HOSTCPPFLAGS) $(DEPCFLAGS) $(CXXFLAGS) $(O) _ $(HOSTCXXFLAGS))
+DEP_CXX := $(shell mkdir -p $(DEPSDIR); echo >$(BUILDSTAMP); echo "DEP_CXX:=$(CXX) $(HOSTCPPFLAGS) $(DEPCFLAGS) $(CXXFLAGS) $(O) _ $(HOSTCXXFLAGS)" >$(DEPSDIR)/_cxx.d)
 endif
 ifneq ($(DEP_KERNELCXX),$(CXX) $(CPPFLAGS) $(DEPCFLAGS) $(KERNELCXXFLAGS) $(O))
 DEP_KERNELCXX := $(shell mkdir -p $(DEPSDIR); echo >$(KERNELBUILDSTAMP); echo "DEP_KERNELCXX:=$(CXX) $(CPPFLAGS) $(DEPCFLAGS) $(KERNELCXXFLAGS) $(O)" >$(DEPSDIR)/_kernelcxx.d)
 endif
 
 BUILDSTAMPS = $(OBJDIR)/stamp $(BUILDSTAMP)
-KERNELBUILDSTAMPS = $(OBJDIR)/stamp $(KERNELBUILDSTAMP)
+GDBFILES = $(OBJDIR)/firstprocess.gdb
+KERNELBUILDSTAMPS = $(OBJDIR)/stamp $(KERNELBUILDSTAMP) $(GDBFILES)
 
 $(OBJDIR)/stamp $(BUILDSTAMP):
 	$(call run,mkdir -p $(@D))
@@ -130,7 +121,7 @@ check-qemu-console:
 	        echo "***" 1>&2; echo 1>&2; \
 	        echo sudo $$cmd qemu-system-x86; \
 	        sudo $$cmd qemu-system-x86 || exit 1; \
-	    else echo "*** Try running this command to install it:" 1>&2; \
+	    else echo "*** If on Linux, try running this command to install it:" 1>&2; \
 	        echo sudo $$cmd qemu-system-x86 1>&2; \
 	        echo 1>&2; exit 1; fi; \
 	else :; fi

@@ -282,7 +282,8 @@ private:
 
     void check() {
         if (rbp_ < rsp_
-            || stack_top_ - 16 < rbp_
+            || stack_top_ < rbp_
+            || stack_top_ - rbp_ < 16
             || !pt_
             || (vmiter(pt_, rbp_).range_perm(16) & PTE_P) == 0
             || (rbp_ & 7) != 0) {
@@ -296,9 +297,6 @@ private:
 };
 }
 
-
-// log_backtrace([proc,] prefix)
-//    Print a backtrace to `log.txt`, each line prefixed by `prefix`.
 
 static void log_backtrace(backtracer& bt, const char* prefix) {
     if (bt.rsp() != bt.rbp()
@@ -329,6 +327,10 @@ __always_inline const regstate& backtrace_current_regs() {
 __always_inline x86_64_pagetable* backtrace_current_pagetable() {
     return pa2kptr<x86_64_pagetable*>(rdcr3());
 }
+
+
+// log_backtrace([proc,] prefix)
+//    Print a backtrace to `log.txt`, each line prefixed by `prefix`.
 
 void log_backtrace(const char* prefix) {
     backtracer bt(backtrace_current_regs(), backtrace_current_pagetable());
@@ -376,6 +378,9 @@ std::atomic<bool> panicking;
 static void error_print_backtrace(const regstate& regs,
                                   x86_64_pagetable* pt,
                                   bool include_rip) {
+    if (CCOL(cursorpos)) {
+        error_printf("\n");
+    }
     if (include_rip && regs.reg_rip) {
         const char* name;
         if (lookup_symbol(regs.reg_rip, &name, nullptr)) {
@@ -388,7 +393,7 @@ static void error_print_backtrace(const regstate& regs,
     for (int frame = 1; bt.ok(); bt.step(), ++frame) {
         uintptr_t ret_rip = bt.ret_rip();
         const char* name;
-        if (lookup_symbol(ret_rip, &name, nullptr)) {
+        if (lookup_symbol(ret_rip - 2, &name, nullptr)) {
             error_printf("  #%d  %p  <%s>\n", frame, ret_rip, name);
         } else {
             error_printf("  #%d  %p\n", frame, ret_rip);
@@ -398,6 +403,7 @@ static void error_print_backtrace(const regstate& regs,
 
 static void vpanic(const regstate& regs, x86_64_pagetable* pt,
                    const char* format, va_list val) {
+    cli();
     panicking = true;
 
     // Print panic message to both the screen and the log

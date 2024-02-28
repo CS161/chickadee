@@ -1,5 +1,6 @@
 #include "lib.hh"
 #include "x86-64.h"
+#include <atomic>
 #if CHICKADEE_KERNEL
 #include "k-devices.hh" /* for consolestate */
 #endif
@@ -12,7 +13,7 @@
 extern "C" {
 
 // memcpy, memmove, memset, memcmp, memchr, strlen, strnlen,
-// strcpy, strncpy, strlcpy, strcmp, strncmp, strchr,
+// strcpy, strncpy, strlcpy, strcmp, strncmp, strchr, strstr,
 // strtoul, strtol
 //    We must provide our own implementations.
 
@@ -297,17 +298,20 @@ from_chars_result from_chars(const char* first, const char* last,
 }
 
 
-// rand, srand
+// pseudorandom number generators
 
-static int rand_seed_set;
-static unsigned long rand_seed;
+static std::atomic<int> rand_seed_set;
+static std::atomic<unsigned long> rand_seed;
 
 int rand() {
     if (!rand_seed_set) {
         srand(819234718U);
     }
-    rand_seed = rand_seed * 6364136223846793005UL + 1;
-    return (rand_seed >> 32) & RAND_MAX;
+    unsigned long rs = rand_seed, next_rs;
+    do {
+        next_rs = rs * 6364136223846793005UL + 1;
+    } while (!rand_seed.compare_exchange_weak(rs, next_rs));
+    return (next_rs >> 33) & RAND_MAX;
 }
 
 void srand(unsigned seed) {
@@ -315,16 +319,37 @@ void srand(unsigned seed) {
     rand_seed_set = 1;
 }
 
-// rand(min, max)
-//    Return a pseudorandom number roughly evenly distributed between
-//    `min` and `max`, inclusive. Requires `min <= max` and
-//    `max - min <= RAND_MAX`.
-int rand(int min, int max) {
+namespace {
+template <typename T, typename F>
+T uniform_int_distribution(T min, T max, F&& engine) {
     assert(min <= max);
     assert(max - min <= RAND_MAX);
+    unsigned long amount = max - min + 1;
+    unsigned long per = (unsigned(RAND_MAX) + 1) / amount;
+    unsigned long bound = per * amount;
+    unsigned long r;
+    do {
+        r = engine();
+    } while (r >= bound);
+    return min + r / per;
+}
+}
 
-    unsigned long r = rand();
-    return min + (r * (max - min + 1)) / ((unsigned long) RAND_MAX + 1);
+int rand(int min, int max) {
+    return uniform_int_distribution(min, max, (int (*)()) rand);
+}
+
+unsigned rand_engine::operator()() {
+    seed_ = seed_ * 6364136223846793005UL + 1;
+    return (seed_ >> 33) & RAND_MAX;
+}
+
+unsigned rand_engine::operator()(unsigned min, unsigned max) {
+    return uniform_int_distribution(min, max, *this);
+}
+
+int rand_engine::operator()(int min, int max) {
+    return uniform_int_distribution(min, max, *this);
 }
 
 

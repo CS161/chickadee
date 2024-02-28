@@ -16,6 +16,9 @@ class vmiter {
     inline vmiter(x86_64_pagetable* pt, uintptr_t va);
     inline vmiter(const proc* p, uintptr_t va);
 
+    // Return the page table this `vmiter` is examining.
+    inline x86_64_pagetable* pagetable() const;
+
     // ADDRESS QUERIES
     // Return current virtual address
     inline uintptr_t va() const;
@@ -25,28 +28,28 @@ class vmiter {
     inline bool low() const;
     // Return true iff iteration has completed (reached last va)
     inline bool done() const;
-    // Return physical address mapped at `va()`,
-    // or `(uintptr_t) -1` if `va()` is unmapped
+    // Return physical address mapped at `this->va()`,
+    // or `(uintptr_t) -1` if `this->va()` is unmapped
     inline uint64_t pa() const;
-    // Return a kernel-accessible pointer corresponding to `pa()`,
-    // or `nullptr` if `va()` is unmapped
+    // Return a kernel-accessible pointer corresponding to `this->pa()`,
+    // or `nullptr` if `this->va()` is unmapped
     template <typename T = void*>
     inline T kptr() const;
 
     // PERMISSIONS
-    // Return permissions at `va()` (or 0 if `PTE_P` is not set)
+    // Return permissions at `this->va()` (or 0 if `PTE_P` is not set)
     inline uint64_t perm() const;
-    // Return true iff `va()` is present (`PTE_P`)
+    // Return true iff `this->va()` is present (`PTE_P`)
     inline bool present() const;
-    // Return true iff `va()` is present and writable (`PTE_P|PTE_W`)
+    // Return true iff `this->va()` is present and writable (`PTE_P|PTE_W`)
     inline bool writable() const;
-    // Return true iff `va()` is present and unprivileged (`PTE_P|PTE_U`)
+    // Return true iff `this->va()` is present and unprivileged (`PTE_P|PTE_U`)
     inline bool user() const;
 
     // ADVANCED PERMISSIONS
-    // Return true iff `(perm() & desired_perm) == desired_perm`
+    // Return true iff `(this->perm() & desired_perm) == desired_perm`
     inline bool perm(uint64_t desired_perm) const;
-    // Return intersection of permissions in [va(), va() + sz)
+    // Return intersection of permissions in [this->va(), this->va() + sz)
     uint64_t range_perm(size_t sz) const;
     // Return true iff `(range_perm(sz) & desired_perm) == desired_perm`
     inline bool range_perm(size_t sz, uint64_t desired_perm) const;
@@ -71,18 +74,18 @@ class vmiter {
     void next_range();
 
     // MAPPING MODIFICATION
-    // Map current virtual address to `pa` with permissions `perm`.
-    // The current virtual address must be page-aligned. Calls `kalloc`
-    // to allocate page table pages if necessary; returns 0 on success
-    // and -1 on failure.
+    // Change the mapping in `this->pagetable()` for `this->va()` (the
+    // current virtual address) to `pa` with permissions `perm`.
+    // `this->va()` must be page-aligned. Can call `kalloc` to allocate
+    // page table pages. On success, changes the mapping and returns 0.
+    // If `kalloc` fails, returns a negative error code without modifying
+    // any mappings.
     [[gnu::warn_unused_result]] int try_map(uintptr_t pa, int perm);
     // Same, but map a kernel pointer
     [[gnu::warn_unused_result]] inline int try_map(void* kptr, int perm);
     [[gnu::warn_unused_result]] inline int try_map(volatile void* kptr, int perm);
 
-    // Map current virtual address to `pa` with permissions `perm`.
-    // The current virtual address must be page-aligned. Calls `kalloc`
-    // to allocate page table pages if necessary; panics on failure.
+    // Same, but panics on failure.
     inline void map(uintptr_t pa, int perm);
     inline void map(void* kptr, int perm);
     inline void map(volatile void* kptr, int perm);
@@ -168,6 +171,9 @@ inline vmiter::vmiter(x86_64_pagetable* pt, uintptr_t va)
 }
 inline vmiter::vmiter(const proc* p, uintptr_t va)
     : vmiter(p->pagetable_, va) {
+}
+inline x86_64_pagetable* vmiter::pagetable() const {
+    return pt_;
 }
 inline uintptr_t vmiter::va() const {
     return va_;

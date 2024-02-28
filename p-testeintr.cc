@@ -40,6 +40,6 @@ void process_main() {
     assert_eq(sys_msleep(1000), 0);
 
 
-    console_printf("testeintr succeeded.\n");
+    console_printf(COLOR_SUCCESS, "testeintr succeeded!\n");
     sys_exit(0);
 }

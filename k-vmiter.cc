@@ -23,7 +23,7 @@ void vmiter::real_find(uintptr_t va, bool stepping) {
         perm_ = 0;
         pep_ = const_cast<x86_64_pageentry_t*>(&zero_pe);
     } else if (lbits_ < initial_lbits
-               && ((va_ ^ va) & (~uintptr_t(0) << (lbits_ + PAGEINDEXBITS))) != 0) {
+               && ((va_ ^ va) & (~uintptr_t(0) << (lbits_ + PAGEINDEXBITS))) == 0) {
         // stepping to next entry in current page table level
         int curidx = (reinterpret_cast<uintptr_t>(pep_) % PAGESIZE) >> 3;
         pep_ += ((va >> lbits_) & 0x1FF) - curidx;
