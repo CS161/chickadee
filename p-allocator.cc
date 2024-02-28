@@ -6,12 +6,19 @@ extern uint8_t end[];
 uint8_t* heap_top;
 uint8_t* stack_bottom;
 
+// turn off optimization to facilitate debugging of forking new copies
+#pragma GCC push_options
+#pragma GCC optimize ("O0")
+
 void process_main() {
     sys_consoletype(CONSOLE_MEMVIEWER);
 
     // Fork three new copies. (But ignore failures.)
-    (void) sys_fork();
-    (void) sys_fork();
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-variable"
+    pid_t pid1 = sys_fork();
+    pid_t pid2 = sys_fork();
+#pragma GCC diagnostic pop
 
     pid_t p = sys_getpid();
     srand(p);
@@ -48,3 +55,5 @@ void process_main() {
         sys_yield();
     }
 }
+
+#pragma GCC pop_options
