@@ -21,8 +21,6 @@ void init_kalloc() {
 //    The handout allocator sets returned memory to 0xCC (this corresponds
 //    to the x86 `int3` instruction and may help you debug).
 //
-//    If `sz` is a multiple of `PAGESIZE`, the returned pointer is guaranteed
-//    to be page-aligned.
 //
 //    The handout code does not free memory and allocates memory in units
 //    of pages.
