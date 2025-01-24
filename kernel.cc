@@ -15,7 +15,7 @@
 std::atomic<unsigned long> ticks;
 
 static void tick();
-static void boot_process_start(pid_t pid, const char* program_name);
+static void start_initial_process(pid_t pid, const char* program_name);
 
 
 // kernel_start(command)
@@ -33,35 +33,44 @@ void kernel_start(const char* command) {
     }
 
     // start first process
-    boot_process_start(1, CHICKADEE_FIRST_PROCESS);
+    start_initial_process(1, CHICKADEE_FIRST_PROCESS);
 
     // start running processes
-    cpus[0].schedule(nullptr);
+    cpus[0].schedule();
 }
 
 
-// boot_process_start(pid, name)
+// start_initial_process(pid, name)
 //    Load application program `name` as process number `pid`.
 //    This loads the application's code and data into memory, sets its
 //    %rip and %rsp, gives it a stack page, and marks it as runnable.
 //    Only called at initial boot time.
 
-void boot_process_start(pid_t pid, const char* name) {
+void start_initial_process(pid_t pid, const char* name) {
     // look up process image in initfs
-    memfile_loader ld(memfile::initfs_lookup(name), kalloc_pagetable());
-    assert(ld.memfile_ && ld.pagetable_);
+    int mindex = memfile::initfs_lookup(name, memfile::required);
+    x86_64_pagetable* pt = knew_pagetable();
+    assert(mindex >= 0 && pt);
+
+    // load code and data into pagetable
+    memfile_loader ld(mindex, pt);
     int r = proc::load(ld);
     assert(r >= 0);
 
-    // allocate process, initialize memory
+    // allocate process, initialize registers
     proc* p = knew<proc>();
-    p->init_user(pid, ld.pagetable_);
+    p->id_ = pid;
+    p->init_user(pt);
     p->regs_->reg_rip = ld.entry_rip_;
 
+    // initialize stack
     void* stkpg = kalloc(PAGESIZE);
     assert(stkpg);
     vmiter(p, MEMSIZE_VIRTUAL - PAGESIZE).map(stkpg, PTE_PWU);
     p->regs_->reg_rsp = MEMSIZE_VIRTUAL;
+
+    // map console
+    vmiter(p, ktext2pa(console)).map(console, PTE_PWU);
 
     // add to process table (requires lock in case another CPU is already
     // running processes)
@@ -126,8 +135,8 @@ void proc::exception(regstate* regs) {
                      addr, operation, problem);
         }
 
-        error_printf(CPOS(24, 0), 0x0C00,
-                     "Process %d page fault for %p (%s %s, rip=%p)!\n",
+        error_printf(CPOS(24, 0),
+                     CS_ERROR "Process %d page fault for %p (%s %s, rip=%p)!\n",
                      id_, addr, operation, problem, regs->reg_rip);
         pstate_ = proc::ps_faulted;
         yield();
@@ -321,7 +330,7 @@ uintptr_t proc::syscall_write(regstate* regs) {
         int ch = *reinterpret_cast<const char*>(addr);
         ++addr;
         ++n;
-        console_printf(0x0F00, "%c", ch);
+        console_printf(CS_WHITE "%c", ch);
     }
     return n;
 }
@@ -347,12 +356,12 @@ uintptr_t proc::syscall_readdiskfile(regstate* regs) {
 
     // read file inode
     ino->lock_read();
-    chkfs_fileiter it(ino);
+    chkfs_fileiter it(ino.get());
 
     size_t nread = 0;
     while (nread < sz) {
         // copy data from current block
-        if (bcentry* e = it.find(off).get_disk_entry()) {
+        if (auto e = it.find(off).load()) {
             unsigned b = it.block_relative_offset();
             size_t ncopy = min(
                 size_t(ino->size - it.offset()),   // bytes left in file
@@ -360,7 +369,6 @@ uintptr_t proc::syscall_readdiskfile(regstate* regs) {
                 sz - nread                         // bytes left in request
             );
             memcpy(buf + nread, e->buf_ + b, ncopy);
-            e->put();
 
             nread += ncopy;
             off += ncopy;
@@ -373,7 +381,6 @@ uintptr_t proc::syscall_readdiskfile(regstate* regs) {
     }
 
     ino->unlock_read();
-    ino->put();
     return nread;
 }
 
@@ -413,7 +420,7 @@ static void memshow() {
 
     console_memviewer(ptable[showing]);
     if (!ptable[showing]) {
-        console_printf(CPOS(10, 26), 0x0F00, "   VIRTUAL ADDRESS SPACE\n"
+        console_printf(CPOS(10, 26), CS_WHITE "   VIRTUAL ADDRESS SPACE\n"
             "                          [All processes have exited]\n"
             "\n\n\n\n\n\n\n\n\n\n\n");
     }

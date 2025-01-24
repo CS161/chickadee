@@ -81,7 +81,7 @@ $ ./run-docker
 cs61-user@a47f05ea5085:~/chickadee$ uname
 Linux
 cs61-user@a47f05ea5085:~/chickadee$ uname -a
-Linux a47f05ea5085 5.10.47-linuxkit #1 SMP PREEMPT Sat Jul 3 21:50:16 UTC 2021 x86_64 x86_64 x86_64 GNU/Linux
+Linux 8006bb91a43b 6.10.4-linuxkit #1 SMP PREEMPT_DYNAMIC Mon Aug 12 08:48:58 UTC 2024 x86_64 x86_64 x86_64 GNU/Linux
 cs61-user@a47f05ea5085:~/chickadee$ ls
 common  cs61-run-docker  docker  README.md
 cs61-user@a47f05ea5085:~/chickadee$ exit
@@ -129,7 +129,7 @@ chickadee
 cs61-user@a15e6c4c8dbe:~$ echo "Hello, world"
 Hello, world
 cs61-user@a15e6c4c8dbe:~$ cs61-docker-version
-16
+19
 cs61-user@a15e6c4c8dbe:~$ exit
 exit
 $ 
@@ -139,4 +139,4 @@ $
 [VMware Workstation]: https://www.vmware.com/products/workstation-player.html
 [VMware Fusion]: https://www.vmware.com/products/fusion.html
 [VirtualBox]: https://www.virtualbox.org/
-[repo]: https://github.com/cs161/chickadee-s24/
+[repo]: https://github.com/cs161/chickadee-s25/

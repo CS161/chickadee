@@ -1,3 +1,4 @@
+#define CHICKADEE_OPTIONAL_PROCESS 1
 #include "u-lib.hh"
 
 void process_main() {
@@ -23,6 +24,6 @@ void process_main() {
         sys_msleep(200);
     }
 
-    console_printf(COLOR_SUCCESS, "testzombie succeeded!\n");
+    console_printf(CS_SUCCESS "testzombie succeeded!\n");
     sys_exit(0);
 }

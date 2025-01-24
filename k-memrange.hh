@@ -9,13 +9,14 @@ template <unsigned maxsize> class memrangeset;
 
 class memrange {
   public:
-    inline int type() const;                // type of range
+    inline uint8_t type() const;            // type of range
     inline uintptr_t first() const;         // first address in range
     inline uintptr_t last() const;          // one past last address in range
+    inline size_t size() const;             // size of range in bytes
 
   private:
     uintptr_t addr_;
-    int type_;
+    uint8_t type_;
 
     template <unsigned maxsize> friend class memrangeset;
 };
@@ -39,12 +40,12 @@ class memrangeset {
     // return range containing `addr`, or `end()`
     const memrange* find(uintptr_t addr) const;
     // return type for `addr`. Requires `0 <= addr < limit()`
-    int type(uintptr_t addr) const;
+    uint8_t type(uintptr_t addr) const;
 
     // set type of address range [`first`, `last`) to `type`.
     // Requires `0 <= first <= last <= limit()`. Returns true iff
     // assignment succeeded.
-    bool set(uintptr_t first, uintptr_t last, int type);
+    bool set(uintptr_t first, uintptr_t last, uint8_t type);
 
     // print contents to log
     void log_print(const char* prefix = "") const;
@@ -59,7 +60,7 @@ class memrangeset {
 };
 
 
-inline int memrange::type() const {
+inline uint8_t memrange::type() const {
     return type_;
 }
 inline uintptr_t memrange::first() const {
@@ -67,6 +68,9 @@ inline uintptr_t memrange::first() const {
 }
 inline uintptr_t memrange::last() const {
     return this[1].addr_;
+}
+inline size_t memrange::size() const {
+    return this[1].addr_ - addr_;
 }
 
 template <unsigned maxsize>
@@ -101,7 +105,7 @@ inline const memrange* memrangeset<maxsize>::find(uintptr_t addr) const {
     return &r_[i];
 }
 template <unsigned maxsize>
-inline int memrangeset<maxsize>::type(uintptr_t addr) const {
+inline uint8_t memrangeset<maxsize>::type(uintptr_t addr) const {
     auto r = find(addr);
     assert(r != end());
     return r->type();
@@ -116,7 +120,7 @@ void memrangeset<maxsize>::split(unsigned i, uintptr_t addr) {
     ++n_;
 }
 template <unsigned maxsize>
-bool memrangeset<maxsize>::set(uintptr_t first, uintptr_t last, int type) {
+bool memrangeset<maxsize>::set(uintptr_t first, uintptr_t last, uint8_t type) {
     assert(first <= last && last <= r_[n_].addr_);
     if (first == last) {
         return true;

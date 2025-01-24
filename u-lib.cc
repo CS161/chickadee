@@ -48,12 +48,12 @@ void panic(const char* format, ...) {
         strcpy(buf + len - (len == (int) sizeof(buf) - 1), "\n");
     }
     int cpos = consoletype == CONSOLE_NORMAL ? -1 : CPOS(23, 0);
-    (void) console_printf(cpos, 0xC000, "%s", buf);
+    (void) console_printf(cpos, CS_ERROR "%s", buf);
     sys_panic(nullptr);
 }
 
-int error_vprintf(int cpos, int color, const char* format, va_list val) {
-    return console_vprintf(cpos, color, format, val);
+void error_vprintf(int cpos, const char* format, va_list val) {
+    console_vprintf(cpos, format, val);
 }
 
 void assert_fail(const char* file, int line, const char* msg,

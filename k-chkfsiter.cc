@@ -10,10 +10,7 @@ chkfs_fileiter& chkfs_fileiter::find(off_t off) {
         eoff_ = 0;
         eidx_ = 0;
         eptr_ = &ino_->direct[0];
-        if (indirect_entry_) {
-            indirect_entry_->put();
-            indirect_entry_ = nullptr;
-        }
+        indirect_slot_.reset();
     }
 
     // walk extents to relevant position
@@ -29,20 +26,17 @@ chkfs_fileiter& chkfs_fileiter::find(off_t off) {
         if (eidx_ < chkfs::ndirect) {
             // do nothing
         } else if ((eidx_ - chkfs::ndirect) % chkfs::extentsperblock == 0) {
-            if (indirect_entry_) {
-                indirect_entry_->put();
-                indirect_entry_ = nullptr;
-            }
+            indirect_slot_.reset();
             unsigned ibi = (eidx_ - chkfs::ndirect) / chkfs::extentsperblock;
             if (ino_->indirect.count <= ibi) {
                 goto not_found;
             }
             auto& bc = bufcache::get();
-            indirect_entry_ = bc.get_disk_entry(ino_->indirect.first + ibi);
-            if (!indirect_entry_) {
+            indirect_slot_ = bc.load(ino_->indirect.first + ibi);
+            if (!indirect_slot_) {
                 goto not_found;
             }
-            eptr_ = reinterpret_cast<chkfs::extent*>(indirect_entry_->buf_);
+            eptr_ = reinterpret_cast<chkfs::extent*>(indirect_slot_->buf_);
         }
     }
 
@@ -64,23 +58,23 @@ void chkfs_fileiter::next() {
 
 
 int chkfs_fileiter::insert(blocknum_t first, unsigned count) {
-    assert(ino_->has_write_lock());
+    assert(ino_->is_write_locked());
     assert(count != 0);
     assert(!eptr_ || !eptr_->count);
     assert((eoff_ % blocksize) == 0);
     auto& bc = bufcache::get();
-    auto ino_entry = inode()->entry();
+    auto ino_slot = inode()->slot();
 
     // grow previous direct extent if possible
     if (eidx_ > 0 && eidx_ <= chkfs::ndirect) {
         chkfs::extent* peptr = &ino_->direct[eidx_ - 1];
         if (peptr->first + peptr->count == first) {
-            ino_entry->get_write();
+            ino_slot->lock_buffer();
             eptr_ = peptr;
             --eidx_;
             eoff_ -= eptr_->count * blocksize;
             eptr_->count += count;
-            ino_entry->put_write();
+            ino_slot->unlock_buffer();
             return 0;
         }
     }
@@ -88,44 +82,44 @@ int chkfs_fileiter::insert(blocknum_t first, unsigned count) {
     // allocate & initialize indirect extent if necessary
     if (eidx_ == chkfs::ndirect && !ino_->indirect.count) {
         auto& chkfs = chkfsstate::get();
-        assert(!indirect_entry_);
+        assert(!indirect_slot_);
 
         blocknum_t indirect_bn = chkfs.allocate_extent(1);
         if (indirect_bn >= blocknum_t(E_MINERROR)) {
             return int(indirect_bn);
         }
 
-        indirect_entry_ = bc.get_disk_entry(indirect_bn);
-        if (!indirect_entry_) {
+        indirect_slot_ = bc.load(indirect_bn);
+        if (!indirect_slot_) {
             return E_NOMEM;
         }
 
-        indirect_entry_->get_write();
-        memset(indirect_entry_->buf_, 0, blocksize);
-        indirect_entry_->put_write();
+        indirect_slot_->lock_buffer();
+        memset(indirect_slot_->buf_, 0, blocksize);
+        indirect_slot_->unlock_buffer();
 
-        ino_entry->get_write();
+        ino_slot->lock_buffer();
         ino_->indirect.first = indirect_bn;
         ino_->indirect.count = 1;
-        ino_entry->put_write();
+        ino_slot->unlock_buffer();
     }
 
     // fail if required to grow indirect extent
-    if (eidx_ >= chkfs::ndirect && !indirect_entry_) {
+    if (eidx_ >= chkfs::ndirect && !indirect_slot_) {
         return E_FBIG;
     }
 
     // add new extent
-    bcentry* entry;
+    bcslot* slot;
     if (eidx_ < chkfs::ndirect) {
-        entry = ino_entry;
+        slot = ino_slot;
         eptr_ = &ino_->direct[eidx_];
     } else {
-        entry = indirect_entry_;
-        eptr_ = reinterpret_cast<chkfs::extent*>(indirect_entry_->buf_)
+        slot = indirect_slot_.get();
+        eptr_ = reinterpret_cast<chkfs::extent*>(indirect_slot_->buf_)
             + (eidx_ - chkfs::ndirect) % chkfs::extentsperblock;
     }
-    entry->get_write();
+    slot->lock_buffer();
     if (eidx_ >= chkfs::ndirect
         && (eidx_ - chkfs::ndirect) % chkfs::extentsperblock != 0
         && eptr_[-1].first + eptr_[-1].count == first) {
@@ -139,6 +133,6 @@ int chkfs_fileiter::insert(blocknum_t first, unsigned count) {
         eptr_->first = first;
         eptr_->count = count;
     }
-    entry->put_write();
+    slot->unlock_buffer();
     return 0;
 }

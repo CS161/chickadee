@@ -2,6 +2,12 @@ OBJDIR := obj
 comma = ,
 export LC_ALL = C
 
+# Optimization flag
+O ?= -O2
+ifeq ($(filter 0 1 2 3 s z g fast,$(O)),$(strip $(O)))
+override O := -O$(O)
+endif
+
 # Compiler toolchain
 CCPREFIX ?=
 
@@ -60,7 +66,6 @@ DEPFILES := $(wildcard $(DEPSDIR)/*.d)
 ifneq ($(DEPFILES),)
 include $(DEPFILES)
 endif
--include build/devrules.mk
 
 ifneq ($(DEP_CC),$(CC) $(CPPFLAGS) $(CFLAGS) $(DEPCFLAGS) $(O) _ $(LDFLAGS))
 DEP_CC := $(shell mkdir -p $(DEPSDIR); echo >$(BUILDSTAMP); echo "DEP_CC:=$(CC) $(CPPFLAGS) $(CFLAGS) $(DEPCFLAGS) $(O) _ $(LDFLAGS)" >$(DEPSDIR)/_cc.d; echo "DEP_PREFER_GCC:=$(PREFER_GCC)" >>$(DEPSDIR)/_cc.d)
@@ -74,11 +79,26 @@ endif
 
 BUILDSTAMPS = $(OBJDIR)/stamp $(BUILDSTAMP)
 GDBFILES = $(OBJDIR)/firstprocess.gdb
-KERNELBUILDSTAMPS = $(OBJDIR)/stamp $(KERNELBUILDSTAMP) $(GDBFILES)
+KERNELBUILDSTAMPS = $(OBJDIR)/stamp $(KERNELBUILDSTAMP)
 
 $(OBJDIR)/stamp $(BUILDSTAMP):
 	$(call run,mkdir -p $(@D))
 	$(call run,touch $@)
+
+k_asm_h_input_command := $(CXX) $(CPPFLAGS) $(KERNELCXXFLAGS) -DCHICKADEE_KERNEL -dM -E kernel.hh
+u_asm_h_input_command := $(CXX) $(CPPFLAGS) $(CXXFLAGS) -DCHICKADEE_PROCESS -dM -E u-lib.hh
+asm_h_build_command := awk -f build/mkkernelasm.awk | sort
+
+ifneq ($(wildcard $(OBJDIR)/k-asm.h),)
+DEPCHECK_K_ASM_H := $(shell \
+	$(k_asm_h_input_command) | $(asm_h_build_command) > $(OBJDIR)/k-asm.h1; \
+	cmp $(OBJDIR)/k-asm.h $(OBJDIR)/k-asm.h1 >/dev/null 2>&1 || rm -f $(OBJDIR)/k-asm.h)
+endif
+ifneq ($(wildcard $(OBJDIR)/u-asm.h),)
+DEPCHECK_U_ASM_H := $(shell \
+	$(u_asm_h_input_command) | $(asm_h_build_command) > $(OBJDIR)/u-asm.h1; \
+	cmp $(OBJDIR)/u-asm.h $(OBJDIR)/u-asm.h1 >/dev/null 2>&1 || rm -f $(OBJDIR)/u-asm.h)
+endif
 
 ifneq ($(strip $(INITFS_CONTENTS) $(INITFS_PARAMS)),$(DEP_INITFS_CONTENTS))
 INITFS_BUILDSTAMP := $(shell echo "DEP_INITFS_CONTENTS:=$(strip $(INITFS_CONTENTS) $(INITFS_PARAMS))" > $(DEPSDIR)/_initfs.d; echo always)

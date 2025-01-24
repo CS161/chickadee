@@ -1,3 +1,4 @@
+#define CHICKADEE_OPTIONAL_PROCESS 1
 #include "u-lib.hh"
 #include <atomic>
 
@@ -12,7 +13,10 @@ static void message(const char* x) {
     while (message_lock.test_and_set()) {
         pause();
     }
-    console_printf("T%d (P%d): %s\n", sys_gettid(), sys_getpid(), x);
+    int tid = sys_gettid();
+    int pid = sys_getpid();
+    assert(tid > 0 && pid > 0);
+    console_printf("T%d (P%d): %s\n", tid, pid, x);
     message_lock.clear();
 }
 
@@ -104,7 +108,7 @@ static void test1() {
 
     // wait for thread to exit
     sys_msleep(10);
-    message("simple thread tests succeed!");
+    message(CS_GREEN "simple thread tests succeeded!");
 
     // start a new thread to check thread returning doesn't go wrong
     message("checking automated texit");
@@ -117,9 +121,7 @@ static void test1() {
 static int thread2a(void*) {
     // this blocks forever
     char buf[20];
-    ssize_t n = sys_read(pfd[0], buf, sizeof(buf));
-    assert_ne(n, 0);
-    sys_yield();
+    (void) sys_read(pfd[0], buf, sizeof(buf));
     assert(false);
 }
 
@@ -155,7 +157,8 @@ static void test3() {
     pid_t t = sys_clone(thread3a, pfd, stack1 + PAGESIZE);
     assert_gt(t, 0);
 
-    // this should quit the `thread2a` thread too
+    // this exits the main thread, but allows `thread3a` to continue;
+    // the eventual exit status should be `thread3a`'s
     sys_texit(0);
 }
 
@@ -208,6 +211,6 @@ void process_main() {
     assert_eq(status, 161);
 
 
-    console_printf("testthread succeeded.\n");
+    console_printf(CS_SUCCESS "testthread succeeded!\n");
     sys_exit(0);
 }

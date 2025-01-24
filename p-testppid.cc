@@ -1,3 +1,4 @@
+#define CHICKADEE_OPTIONAL_PROCESS 1
 #include "u-lib.hh"
 
 void process_main() {
@@ -36,7 +37,7 @@ void process_main() {
 
     sys_msleep(50);
     if (sys_getpid() == original) {
-        console_printf("ppid tests without exit succeed\n");
+        console_printf(CS_GREEN "ppid tests without exit succeeded!\n");
     } else {
         sys_exit(0);
     }
@@ -88,7 +89,7 @@ void process_main() {
     for (int i = 0; i != 6; ++i) {
         sys_msleep(50); // loop because a long `msleep` could be interrupted
     }
-    console_printf("ppid tests with exit succeed\n");
-    console_printf(COLOR_SUCCESS, "testppid succeeded!\n");
+    console_printf(CS_GREEN "ppid tests with exit succeeded!\n");
+    console_printf(CS_SUCCESS "testppid succeeded!\n");
     sys_exit(0);
 }

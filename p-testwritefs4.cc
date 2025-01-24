@@ -1,3 +1,4 @@
+#define CHICKADEE_OPTIONAL_PROCESS 1
 #include "u-lib.hh"
 
 void process_main() {
@@ -160,6 +161,6 @@ void process_main() {
     assert_ge(r, 0);
 
 
-    printf("testwritefs4 succeeded.\n");
+    printf(CS_SUCCESS "testwritefs4 succeeded!\n");
     sys_exit(0);
 }

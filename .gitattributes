@@ -1,3 +1,6 @@
 *.sh          text eol=lf
 run-docker    text eol=lf
 build-docker  text eol=lf
+initfs/*.txt  text eol=lf
+diskfs/*.txt  text eol=lf
+*.cc          diff=cpp

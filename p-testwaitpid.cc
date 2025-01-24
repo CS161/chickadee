@@ -1,3 +1,4 @@
+#define CHICKADEE_OPTIONAL_PROCESS 1
 #include "u-lib.hh"
 
 static const int order[] = {
@@ -39,7 +40,7 @@ void process_main() {
         assert_eq(order[idx], status);
     }
     assert_eq(sys_waitpid(0, nullptr, W_NOHANG), E_CHILD);
-    console_printf("waitpid(0, W_NOHANG) tests succeed.\n");
+    console_printf(CS_GREEN "waitpid(0, W_NOHANG) tests succeeded!\n");
 
 
     console_printf("waitpid(pid, W_NOHANG) tests...\n");
@@ -56,7 +57,7 @@ void process_main() {
         assert_eq(order[i], status);
     }
     assert_eq(sys_waitpid(0, nullptr, W_NOHANG), E_CHILD);
-    console_printf("waitpid(pid, W_NOHANG) tests succeed.\n");
+    console_printf(CS_GREEN "waitpid(pid, W_NOHANG) tests succeeded!\n");
 
 
     console_printf("waitpid(0) blocking tests...\n");
@@ -77,7 +78,7 @@ void process_main() {
         assert_eq(order[idx], status);
     }
     assert_eq(sys_waitpid(0), E_CHILD);
-    console_printf("waitpid(0) blocking tests succeed.\n");
+    console_printf(CS_GREEN "waitpid(0) blocking tests succeeded!\n");
 
 
     console_printf("waitpid(pid) blocking tests...\n");
@@ -91,9 +92,9 @@ void process_main() {
         assert_eq(order[i], status);
     }
     assert_eq(sys_waitpid(0), E_CHILD);
-    console_printf("waitpid(pid) blocking tests succeed.\n");
+    console_printf(CS_GREEN "waitpid(pid) blocking tests succeeded!\n");
 
 
-    console_printf(COLOR_SUCCESS, "testwaitpid succeeded!\n");
+    console_printf(CS_SUCCESS "testwaitpid succeeded!\n");
     sys_exit(0);
 }

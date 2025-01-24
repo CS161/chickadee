@@ -7,59 +7,62 @@
 
 // buffer cache
 
-using bcentry_clean_function = void (*)(bcentry*);
+using block_clean_function = void (*)(bcslot*);
 
-struct bcentry {
+struct bcslot {
     using blocknum_t = chkfs::blocknum_t;
 
-    enum estate_t {
-        es_empty, es_allocated, es_loading, es_clean
+    enum state_t {
+        s_empty, s_allocated, s_loading, s_clean, s_dirty
     };
 
-    std::atomic<int> estate_ = es_empty;
+    spinlock lock_;
 
-    spinlock lock_;                      // protects most `estate_` changes
+    std::atomic<int> state_ = s_empty;   // slot state
+    std::atomic<unsigned> ref_ = 0;      // reference count
+
     blocknum_t bn_;                      // disk block number (unless empty)
-    unsigned ref_ = 0;                   // reference count
-    unsigned char* buf_ = nullptr;       // memory buffer used for entry
+    unsigned char* buf_ = nullptr;       // memory buffer
+    proc* buf_owner_ = nullptr;          // `proc` holding buffer content lock
 
 
-    // return the index of this entry in the buffer cache
+    // return the index of this slot in the buffer cache
     inline size_t index() const;
 
-    // test if this entry is empty (`estate_ == es_empty`)
+    // test if this slot is empty (`state_ == s_empty`)
     inline bool empty() const;
 
-    // test if this entry's memory buffer contains a pointer
+    // test if `ptr` is contained in this slot's memory buffer
     inline bool contains(const void* ptr) const;
 
-    // release the caller's reference
-    void put();
+    // decrement reference count
+    void decrement_reference_count();
 
-    // obtain/release a write reference to this entry
-    void get_write();
-    void put_write();
+    // acquire/release buffer_lock_, the lock on buffer data
+    void lock_buffer();
+    void unlock_buffer();
 
 
     // internal functions
     void clear();
-    bool load(irqstate& irqs, bcentry_clean_function cleaner);
+    bool load(irqstate& irqs, block_clean_function cleaner);
 };
 
-struct bufcache {
-    using blocknum_t = bcentry::blocknum_t;
+using bcref = ref_ptr<bcslot>;
 
-    static constexpr size_t ne = 10;
+struct bufcache {
+    using blocknum_t = chkfs::blocknum_t;
+
+    static constexpr size_t nslots = 10;
 
     spinlock lock_;                  // protects all entries' bn_ and ref_
     wait_queue read_wq_;
-    bcentry e_[ne];
+    bcslot slots_[nslots];
 
 
     static inline bufcache& get();
 
-    bcentry* get_disk_entry(blocknum_t bn,
-                            bcentry_clean_function cleaner = nullptr);
+    bcref load(blocknum_t bn, block_clean_function cleaner = nullptr);
 
     int sync(int drop);
 
@@ -71,25 +74,56 @@ struct bufcache {
 };
 
 
+inline bufcache& bufcache::get() {
+    return bc;
+}
+
+inline size_t bcslot::index() const {
+    auto& bc = bufcache::get();
+    assert(this >= bc.slots_ && this < bc.slots_ + bc.nslots);
+    return this - bc.slots_;
+}
+
+inline bool bcslot::empty() const {
+    return state_.load(std::memory_order_relaxed) == s_empty;
+}
+
+inline bool bcslot::contains(const void* ptr) const {
+    return state_.load(std::memory_order_relaxed) >= s_clean
+        && reinterpret_cast<uintptr_t>(ptr) - reinterpret_cast<uintptr_t>(buf_)
+               < chkfs::blocksize;
+}
+
+inline void bcslot::clear() {
+    assert(ref_ == 0);
+    state_ = s_empty;
+    if (buf_) {
+        kfree(buf_);
+        buf_ = nullptr;
+    }
+}
+
+
+using chkfs_iref = ref_ptr<chkfs::inode>;
+
+
 // chickadeefs state: a Chickadee file system on a specific disk
 // (Our implementation only speaks to `sata_disk`.)
 
 struct chkfsstate {
     using blocknum_t = chkfs::blocknum_t;
     using inum_t = chkfs::inum_t;
-    using inode = chkfs::inode;
     static constexpr size_t blocksize = chkfs::blocksize;
 
 
     static inline chkfsstate& get();
 
     // obtain an inode by number
-    inode* get_inode(inum_t inum);
-
+    chkfs_iref inode(inum_t inum);
     // directory lookup in `dirino`
-    inode* lookup_inode(inode* dirino, const char* name);
+    chkfs_iref lookup_inode(chkfs::inode* dirino, const char* name);
     // directory lookup starting at root directory
-    inode* lookup_inode(const char* name);
+    chkfs_iref lookup_inode(const char* name);
 
     blocknum_t allocate_extent(unsigned count = 1);
 
@@ -102,37 +136,8 @@ struct chkfsstate {
 };
 
 
-inline bufcache& bufcache::get() {
-    return bc;
-}
-
 inline chkfsstate& chkfsstate::get() {
     return fs;
-}
-
-inline size_t bcentry::index() const {
-    auto& bc = bufcache::get();
-    assert(this >= bc.e_ && this < bc.e_ + bc.ne);
-    return this - bc.e_;
-}
-
-inline bool bcentry::empty() const {
-    return estate_.load(std::memory_order_relaxed) == es_empty;
-}
-
-inline bool bcentry::contains(const void* ptr) const {
-    return estate_.load(std::memory_order_relaxed) >= es_clean
-        && reinterpret_cast<uintptr_t>(ptr) - reinterpret_cast<uintptr_t>(buf_)
-               < chkfs::blocksize;
-}
-
-inline void bcentry::clear() {
-    assert(ref_ == 0);
-    estate_ = es_empty;
-    if (buf_) {
-        kfree(buf_);
-        buf_ = nullptr;
-    }
 }
 
 #endif

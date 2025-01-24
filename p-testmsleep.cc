@@ -1,3 +1,4 @@
+#define CHICKADEE_OPTIONAL_PROCESS 1
 #include "u-lib.hh"
 
 static const int order[] = {
@@ -20,11 +21,17 @@ void process_main() {
     // then prints its position
     console_printf("%d [pid %d]\n", order[my_idx], sys_getpid());
 
-    if (my_idx == 0) {
-        sys_msleep(800);
-        console_printf("You should see lines numbered 1-8 in order.\n");
-    } else {
+    if (my_idx != 0) {
         sys_msleep(1000);
+        sys_exit(0);
     }
+
+    // test results by examining console
+    sys_msleep(800);
+    console_printf("You should see lines numbered 1-8 in order.\n");
+    for (int i = 0; i < 8; ++i) {
+        assert((console[i * CONSOLE_COLUMNS] & 0xFF) == '1' + i);
+    }
+    console_printf(CS_SUCCESS "testmsleep succeeded!\n");
     sys_exit(0);
 }

@@ -1,6 +1,6 @@
 OUTPUT_FORMAT(elf64-x86-64)
 OUTPUT_ARCH(i386:x86-64)
-ENTRY(boot_start)
+ENTRY(boot_entry)
 
 SECTIONS {
     . = 0x7c00;

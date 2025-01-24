@@ -6,7 +6,7 @@ class ptiter;
 // `vmiter` and `ptiter` are iterator types for x86-64 page tables.
 
 
-// `vmiter` walks over virtual address mappings.
+// `vmiter` retrieves virtual address mappings.
 // `pa()` and `perm()` read current addresses and permissions;
 // `map()` installs new mappings.
 
@@ -16,7 +16,7 @@ class vmiter {
     inline vmiter(x86_64_pagetable* pt, uintptr_t va);
     inline vmiter(const proc* p, uintptr_t va);
 
-    // Return the page table this `vmiter` is examining.
+    // Return page table
     inline x86_64_pagetable* pagetable() const;
 
     // ADDRESS QUERIES
@@ -24,6 +24,9 @@ class vmiter {
     inline uintptr_t va() const;
     // Return one past last virtual address in this mapping range
     inline uintptr_t last_va() const;
+    // Return the number of bytes left in this mapping range
+    // (If present() and N < range_size(), (*this + N).pa() == this.pa() + N.)
+    inline size_t range_size() const;
     // Return true iff `va() <= VA_LOWMAX` (is a low canonical address)
     inline bool low() const;
     // Return true iff iteration has completed (reached last va)
@@ -50,6 +53,7 @@ class vmiter {
     // Return true iff `(this->perm() & desired_perm) == desired_perm`
     inline bool perm(uint64_t desired_perm) const;
     // Return intersection of permissions in [this->va(), this->va() + sz)
+    // (or uint64_t(-1) if `sz == 0`)
     uint64_t range_perm(size_t sz) const;
     // Return true iff `(range_perm(sz) & desired_perm) == desired_perm`
     inline bool range_perm(size_t sz, uint64_t desired_perm) const;
@@ -67,6 +71,9 @@ class vmiter {
     // Advance to virtual address `va() - 1`; return `*this`
     inline vmiter& operator--();
     inline void operator--(int);
+    // Return new vmiter pointing at a nearby address
+    inline vmiter operator+(intptr_t delta) const;
+    inline vmiter operator-(intptr_t delta) const;
     // Move to next larger page-aligned virtual address, skipping large
     // non-present regions
     void next();
@@ -76,7 +83,7 @@ class vmiter {
     // MAPPING MODIFICATION
     // Change the mapping in `this->pagetable()` for `this->va()` (the
     // current virtual address) to `pa` with permissions `perm`.
-    // `this->va()` must be page-aligned. Can call `kalloc` to allocate
+    // `this->va()` must be page-aligned. Might call `kalloc` to allocate
     // page table pages. On success, changes the mapping and returns 0.
     // If `kalloc` fails, returns a negative error code without modifying
     // any mappings.
@@ -109,7 +116,8 @@ class vmiter {
 
     inline static constexpr uintptr_t lbits_mask(int lbits);
     void down();
-    void real_find(uintptr_t va, bool stepping);
+    void find_impl(uintptr_t va, bool stepping);
+    uint64_t range_perm_impl(uint64_t p, size_t sz);
     friend class ptiter;
 };
 
@@ -146,6 +154,8 @@ class ptiter {
     inline uintptr_t va() const;
     // Return one past the last virtual address in this mapping range
     inline uintptr_t last_va() const;
+    // Return size of this mapping range (`last_va() - va()`)
+    inline size_t range_size() const;
     // Return true iff `va() <= VA_LOWMAX` (is low canonical)
     inline bool low() const;
     // Return level of current page table page (0-2)
@@ -167,7 +177,7 @@ class ptiter {
 inline vmiter::vmiter(x86_64_pagetable* pt, uintptr_t va)
     : pt_(pt), pep_(&pt_->entry[0]), lbits_(initial_lbits),
       perm_(initial_perm), va_(0) {
-    real_find(va, false);
+    find_impl(va, false);
 }
 inline vmiter::vmiter(const proc* p, uintptr_t va)
     : vmiter(p->pagetable_, va) {
@@ -190,6 +200,9 @@ inline uintptr_t vmiter::last_va() const {
     } else {
         return (va_ | lbits_mask(lbits_)) + 1;
     }
+}
+inline size_t vmiter::range_size() const {
+    return last_va() - va();
 }
 inline bool vmiter::low() const {
     return va_ <= VA_LOWMAX;
@@ -236,7 +249,7 @@ inline bool vmiter::range_perm(size_t sz, uint64_t desired_perm) const {
 }
 inline vmiter& vmiter::find(uintptr_t va) {
     if (va != va_) {
-        real_find(va, false);
+        find_impl(va, false);
     }
     return *this;
 }
@@ -258,8 +271,14 @@ inline vmiter& vmiter::operator--() {
 inline void vmiter::operator--(int) {
     find(va_ - 1);
 }
+inline vmiter vmiter::operator+(intptr_t delta) const {
+    return vmiter(*this) += delta;
+}
+inline vmiter vmiter::operator-(intptr_t delta) const {
+    return vmiter(*this) -= delta;
+}
 inline void vmiter::next_range() {
-    real_find(last_va(), true);
+    find_impl(last_va(), true);
 }
 inline int vmiter::try_map(void* kp, int perm) {
     return try_map(kptr2pa(kp), perm);
@@ -293,6 +312,9 @@ inline uintptr_t ptiter::va() const {
 }
 inline uintptr_t ptiter::last_va() const {
     return (va_ | vmiter::lbits_mask(lbits_)) + 1;
+}
+inline size_t ptiter::range_size() const {
+    return last_va() - va();
 }
 inline bool ptiter::low() const {
     return va_ <= VA_LOWMAX;

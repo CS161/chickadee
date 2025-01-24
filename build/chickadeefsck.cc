@@ -5,38 +5,68 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <getopt.h>
-#include <inttypes.h>
+#include <cinttypes>
+#include <cstdarg>
+#include <cstdlib>
+#include <cstdio>
+#include <cstring>
+#include <cerrno>
+#include <cassert>
 #include <vector>
 #include <deque>
 #include <string>
 #include <unordered_set>
 #include <algorithm>
-#include <stdarg.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <errno.h>
-#include <assert.h>
 #include "chickadeefs.hh"
 #include "cbyteswap.hh"
+
+#define CS_NORMAL           "\x1b[m"
+#define CS_WHITE            "\x1b[1m"
+#define CS_GREEN            "\x1b[32m"
+#define CS_YELLOW           "\x1b[33m"
+#define CS_RED              "\x1b[31;1m"
+#define CS_BOLD             "\x1b[1m"
 
 static bool verbose = false;
 static size_t nerrors = 0;
 static size_t nwarnings = 0;
+static FILE* warnfile;
 static const char* extract = nullptr;
+static bool warn_extra_extents = true;
+static bool warn_holes = true;
+static bool warn_leaks = true;
+static int color = -1;
 
 static void eprintf(const char* format, ...) {
+    char fmtbuf[BUFSIZ];
+    assert(strlen(format) < sizeof(fmtbuf) - 100);
     va_list val;
     va_start(val, format);
-    vfprintf(extract ? stderr : stdout, format, val);
+    const char* pfx = color > 0 ? CS_RED "error:" CS_NORMAL : "error:";
+    if (const char* pctn = strstr(format, "%N")) {
+        sprintf(fmtbuf, CS_BOLD "%.*s" CS_NORMAL " %s%s",
+                int(pctn - format), format, pfx, pctn + 2);
+    } else {
+        sprintf(fmtbuf, "%s %s", pfx, format);
+    }
+    vfprintf(warnfile, fmtbuf, val);
     va_end(val);
     ++nerrors;
 }
 
 static void ewprintf(const char* format, ...) {
+    char fmtbuf[BUFSIZ];
+    assert(strlen(format) < sizeof(fmtbuf) - 100);
     va_list val;
     va_start(val, format);
-    vfprintf(extract ? stderr : stdout, format, val);
+    const char* pfx = color > 0 ? CS_YELLOW "warning:" CS_NORMAL : "warning:";
+    if (const char* pctn = strstr(format, "%N")) {
+        sprintf(fmtbuf, CS_BOLD "%.*s" CS_NORMAL " %s%s",
+                int(pctn - format), format, pfx, pctn + 2);
+    } else {
+        sprintf(fmtbuf, "%s %s", pfx, format);
+    }
+    vfprintf(warnfile, fmtbuf, val);
     va_end(val);
     ++nwarnings;
 }
@@ -44,7 +74,7 @@ static void ewprintf(const char* format, ...) {
 static void exprintf(const char* format, ...) {
     va_list val;
     va_start(val, format);
-    vfprintf(extract ? stderr : stdout, format, val);
+    vfprintf(warnfile, format, val);
     va_end(val);
 }
 
@@ -64,7 +94,7 @@ enum blocktype {
 
 static const char* const typenames[] = {
     "unused", "superblock", "swap", "fbb", "inode",
-    "journal", "free", "directory", "data", "indirect"
+    "journal", "free", "directory", "regular", "indirect"
 };
 
 struct blockinfo {
@@ -87,16 +117,16 @@ struct blockinfo {
     void visit(int type, const char* ref, size_t blockidx = -1) {
         auto bn = bnum();
         if (type_ != bunused) {
-            eprintf("block %u: reusing block for %s%s as %s\n",
+            eprintf("block %u:%N reusing block for %s%s as %s\n",
                     bn, ref, unparse_blockidx(blockidx), typenames[type]);
-            exprintf("block %u: originally used for %s%s as %s\n",
-                     bn, ref_, unparse_blockidx(blockidx_), typenames[type_]);
+            exprintf("  originally used for %s%s as %s\n",
+                     ref_, unparse_blockidx(blockidx_), typenames[type_]);
         } else {
             type_ = type;
             ref_ = ref;
             blockidx_ = blockidx;
             if (fbb[bn / 8] & (1 << (bn % 8))) {
-                eprintf("block %u @%s (%s): used block is marked free\n",
+                eprintf("block %u (%s) (%s):%N used block is marked free\n",
                         bn, ref, typenames[type]);
             }
         }
@@ -163,23 +193,23 @@ void inodeinfo::visit(const char* ref) {
     ++visits_;
 
     if (this == inodes.data()) {
-        eprintf("%s: refers to inode number 0\n", ref);
+        eprintf("%s:%N refers to inode number 0\n", ref);
     } else if (visits_ == 1) {
         chkfs::inode* in = get_inode();
         type_ = bdata;
         if (from_le(in->type) == chkfs::type_directory) {
             type_ = bdirectory;
         } else if (from_le(in->type) != chkfs::type_regular) {
-            eprintf("inode %u @%s: unknown type %u\n", get_inum(), ref,
+            eprintf("inode %u (%s):%N unknown type %u\n", get_inum(), ref,
                     from_le(in->type));
         }
         ref_ = ref;
         inodeq.push_back(this);
     } else if (type_ == bdirectory) {
-        eprintf("inode %u @%s: more than one link to directory\n",
+        eprintf("inode %u (%s):%N more than one link to directory\n",
                 get_inum(), ref_);
-        exprintf("inode %u @%s: link #%u from %s\n",
-                 get_inum(), ref_, visits_, ref);
+        exprintf("  other link is #%u from %s\n",
+                 visits_, ref);
     }
 }
 
@@ -187,7 +217,7 @@ void inodeinfo::scan() {
     if (!visits_) {
         chkfs::inode* in = get_inode();
         if (from_le(in->type) != 0) {
-            eprintf("inode %u: lost inode appears live\n", get_inum());
+            eprintf("inode %u:%N lost inode appears live\n", get_inum());
             visit("lost inode");
             clear_inodeq();
         }
@@ -214,21 +244,21 @@ void inodeinfo::finish_visit() {
             sprintf(indirbuf, ", indirect extent %u+%u",
                     from_le(in->indirect.first), from_le(in->indirect.count));
         }
-        printf("inode %u @%s: size %zu, type %s, nlink %u%s\n",
+        printf("inode %u (%s): size %zu, type %s, nlink %u%s\n",
                inum, ref_, sz, type, from_le(in->nlink), indirbuf);
     }
 
     if (type_ == bdirectory) {
         contents_ = new std::unordered_set<std::string>();
         if (sz % sizeof(chkfs::dirent) != 0) {
-            eprintf("inode %u @%s: directory size %zu not multiple of %zu\n",
+            eprintf("inode %u (%s):%N directory size %zu not multiple of %zu\n",
                     inum, ref_, sz, sizeof(chkfs::dirent));
         }
     }
 
     chkfs::extent* end_indir = nullptr;
     size_t pos = 0;
-    bool saw_empty = false;
+    bool saw_empty = false, saw_extra = false;
     for (chkfs::extent* e = &in->direct[0]; true; ++e) {
         if (e == &in->indirect) {
             e = nullptr;
@@ -244,16 +274,16 @@ void inodeinfo::finish_visit() {
                         blockinfo::blocks[first + bb].visit(bindirect, ref_, bb);
                     }
                 } else {
-                    eprintf("inode %u @%s: indirect extent %u+%u out of range\n",
+                    eprintf("inode %u (%s):%N indirect extent %u+%u out of range\n",
                             inum, ref_, first, count);
                 }
             } else {
                 if (!first && count) {
-                    eprintf("inode %u @%s: nonempty indirect extent starts at zero block\n",
+                    eprintf("inode %u (%s):%N nonempty indirect extent starts at zero block\n",
                             inum, ref_);
                 }
                 if (pos < sz) {
-                    eprintf("inode %u @%s: missing indirect block\n",
+                    eprintf("inode %u (%s):%N missing indirect block\n",
                             inum, ref_);
                 }
             }
@@ -264,8 +294,9 @@ void inodeinfo::finish_visit() {
 
         blocknum_t first = from_le(e->first);
         blocknum_t count = from_le(e->count);
+        size_t firstpos = pos;
         if (count && saw_empty) {
-            eprintf("inode %u @%s [%zu]: nonempty extent follows empty extent\n",
+            eprintf("inode %u (%s) [%zu]:%N nonempty extent follows empty extent\n",
                     inum, ref_, pos / blocksize);
         }
         if (first && count) {
@@ -273,9 +304,12 @@ void inodeinfo::finish_visit() {
                 printf("  [%zu]: extent %u+%u\n", pos / blocksize, first, count);
             }
             for (blocknum_t bb = 0; bb != count; ++bb, pos += blocksize) {
-                if (pos > sz) {
-                    ewprintf("inode %u @%s [%zu]: warning: dangling block reference\n",
+                if (pos > sz && !saw_extra && warn_extra_extents) {
+                    ewprintf("inode %u (%s) [%zu]:%N file has extra extents beyond its size\n",
                              inum, ref_, pos / blocksize);
+                    exprintf("  file size is %zu, extent %u+%u covers offsets %zu-%zu\n",
+                             sz, first, count, firstpos, firstpos + count * blocksize - 1);
+                    saw_extra = true;
                 }
                 if (first + bb < blockinfo::blocks.size()) {
                     blockinfo::blocks[first + bb].visit(type_, ref_, pos / blocksize);
@@ -283,18 +317,18 @@ void inodeinfo::finish_visit() {
                         visit_directory_data(first + bb, pos, sz);
                     }
                 } else {
-                    eprintf("inode %u @%s [%zu]: block number %u out of range\n",
+                    eprintf("inode %u (%s) [%zu]:%N block number %u out of range\n",
                             inum, ref_, pos / blocksize, first + bb);
                 }
             }
         } else {
             if (!first && count) {
-                eprintf("inode %u @%s [%zu]: nonempty extent starts at zero block\n",
+                eprintf("inode %u (%s) [%zu]:%N nonempty extent starts at zero block\n",
                         inum, ref_, pos / blocksize);
             }
-            if (count && pos < sz) {
-                eprintf("inode %u @%s [%zu]: warning: hole in file\n",
-                        inum, ref_, pos / blocksize);
+            if (count && pos < sz && warn_holes) {
+                ewprintf("inode %u (%s) [%zu]:%N hole in file\n",
+                         inum, ref_, pos / blocksize);
             }
             if (!count) {
                 saw_empty = true;
@@ -318,30 +352,30 @@ void inodeinfo::visit_directory_data(blocknum_t b, size_t pos, size_t sz) {
         if (inum != 0) {
             size_t namelen = strnlen(dir[i].name, chkfs::maxnamelen + 1);
             if (namelen == 0) {
-                eprintf("inode %u @%s [%u]: dirent #%zu empty name\n",
+                eprintf("inode %u (%s) [%u]:%N dirent %zu empty name\n",
                         get_inum(), ref_, b, doff + i);
             } else if (namelen > chkfs::maxnamelen) {
-                eprintf("inode %u @%s [%u]: dirent #%zu name too long\n",
+                eprintf("inode %u (%s) [%u]:%N dirent %zu name too long\n",
                         get_inum(), ref_, b, doff + i);
-                exprintf("inode %u @%s [%u]: name is \"%.*s\"\n",
-                         get_inum(), ref_, b, int(namelen), dir[i].name);
+                exprintf("  name is \"%.*s\"\n",
+                         int(namelen), dir[i].name);
                 dir[i].name[namelen - 1] = '\0';
             }
             std::string name(dir[i].name, namelen);
             if (name == "."
                 || name == ".."
                 || name.find('/') != name.npos) {
-                eprintf("inode %u @%s [%u]: dirent #%zu name \"%s\" reserved\n",
+                eprintf("inode %u (%s) [%u]:%N dirent %zu name \"%s\" reserved\n",
                         get_inum(), ref_, b, doff + i, name.c_str());
             }
 
             if (verbose) {
-                printf("    #%zu \"%s\": inode %u\n",
+                printf("    dirent %zu: name %s, inode %u\n",
                        doff + i, name.c_str(), inum);
             }
 
             if (contents_->count(name)) {
-                eprintf("inode %u @%s [%u]: dirent #%zu reuses name \"%s\"\n",
+                eprintf("inode %u (%s) [%u]:%N dirent %zu reuses name \"%s\"\n",
                         get_inum(), ref_, b, doff + i, name.c_str());
             } else {
                 contents_->insert(name);
@@ -349,7 +383,7 @@ void inodeinfo::visit_directory_data(blocknum_t b, size_t pos, size_t sz) {
             if (inum < sb.ninodes) {
                 inodeinfo::inodes[inum].visit(dir[i].name);
             } else {
-                eprintf("inode %u @%s [%u]: directory entry #%zu inode %u out of range\n",
+                eprintf("inode %u (%s) [%u]:%N dirent %zu inode %u out of range\n",
                         get_inum(), ref_, b, doff + i, inum);
             }
         }
@@ -492,13 +526,20 @@ static void __attribute__((noreturn)) help() {
 Check the ChickadeeFS IMAGE for errors and exit with a status code\n\
 indicating success.\n\
 \n\
-  --verbose, -V          print information about IMAGE\n\
-  --extract, e FILE      print FILE to stdout\n\
-  --save-journal, -s     replay journal into IMAGE\n\
-  --no-journal           do not replay journal before checking image\n\
-  --help                 display this help and exit\n");
+  --verbose, -V          Print information about IMAGE\n\
+  --extract, -e FILE     Print FILE to stdout\n\
+  --save-journal, -s     Replay journal into IMAGE\n\
+  --no-journal           Do not replay journal before checking image\n\
+  -Wno-extra-extents     Don’t warn about extra extents\n\
+  -Wno-leaks             Don’t warn about leaked blocks\n\
+  -Wno-holes             Don’t warn about holes\n\
+  --help                 Display this help and exit\n");
     exit(0);
 }
+
+enum {
+    color_opt = 1000, no_color_opt = 1001
+};
 
 static struct option options[] = {
     { "verbose", no_argument, nullptr, 'V' },
@@ -507,6 +548,9 @@ static struct option options[] = {
     { "no-journal", no_argument, nullptr, 'x' },
     { "extract", required_argument, nullptr, 'e' },
     { "help", no_argument, nullptr, 'h' },
+    { "warn", required_argument, nullptr, 'W' },
+    { "color", no_argument, nullptr, color_opt },
+    { "no-color", no_argument, nullptr, no_color_opt },
     { nullptr, 0, nullptr, 0 }
 };
 
@@ -515,7 +559,7 @@ int main(int argc, char** argv) {
     bool no_journal = false;
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "Vse:", options, nullptr)) != -1) {
+    while ((opt = getopt_long(argc, argv, "Vse:W:", options, nullptr)) != -1) {
         switch (opt) {
         case 'V':
             verbose = true;
@@ -532,6 +576,32 @@ int main(int argc, char** argv) {
             }
             extract = optarg;
             break;
+        case 'W': {
+            bool on = true;
+            const char* oa = optarg;
+            if (oa[0] == 'n' && oa[1] == 'o' && oa[2] == '-') {
+                on = false;
+                oa += 3;
+            }
+            if (strcmp(oa, "extra-extents") == 0 || strcmp(oa, "extra") == 0) {
+                warn_extra_extents = on;
+            } else if (strcmp(oa, "holes") == 0) {
+                warn_holes = on;
+            } else if (strcmp(oa, "leaks") == 0) {
+                warn_leaks = on;
+            } else {
+                fprintf(stderr, "%s: invalid warning option '-W%s'\n",
+                        argv[0], optarg);
+                usage();
+            }
+            break;
+        }
+        case color_opt:
+            color = 1;
+            break;
+        case no_color_opt:
+            color = 0;
+            break;
         case 'h':
             help();
         default:
@@ -541,6 +611,11 @@ int main(int argc, char** argv) {
     if ((optind != argc && optind + 1 != argc)
         || (replay && no_journal)) {
         usage();
+    }
+
+    warnfile = extract ? stderr : stdout;
+    if (color < 0) {
+        color = isatty(fileno(warnfile)) ? 1 : 0;
     }
 
     // open and read disk image
@@ -601,11 +676,11 @@ int main(int argc, char** argv) {
 
     // check superblock
     if (size % blocksize != 0) {
-        eprintf("unexpected size %zu is not a multiple of blocksize %zu\n",
+        eprintf("image:%N image size %zu is not a multiple of blocksize %zu\n",
                 size, blocksize);
     }
     if (size < blocksize) {
-        eprintf("file size %zu too small\n", size);
+        eprintf("image:%N image size %zu too small\n", size);
         exit(1);
     }
     memcpy(&sb, &data[chkfs::superblock_offset], sizeof(sb));
@@ -619,6 +694,13 @@ int main(int argc, char** argv) {
     sb.inode_bn = from_le(sb.inode_bn);
     sb.data_bn = from_le(sb.data_bn);
     sb.journal_bn = from_le(sb.journal_bn);
+    if (verbose) {
+        printf("superblock: nblocks %u, ninodes %u\n"
+               "  blocks: self 1, swap %u, fbb %u, inodes %u, data %u, journal %u\n",
+               sb.nblocks, sb.ninodes, sb.nswap, sb.inode_bn - sb.fbb_bn,
+               sb.data_bn - sb.inode_bn, sb.journal_bn - sb.data_bn,
+               sb.nblocks - sb.journal_bn);
+    }
     if (sb.magic != chkfs::magic) {
         eprintf("bad magic number 0x%" PRIX64 "\n", sb.magic);
     }
@@ -706,8 +788,9 @@ int main(int argc, char** argv) {
     // check for garbage
     for (size_t b = sb.data_bn; b != sb.journal_bn; ++b) {
         if (!(fbb[b / 8] & (1 << (b % 8)))
-            && blockinfo::blocks[b].type_ == bunused) {
-            ewprintf("block %u: unreferenced block is marked allocated\n", b);
+            && blockinfo::blocks[b].type_ == bunused
+            && warn_leaks) {
+            ewprintf("block %u:%N leaked block (unreferenced but allocated)\n", b);
         }
     }
 
@@ -727,7 +810,7 @@ int main(int argc, char** argv) {
             }
             delete[] zeros;
         } else {
-            ewprintf("%s: No such file or directory\n", extract);
+            eprintf("%s: No such file or directory\n", extract);
         }
     }
 

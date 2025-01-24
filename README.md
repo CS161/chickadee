@@ -28,8 +28,12 @@ after encountering a [triple fault][] (normally it will reboot).
 `make run-PROGRAM` runs `p-PROGRAM.cc` as the first non-init process. The
 default is `alloc`.
 
-`make HALT=10 run-PROGRAM` should make QEMU exit 10 ticks (that is, 0.1 sec)
+`make HALT=10 run-PROGRAM` should make QEMU exit 10 centiseconds (0.1 sec)
 after all processes exit.
+
+Chickadee process executables are built from files named `p-*.cc`. If a
+process source file starts with `#define CHICKADEE_OPTIONAL_PROCESS 1`, then
+it is included only on explicit request (e.g., `make run-testforksimple`).
 
 Troubleshooting
 ---------------

@@ -1,3 +1,4 @@
+#define CHICKADEE_OPTIONAL_PROCESS 1
 #include "u-lib.hh"
 
 void process_main() {
@@ -194,6 +195,6 @@ void process_main() {
     assert_eq(n, 0);
 
 
-    console_printf("testpipe succeeded.\n");
+    console_printf(CS_SUCCESS "testpipe succeeded!\n");
     sys_exit(0);
 }

@@ -1,3 +1,4 @@
+#define CHICKADEE_OPTIONAL_PROCESS 1
 #include "u-lib.hh"
 
 void process_main() {
@@ -106,6 +107,6 @@ void process_main() {
     assert_eq(f2, E_FAULT);
 
 
-    console_printf("testmemfs succeeded.\n");
+    console_printf(CS_SUCCESS "testmemfs succeeded!\n");
     sys_exit(0);
 }

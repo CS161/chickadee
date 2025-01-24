@@ -17,12 +17,10 @@
 .p2align 12
 .globl kernel_entry
 kernel_entry:
-        // initialize stack pointer and base pointer
-        movq $(cpus + CPUSTACK_SIZE - 8), %rsp
-        movq %rsp, %rbp
-        // clear `%rflags`
-        pushq $0
-        popfq
+        // set stack pointer to top of `cpus[0]`, preinitialize it
+        movq $cpus, %rdi
+        leaq CPUSTACK_SIZE - 8(%rdi), %rsp
+        call cpustate_preinitialize
         // check for multiboot command line; if found pass it along
         cmpl $0x2BADB002, %eax
         jne 1f
@@ -34,6 +32,28 @@ kernel_entry:
 2:      // call kernel_start()
         jmp _Z12kernel_startPKc
 
+
+// cpustate_preinitialize
+//    Initialize important parts of the current `cpustate`, so that
+//    `this_cpu()` and `current()` work even in kernel initialization code.
+//    (`current()` will return nullptr during initialization.)
+cpustate_preinitialize:
+        // set `%rbp` to the initial stack pointer
+        movq 8(%rsp), %rbp
+        movq $0, (%rbp)
+        // clear `%rflags`
+        pushq $0
+        popfq
+        // preinitialize `cpu->self_` and `cpu->current_`
+        movq %rdi, (%rdi)
+        movq $0, 8(%rdi)
+        // gsbase register points at `cpu`
+        movl $MSR_IA32_GS_BASE, %ecx
+        movq %rdi, %rdx
+        shrq $32, %rdx
+        movl %edi, %eax
+        wrmsr
+        retq
 
 
 // Exception handlers and interrupt descriptor table
@@ -140,7 +160,16 @@ exception_entry_finish:
         movq %gs:(8), %rdi
         // the second argument, `regstate`, is the current `%rsp`
         movq %rsp, %rsi
+
+        // add a fake stackframe to facilitate backtraces
+        pushq 152(%rsp)                // exception-time %rip
+        pushq %rbp                     // exception-time %rbp
+        movq %rsp, %rbp
+
         call _ZN4proc9exceptionEP8regstate
+
+        // remove fake stackframe
+        addq $16, %rsp
 
 restore_and_iret:
         testb $1, 140(%rsp)            // `reg_swapgs & 1`
@@ -223,8 +252,13 @@ syscall_entry:
 1:      testb $1, panicking            // loop if panicking
         jne 1b
 
+        // add a fake stackframe to facilitate backtraces
+        pushq 152(%rsp)                // return %rip
+        pushq %rbp                     // syscall-time %rbp
+        movq %rsp, %rbp
+
         movq %gs:(8), %rdi
-        movq %rsp, %rsi
+        leaq 16(%rsp), %rsi
         call _ZN4proc7syscallEP8regstate
 
         // When `proc::syscall` returns, `%rax` holds the return value.
@@ -234,14 +268,16 @@ syscall_entry:
         cmpl $PROC_RUNNABLE, 24(%rdi)
         jne panic_nonrunnable
 
-        addq $(8 * 15), %rsp           // skip general-purpose registers
+        popq %rbp                      // restore saved %rbp from fake stackframe
+        addq $8, %rsp                  // skip return %rip from fake stackframe
 
-        pop %fs                        // restore `%fs` and `%gs`
+        addq $(8 * 15), %rsp           // skip general-purpose registers
+        pop %fs                        // restore `%fs`
         cli                            // prevent interrupts after `swapgs`
         swapgs
-        pop %gs
+        pop %gs                        // restore `%gs`
+        addq $(8 * 2), %rsp            // skip reg_swapgs, reg_intno, reg_errcode
 
-        addq $(8 * 2), %rsp
         iretq
 
 
@@ -273,7 +309,7 @@ _ZN4proc5yieldEv:
         sti
         movq (%rsp), %rax     // any delayed interrupts will happen here
 
-1:      // disable interrupts, store yieldstate pointer
+1:      // clear interrupts and store yieldstate pointer
         cli
         movq %rsp, 16(%rdi)
         // jump to `proc::yield_noreturn`
@@ -285,12 +321,11 @@ _ZN4proc5yieldEv:
 .globl _ZN4proc14yield_noreturnEv
 _ZN4proc14yield_noreturnEv:
         // switch to cpustack
-        movq %rdi, %rsi
         movq %gs:(0), %rdi
         leaq CPUSTACK_SIZE(%rdi), %rsp
 
         // jump to scheduler
-        jmp _ZN8cpustate8scheduleEP4proc
+        jmp _ZN8cpustate8scheduleEv
 
 
 
@@ -478,8 +513,9 @@ ap_rest:
         // compute `&cpus[my_CPU_number]`
         shll $12, %edi
         addq $cpus, %rdi
-        // initialize %rsp to the top of that cpustate
-        leaq CPUSTACK_SIZE(%rdi), %rsp
+        // initialize %rsp to the top of that cpustate, preinitialize it
+        leaq CPUSTACK_SIZE - 8(%rdi), %rsp
+        callq cpustate_preinitialize
         // call `cpus[my_CPU_number].init_ap()`.
         // This two-stage jump switches to high virtual addresses.
         movabsq $_ZN8cpustate7init_apEv, %rbx

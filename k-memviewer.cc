@@ -68,7 +68,7 @@ class memusage {
 
 void memusage::refresh() {
     if (!v_) {
-        v_ = reinterpret_cast<unsigned*>(kalloc(PAGESIZE));
+        v_ = knew_array<unsigned>(maxpa / PAGESIZE);
         assert(v_ != nullptr);
     }
 
@@ -88,7 +88,7 @@ void memusage::refresh() {
         }
     }
 
-    // mark pages accessible from process page tables
+    // mark pages accessible from each process's page table
     assert(ptable_lock.is_locked());
     for (int pid = 1; pid < NPROC; ++pid) {
         proc* p = ptable[pid];
@@ -120,7 +120,7 @@ void memusage::page_error(uintptr_t pa, const char* desc, int pid) const {
     const char* fmt = pid >= 0
         ? "PAGE TABLE ERROR: %lx: %s (pid %d)\n"
         : "PAGE TABLE ERROR: %lx: %s\n";
-    error_printf(CPOS(22, 0), COLOR_ERROR, fmt, pa, desc, pid);
+    error_printf(CPOS(22, 0), fmt, pa, desc, pid);
     log_printf(fmt, pa, desc, pid);
 }
 
@@ -184,8 +184,8 @@ uint16_t memusage::symbol_at(uintptr_t pa) const {
 
 static void console_memviewer_virtual(memusage& mu, proc* vmp) {
     const char* statemsg = vmp->pstate_ == proc::ps_faulted ? " (faulted)" : "";
-    console_printf(CPOS(10, 26), 0x0F00,
-                   "VIRTUAL ADDRESS SPACE FOR %d%C%s\n", vmp->id_,
+    console_printf(CPOS(10, 26),
+                   CS_WHITE "VIRTUAL ADDRESS SPACE FOR %d%C%s\n", vmp->id_,
                    0x0700, statemsg);
 
     for (vmiter it(vmp, 0);
@@ -193,8 +193,7 @@ static void console_memviewer_virtual(memusage& mu, proc* vmp) {
          it += PAGESIZE) {
         unsigned long pn = it.va() / PAGESIZE;
         if (pn % 64 == 0) {
-            console_printf(CPOS(11 + pn / 64, 3), 0x0F00,
-                           "0x%06X ", it.va());
+            console_printf(CPOS(11 + pn / 64, 3), CS_WHITE "0x%06X ", it.va());
         }
         uint16_t ch;
         if (!it.present()) {
@@ -222,13 +221,13 @@ void console_memviewer(proc* vmp) {
     // must be called with `ptable_lock` held
 
     // print physical memory
-    console_printf(CPOS(0, 32), 0x0F00,
-                   "PHYSICAL MEMORY                  @%lu\n",
+    console_printf(CPOS(0, 32),
+                   CS_WHITE "PHYSICAL MEMORY                  @%lu\n",
                    ticks.load());
 
     for (int pn = 0; pn * PAGESIZE < memusage::max_view_pa; ++pn) {
         if (pn % 64 == 0) {
-            console_printf(CPOS(1 + pn/64, 3), 0x0F00, "0x%06X ", pn << 12);
+            console_printf(CPOS(1 + pn/64, 3), CS_WHITE "0x%06X ", pn << 12);
         }
         console[CPOS(1 + pn/64, 12 + pn%64)] = mu.symbol_at(pn * PAGESIZE);
     }
@@ -244,6 +243,6 @@ void console_memviewer(proc* vmp) {
         vmp->unlock_pagetable_read(irqs);
     }
     if (need_clear) {
-        console_printf(CPOS(10, 0), 0x0F00, "\n\n\n\n\n\n\n\n\n\n");
+        console_printf(CPOS(10, 0), "\n\n\n\n\n\n\n\n\n\n");
     }
 }

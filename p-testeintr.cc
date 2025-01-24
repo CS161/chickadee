@@ -1,3 +1,4 @@
+#define CHICKADEE_OPTIONAL_PROCESS 1
 #include "u-lib.hh"
 
 static const int order[] = {
@@ -40,6 +41,6 @@ void process_main() {
     assert_eq(sys_msleep(1000), 0);
 
 
-    console_printf(COLOR_SUCCESS, "testeintr succeeded!\n");
+    console_printf(CS_SUCCESS "testeintr succeeded!\n");
     sys_exit(0);
 }

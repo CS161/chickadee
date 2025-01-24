@@ -1,3 +1,4 @@
+#define CHICKADEE_OPTIONAL_PROCESS 1
 #include "u-lib.hh"
 
 char bigbuf[4096];
@@ -228,7 +229,7 @@ void process_main() {
     size_t bbsz = prepare_bigbuf();
 
     wf = sys_open("thoreau.txt", OF_WRITE);
-    assert_gt(f, 2);
+    assert_gt(wf, 2);
 
     for (int i = 0; i != 100; ++i) {
         dprintf(wf, "Chick%ddee\n", i);
@@ -241,7 +242,7 @@ void process_main() {
 
     printf("\n");
 
-    sz = sys_lseek(f, 0, LSEEK_SIZE);
+    sz = sys_lseek(wf, 0, LSEEK_SIZE);
     assert_eq(sz, 405890);
 
     sys_close(wf);
@@ -389,6 +390,6 @@ void process_main() {
     sys_close(f);
 
 
-    printf("testwritefs2 succeeded.\n");
+    printf(CS_SUCCESS "testwritefs2 succeeded!\n");
     sys_exit(0);
 }

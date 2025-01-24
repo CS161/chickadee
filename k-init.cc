@@ -271,9 +271,10 @@ void cpustate::init_cpu_hardware() {
                    "m" (idt.limit)
                  : "memory", "cc");
 
-    // initialize segments, including `%gs`, which points at this cpustate
+    // initialize segments
     asm volatile("movw %%ax, %%fs; movw %%ax, %%gs"
                  : : "a" ((uint16_t) SEGSEL_KERN_DATA));
+    // segment initialization reset the GSBASE system register, set it again
     wrmsr(MSR_IA32_GS_BASE, reinterpret_cast<uint64_t>(this));
 
 
@@ -334,7 +335,7 @@ extern bool ap_init_allowed;
 void cpustate::init_ap() {
     init();
     ap_entry_lock.unlock_noirq();
-    schedule(nullptr);
+    schedule();
 }
 
 void init_other_processors() {

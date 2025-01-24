@@ -1,5 +1,5 @@
 QEMUIMAGEFILES = chickadeeboot.img chickadeefs.img
-all: $(QEMUIMAGEFILES)
+all: $(QEMUIMAGEFILES) obj/chickadeefsck $(GDBFILES)
 include build/flags.mk
 
 # Place local configuration options, such as `CC=clang`, in
@@ -47,7 +47,7 @@ endif
 QEMURANDSEED := $(strip $(shell od -N8 -tu8 -An /dev/urandom))
 
 
-# Sets of object files
+# Object files
 
 BOOT_OBJS = $(OBJDIR)/bootentry.o $(OBJDIR)/boot.o
 
@@ -60,79 +60,89 @@ KERNEL_OBJS = $(OBJDIR)/k-exception.ko \
 	$(OBJDIR)/k-memviewer.ko $(OBJDIR)/k-testwait.ko \
 	$(OBJDIR)/k-initfs.ko
 
-PROCESSES ?= $(patsubst %.cc,%,$(wildcard p-*.cc))
+# Add your own kernel object files, if any, here:
+
+
+# CHICKADEE_FIRST_PROCESS
+
+RUNCMD_LASTWORD := $(filter run-%,$(MAKECMDGOALS))
+ifeq ($(words $(RUNCMD_LASTWORD)),1)
+RUNCMD_LASTWORD := $(lastword $(subst -, ,$(RUNCMD_LASTWORD)))
+ifneq ($(filter p-$(RUNCMD_LASTWORD).cc,$(wildcard p-*.cc)),)
+CHICKADEE_FIRST_PROCESS := $(RUNCMD_LASTWORD)
+endif
+endif
+CHICKADEE_FIRST_PROCESS ?= allocator
+
+
+FIND_PROCESSES_OPTIONS := -v MIN=$(MIN) -v CHICKADEE_FIRST_PROCESS=$(CHICKADEE_FIRST_PROCESS)
+INIT_PROCESSES := $(shell awk $(FIND_PROCESSES_OPTIONS) -v DISK=0 -f build/findprocesses.awk p-*.cc)
+DISK_PROCESSES := $(shell awk $(FIND_PROCESSES_OPTIONS) -v DISK=1 -f build/findprocesses.awk p-*.cc)
 
 PROCESS_LIB_OBJS = $(OBJDIR)/lib.uo $(OBJDIR)/u-lib.uo $(OBJDIR)/crc32c.uo
 
-INITFS_CONTENTS = \
+
+# File system contents
+
+INITFS_CONTENTS := \
 	$(shell find initfs -type f -not -name '\#*\#' -not -name '*~' 2>/dev/null) \
-	$(patsubst %,obj/%,$(PROCESSES))
+	$(patsubst %,obj/%,$(INIT_PROCESSES))
 
 INITFS_PARAMS ?=
 ifneq ($(HALT),)
 INITFS_PARAMS += .halt="$(HALT)"
 endif
 
-DISKFS_CONTENTS = \
+DISKFS_CONTENTS := \
 	$(shell find initfs -type f -not -name '\#*\#' -not -name '*~' 2>/dev/null) \
 	$(shell find diskfs -type f -not -name '\#*\#' -not -name '*~' 2>/dev/null) \
-	$(patsubst %,obj/%,$(PROCESSES))
+	$(patsubst %,obj/%,$(DISK_PROCESSES))
 
 
 -include build/rules.mk
 
 
-# Define `CHICKADEE_FIRST_PROCESS` if appropriate
-RUNCMD_LASTWORD := $(filter run-%,$(MAKECMDGOALS))
-ifeq ($(words $(RUNCMD_LASTWORD)),1)
-RUNCMD_LASTWORD := $(lastword $(subst -, ,$(RUNCMD_LASTWORD)))
-ifneq ($(filter p-$(RUNCMD_LASTWORD),$(PROCESSES)),)
-RUNSUFFIX := $(RUNCMD_LASTWORD)
-CHICKADEE_FIRST_PROCESS := $(RUNCMD_LASTWORD)
-endif
-endif
-CHICKADEE_FIRST_PROCESS ?= allocator
-
 ifneq ($(strip $(CHICKADEE_FIRST_PROCESS)),$(DEP_CHICKADEE_FIRST_PROCESS))
 FIRST_PROCESS_BUILDSTAMP := $(shell echo "DEP_CHICKADEE_FIRST_PROCESS:=$(CHICKADEE_FIRST_PROCESS)" > $(DEPSDIR)/_first_process.d)
 $(OBJDIR)/k-firstprocess.h: always
 $(OBJDIR)/firstprocess.gdb: always
+else ifeq ($(wildcard $(OBJDIR)/k-firstprocess.h),)
+$(OBJDIR)/k-firstprocess.h: always
+$(OBJDIR)/firstprocess.gdb: always
 endif
-ifeq ($(wildcard $(OBJDIR)/k-firstprocess.h),)
-KERNELBUILDSTAMPS += $(OBJDIR)/k-firstprocess.h
-endif
+$(OBJDIR)/kernel.ko: $(OBJDIR)/k-firstprocess.h
 
 
 # How to make object files
 
 $(OBJDIR)/%.ko: %.cc $(KERNELBUILDSTAMPS)
-	$(call cxxcompile,$(KERNELCXXFLAGS) -O2 -DCHICKADEE_KERNEL -mcmodel=kernel -c $< -o $@,COMPILE $<)
+	$(call cxxcompile,$(O) $(KERNELCXXFLAGS) -DCHICKADEE_KERNEL -mcmodel=kernel -c $< -o $@,COMPILE $<)
 
 $(OBJDIR)/%.ko: %.S $(OBJDIR)/k-asm.h $(KERNELBUILDSTAMPS)
-	$(call assemble,-O2 -mcmodel=kernel -c $< -o $@,ASSEMBLE $<)
+	$(call assemble,$(O) -mcmodel=kernel -c $< -o $@,ASSEMBLE $<)
 
 $(OBJDIR)/boot.o: $(OBJDIR)/%.o: boot.cc $(KERNELBUILDSTAMPS)
-	$(call cxxcompile,$(CXXFLAGS) -Os -fomit-frame-pointer -c $< -o $@,COMPILE $<)
+	$(call cxxcompile,-Os $(CXXFLAGS) $(DEBUGFLAGS) -c $< -o $@,COMPILE $<)
 
 $(OBJDIR)/bootentry.o: $(OBJDIR)/%.o: \
 	bootentry.S $(OBJDIR)/k-asm.h $(KERNELBUILDSTAMPS)
-	$(call assemble,-Os -fomit-frame-pointer -c $< -o $@,ASSEMBLE $<)
+	$(call assemble,-Os -c $< -o $@,ASSEMBLE $<)
 
 $(OBJDIR)/%.uo: %.cc $(BUILDSTAMPS)
-	$(call cxxcompile,$(CXXFLAGS) -O1 -DCHICKADEE_PROCESS -c $< -o $@,COMPILE $<)
+	$(call cxxcompile,$(O) $(CXXFLAGS) $(DEBUGFLAGS) -DCHICKADEE_PROCESS -c $< -o $@,COMPILE $<)
 
 $(OBJDIR)/%.uo: %.S $(OBJDIR)/u-asm.h $(BUILDSTAMPS)
-	$(call assemble,-O2 -c $< -o $@,ASSEMBLE $<)
+	$(call assemble,$(O) -c $< -o $@,ASSEMBLE $<)
 
 
 # How to make supporting source files
 
-$(OBJDIR)/k-asm.h: kernel.hh lib.hh types.h x86-64.h build/mkkernelasm.awk $(KERNELBUILDSTAMPS)
-	$(call cxxcompile,-dM -E kernel.hh | awk -f build/mkkernelasm.awk | sort > $@,CREATE $@)
+$(OBJDIR)/k-asm.h: $(KERNELBUILDSTAMPS)
+	$(call run,$(k_asm_h_input_command) | $(asm_h_build_command) > $@,CREATE $@)
 	@if test ! -s $@; then echo '* Error creating $@!' 1>&2; exit 1; fi
 
-$(OBJDIR)/u-asm.h: u-lib.hh lib.hh types.h x86-64.h build/mkkernelasm.awk $(BUILDSTAMPS)
-	$(call cxxcompile,-dM -E u-lib.hh | awk -f build/mkkernelasm.awk | sort > $@,CREATE $@)
+$(OBJDIR)/u-asm.h: $(BUILDSTAMPS)
+	$(call run,$(u_asm_h_input_command) | $(asm_h_build_command) > $@,CREATE $@)
 	@if test ! -s $@; then echo '* Error creating $@!' 1>&2; exit 1; fi
 
 $(OBJDIR)/k-firstprocess.h:
@@ -179,25 +189,25 @@ $(OBJDIR)/bootsector: $(BOOT_OBJS) boot.ld
 # How to make host program for ensuring a loaded symbol table
 
 $(OBJDIR)/mkchickadeesymtab: build/mkchickadeesymtab.cc $(BUILDSTAMPS)
-	$(call run,$(HOSTCXX) $(HOSTCPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) -g -o $@,HOSTCOMPILE,$<)
+	$(call run,$(HOSTCXX) -O3 $(HOSTCPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) -g -o $@,HOSTCOMPILE,$<)
 
 
 # How to make host programs for constructing & checking file systems
 
 $(OBJDIR)/%.o: %.cc $(BUILDSTAMPS)
-	$(call run,$(HOSTCXX) $(HOSTCPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) -c -o $@,HOSTCOMPILE,$<)
+	$(call run,$(HOSTCXX) -O3 $(HOSTCPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) -c -o $@,HOSTCOMPILE,$<)
 
 $(OBJDIR)/%.o: build/%.cc $(BUILDSTAMPS)
-	$(call run,$(HOSTCXX) $(HOSTCPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) -c -o $@,HOSTCOMPILE,$<)
+	$(call run,$(HOSTCXX) -O3 $(HOSTCPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) -c -o $@,HOSTCOMPILE,$<)
 
 $(OBJDIR)/mkchickadeefs: build/mkchickadeefs.cc $(BUILDSTAMPS)
-	$(call run,$(HOSTCXX) $(HOSTCPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) -g -o $@,HOSTCOMPILE,$<)
+	$(call run,$(HOSTCXX) -O3 $(HOSTCPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) -g -o $@,HOSTCOMPILE,$<)
 
 CHICKADEEFSCK_OBJS = $(OBJDIR)/chickadeefsck.o \
 	$(OBJDIR)/journalreplayer.o \
 	$(OBJDIR)/crc32c.o
 $(OBJDIR)/chickadeefsck: $(CHICKADEEFSCK_OBJS) $(BUILDSTAMPS)
-	$(call run,$(HOSTCXX) $(HOSTCPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) $(CHICKADEEFSCK_OBJS) -o,HOSTLINK,$@)
+	$(call run,$(HOSTCXX) -O3 $(HOSTCPPFLAGS) $(HOSTCXXFLAGS) $(DEPCFLAGS) $(CHICKADEEFSCK_OBJS) -o,HOSTLINK,$@)
 
 
 # How to make disk images
@@ -232,19 +242,23 @@ run: run-$(QEMUDISPLAY)
 	@:
 run-gdb-report:
 	@if test "$(QEMUGDB)" = "-gdb tcp::12949"; then echo '* Run `gdb -ix build/chickadee.gdb` to connect gdb to qemu.' 1>&2; fi
-run-graphic: $(QEMUIMAGEFILES) check-qemu run-gdb-report
+run-graphic: $(QEMUIMAGEFILES) $(GDBFILES) check-qemu run-gdb-report
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) $(QEMUGDB) $(QEMUIMG),QEMU $<)
-run-console: $(QEMUIMAGEFILES) check-qemu-console run-gdb-report
+run-console: $(QEMUIMAGEFILES) $(GDBFILES) check-qemu-console run-gdb-report
 	$(call run,$(QEMU) $(QEMUOPT) -display curses $(QEMUGDB) $(QEMUIMG),QEMU $<)
-run-monitor: $(QEMUIMAGEFILES) check-qemu
+run-monitor: $(QEMUIMAGEFILES) $(GDBFILES) check-qemu
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -monitor stdio $(QEMUIMG),QEMU $<)
 run-gdb: run-gdb-$(QEMUDISPLAY)
 	@:
-run-gdb-graphic: $(QEMUIMAGEFILES) check-qemu
+run-gdb-graphic: $(QEMUIMAGEFILES) $(GDBFILES) check-qemu
 	$(call run,$(QEMU_PRELOAD) $(QEMU) $(QEMUOPT) -gdb tcp::12949 $(QEMUIMG) &,QEMU $<)
 	$(call run,sleep 0.5; gdb -ix build/chickadee.gdb,GDB)
-run-gdb-console: $(QEMUIMAGEFILES) check-qemu-console
+run-gdb-console: $(QEMUIMAGEFILES) $(GDBFILES) check-qemu-console
 	$(call run,$(QEMU) $(QEMUOPT) -display curses -gdb tcp::12949 $(QEMUIMG),QEMU $<)
+
+ifneq ($(filter p-$(RUNCMD_LASTWORD),$(INIT_PROCESSES)),)
+RUNSUFFIX := $(RUNCMD_LASTWORD)
+endif
 
 run-$(RUNSUFFIX): run
 run-graphic-$(RUNSUFFIX): run-graphic

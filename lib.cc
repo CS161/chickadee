@@ -94,12 +94,14 @@ char* strcpy(char* dst, const char* src) {
 }
 
 char* strncpy(char* dst, const char* src, size_t maxlen) {
-    char* d;
-    for (d = dst; maxlen != 0 && *src != '\0'; --maxlen) {
+    char* d = dst;
+    while (maxlen != 0 && *src != '\0') {
         *d++ = *src++;
+        --maxlen;
     }
-    for (; maxlen != 0; --maxlen) {
+    while (maxlen != 0) {
         *d++ = '\0';
+        --maxlen;
     }
     return dst;
 }
@@ -297,6 +299,53 @@ from_chars_result from_chars(const char* first, const char* last,
     }
 }
 
+to_chars_result to_chars(char* first, char* last,
+                         unsigned long value, int base) {
+    // determine length of `value` in characters
+    unsigned long v = value;
+    unsigned b2 = unsigned(base) * unsigned(base),
+        b3 = b2 * unsigned(base),
+        n = 0;
+    while (true) {
+        if (v < unsigned(base)) {
+            ++n;
+        } else if (v < b2) {
+            n += 2;
+        } else {
+            n += 3;
+        }
+        if (v < b3) {
+            break;
+        }
+        v /= b3;
+    }
+    if (last - first < n) {
+        return to_chars_result{last, E_OVERFLOW};
+    }
+
+    // unparse `value` right to left
+    char* s = first + n;
+    while (s > first) {
+        --s;
+        unsigned digit = value % base;
+        value /= base;
+        *s = digit < 10 ? '0' + digit : 'a' + digit - 10;
+    }
+    return to_chars_result{first + n, 0};
+}
+
+to_chars_result to_chars(char* first, char* last,
+                         long value, int base) {
+    if (first == last) {
+        return to_chars_result{last, E_OVERFLOW};
+    } else if (value < 0) {
+        *first = '-';
+        return to_chars(first + 1, last, -(unsigned long) value, base);
+    } else {
+        return to_chars(first, last, (unsigned long) value, base);
+    }
+}
+
 
 // pseudorandom number generators
 
@@ -414,13 +463,20 @@ static char* print_number(char* buf, size_t sz,
     return pos;
 }
 
-void printer::vprintf(int color, const char* format, va_list val) {
+void printer::printf(const char* format, ...) {
+    va_list val;
+    va_start(val, format);
+    vprintf(format, val);
+    va_end(val);
+}
+
+void printer::vprintf(const char* format, va_list val) {
 #define NUMBUFSIZ 32
     char numbuf[NUMBUFSIZ];
 
     for (; *format; ++format) {
         if (*format != '%') {
-            putc(*format, color);
+            putc(*format);
             continue;
         }
 
@@ -511,7 +567,7 @@ void printer::vprintf(int color, const char* format, va_list val) {
             data = va_arg(val, char*);
             break;
         case 'C':
-            color = va_arg(val, int);
+            color_ = va_arg(val, int);
             continue;
         case 'c':
             data = numbuf;
@@ -569,19 +625,19 @@ void printer::vprintf(int color, const char* format, va_list val) {
 
         width -= datalen + zeros + strlen(prefix);
         for (; !(flags & FLAG_LEFTJUSTIFY) && width > 0; --width) {
-            putc(' ', color);
+            putc(' ');
         }
         for (; *prefix; ++prefix) {
-            putc(*prefix, color);
+            putc(*prefix);
         }
         for (; zeros > 0; --zeros) {
-            putc('0', color);
+            putc('0');
         }
         for (; datalen > 0; ++data, --datalen) {
-            putc(*data, color);
+            putc(*data);
         }
         for (; width > 0; --width) {
-            putc(' ', color);
+            putc(' ');
         }
     }
 }
@@ -597,7 +653,7 @@ struct string_printer : public printer {
     string_printer(char* s, size_t size)
         : s_(s), end_(s + size), n_(0) {
     }
-    void putc(unsigned char c, int) override {
+    void putc(unsigned char c) override {
         if (s_ < end_) {
             *s_++ = c;
         }
@@ -607,7 +663,7 @@ struct string_printer : public printer {
 
 ssize_t vsnprintf(char* s, size_t size, const char* format, va_list val) {
     string_printer sp(s, size);
-    sp.vprintf(0, format, val);
+    sp.vprintf(format, val);
     if (size && sp.s_ < sp.end_) {
         *sp.s_ = 0;
     } else if (size) {
@@ -639,19 +695,10 @@ void console_clear() {
 }
 
 
-// console_puts
-//    Put a string to the console, starting at the given cursor position.
+// console_printer
+//    A `printer` for writing strings to the CGA console.
+//    Understands limited ANSI terminal escape sequences.
 
-struct console_printer : public printer {
-    volatile uint16_t* cell_;
-    bool scroll_;
-    console_printer(int cpos, bool scroll);
-    inline void putc(unsigned char c, int color) override;
-    void scroll();
-    void move_cursor();
-};
-
-__noinline
 console_printer::console_printer(int cpos, bool scroll)
     : cell_(console), scroll_(scroll) {
     if (cpos < 0) {
@@ -661,7 +708,7 @@ console_printer::console_printer(int cpos, bool scroll)
     }
 }
 
-__noinline
+[[gnu::noinline]]
 void console_printer::scroll() {
     assert(cell_ >= console + END_CPOS);
     if (scroll_) {
@@ -677,34 +724,100 @@ void console_printer::scroll() {
     }
 }
 
-__noinline
 void console_printer::move_cursor() {
+    ebuf_.flush(*this);
     cursorpos = cell_ - console;
 #if CHICKADEE_KERNEL
     consolestate::get().cursor();
 #endif
 }
 
-inline void console_printer::putc(unsigned char c, int color) {
+[[gnu::noinline]]
+void ansi_escape_buffer::flush(printer& pr) {
+    int len = len_;
+    if (len <= 0) {
+        return;
+    }
+    len_ = -1;
+    for (int i = 0; i != len; ++i) {
+        pr.putc(buf_[i]);
+    }
+    len_ = 0;
+}
+
+[[gnu::noinline]]
+void ansi_escape_buffer::putc_impl(unsigned char c, printer& pr) {
+    const unsigned char colormap[] = {0, 4, 2, 6, 1, 5, 3, 7};
+
+    // collect prefix of an `ESC [ ... m` sequence in ebuf_
+    buf_[len_] = c;
+    ++len_;
+    if (len_ == 1
+        || (len_ == 2 && c == '[')
+        || (len_ > 2 && len_ < (int) sizeof(buf_) && (isdigit(c) || c == ';'))) {
+        return;
+    }
+
+    // not `ESC [ ... m`: output as normal
+    if (c != 'm') {
+        flush(pr);
+        return;
+    }
+
+    // full `ESC [ ... m`: parse into color_ setting
+    int x = 0;
+    pr.color_ = COLOR_GRAY;
+    for (int i = 2; i != len_; ++i) {
+        if (isdigit(buf_[i])) {
+            x = x * 10 + buf_[i] - '0';
+        } else {
+            if (x == 0) {
+                pr.color_ = COLOR_GRAY;
+            } else if (x == 1) {
+                pr.color_ |= 0x0800;
+            } else if (x == 2) {
+                pr.color_ &= ~0x0800;
+            } else if (x == 7) {
+                pr.color_ = ((pr.color_ >> 4) | (pr.color_ << 4)) & 0xFF00;
+            } else if (x >= 30 && x <= 37) {
+                pr.color_ = (pr.color_ & 0xF000) | (colormap[x - 30] << 8);
+            } else if (x >= 40 && x <= 47) {
+                pr.color_ = (pr.color_ & 0x0F00) | (colormap[x - 40] << 12);
+            } else if (x >= 90 && x <= 97) {
+                pr.color_ = (pr.color_ & 0xF000) | (colormap[x - 90] << 8) | 0x0800;
+            } else if (x >= 100 && x <= 107) {
+                pr.color_ = (pr.color_ & 0x0F00) | (colormap[x - 100] << 12) | 0x8000;
+            }
+            x = 0;
+        }
+    }
+    len_ = 0;
+}
+
+void console_printer::putc(unsigned char c) {
+    if (ebuf_.putc(c, *this)) {
+        return;
+    }
     while (cell_ >= console + END_CPOS) {
         scroll();
     }
     if (c == '\n') {
         int pos = (cell_ - console) % 80;
         while (pos != 80) {
-            *cell_++ = ' ' | color;
+            *cell_++ = ' ' | color_;
             ++pos;
         }
     } else {
-        *cell_++ = c | color;
+        *cell_++ = c | color_;
     }
 }
 
-__noinline
+[[gnu::noinline]]
 int console_puts(int cpos, int color, const char* s, size_t len) {
     console_printer cp(cpos, cpos < 0);
+    cp.color_ = color;
     while (len > 0) {
-        cp.putc(*s, color);
+        cp.putc(*s);
         ++s;
         --len;
     }
@@ -718,66 +831,49 @@ int console_puts(int cpos, int color, const char* s, size_t len) {
 // console_vprintf, console_printf
 //    Print a message onto the console, starting at the given cursor position.
 
-__noinline
-int console_vprintf(int cpos, int color, const char* format, va_list val) {
+[[gnu::noinline]]
+int console_vprintf(int cpos, const char* format, va_list val) {
     console_printer cp(cpos, cpos < 0);
-    cp.vprintf(color, format, val);
+    cp.vprintf(format, val);
     if (cpos < 0) {
         cp.move_cursor();
     }
     return cp.cell_ - console;
 }
 
-__noinline
-int console_printf(int cpos, int color, const char* format, ...) {
+[[gnu::noinline]]
+int console_printf(int cpos, const char* format, ...) {
     va_list val;
     va_start(val, format);
-    cpos = console_vprintf(cpos, color, format, val);
+    cpos = console_vprintf(cpos, format, val);
     va_end(val);
     return cpos;
 }
 
-__noinline
-void console_printf(int color, const char* format, ...) {
-    va_list val;
-    va_start(val, format);
-    console_vprintf(-1, color, format, val);
-    va_end(val);
-}
-
-__noinline
+[[gnu::noinline]]
 void console_printf(const char* format, ...) {
     va_list val;
     va_start(val, format);
-    console_vprintf(-1, 0x700, format, val);
+    console_vprintf(-1, format, val);
     va_end(val);
 }
 
 
 // k-hardware.cc/u-lib.cc supply error_vprintf
 
-__noinline
-int error_printf(int cpos, int color, const char* format, ...) {
+[[gnu::noinline]]
+void error_printf(int cpos, const char* format, ...) {
     va_list val;
     va_start(val, format);
-    cpos = error_vprintf(cpos, color, format, val);
-    va_end(val);
-    return cpos;
-}
-
-__noinline
-void error_printf(int color, const char* format, ...) {
-    va_list val;
-    va_start(val, format);
-    error_vprintf(-1, color, format, val);
+    error_vprintf(cpos, format, val);
     va_end(val);
 }
 
-__noinline
+[[gnu::noinline]]
 void error_printf(const char* format, ...) {
     va_list val;
     va_start(val, format);
-    error_vprintf(-1, COLOR_ERROR, format, val);
+    error_vprintf(-1, format, val);
     va_end(val);
 }
 
@@ -794,8 +890,7 @@ void assert_memeq_fail(const char* file, int line, const char* msg,
     size_t epos = pos + 10 < sz ? pos + 10 : sz;
     const char* ellipsis1 = spos > 0 ? "..." : "";
     const char* ellipsis2 = epos < sz ? "..." : "";
-    int cpos = consoletype == CONSOLE_NORMAL ? -1 : CPOS(22, 0);
-    error_printf(cpos, COLOR_ERROR,
+    error_printf(CPOS(22, 0),
                  "%s:%d: \"%s%.*s%s\" != \"%s%.*s%s\" @%zu\n",
                  file, line,
                  ellipsis1, int(epos - spos), x + spos, ellipsis2,

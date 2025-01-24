@@ -49,8 +49,6 @@ struct wq_reporter {
 }
 
 static void wq_tester() {
-    cli();
-
     // determine own ID
     proc* p = current();
     int id = 0;
@@ -83,7 +81,7 @@ static void wq_tester() {
         while (n < want) {
             unsigned r = re();
             if (r < re.max() / 4) {
-                wq.wake_all();
+                wq.notify_all();
             } else if (r < re.max() / 2) {
                 p->yield();
             } else {
@@ -122,7 +120,7 @@ static void wq_tester() {
         if (r < re.max() / 512) {
             p->yield();
         } else if (r < re.max() / 16) {
-            wq.wake_all();
+            wq.notify_all();
             pause();
         } else {
             waiter w;
@@ -147,7 +145,7 @@ static void wq_tester() {
         p->yield();
     }
 
-    // Third test phase: wake up waiters directly (not via wake_all)
+    // Third test phase: wake up waiters directly (not via notify_all)
     if (id == 0) {
         start_ticks = ticks;
         console_printf("ktestwait phase 3 commencing\n");
@@ -173,7 +171,7 @@ static void wq_tester() {
             int tried = 0;
             waiter w;
             // block exactly once
-            w.block_until(wq, [&] () {
+            w.wait_until(wq, [&] () {
                 pause();
                 return tried++ != 0;
             });
@@ -195,19 +193,19 @@ static void wq_tester() {
 
             spinlock_guard guard(wqdata_lock);
             waiter w;
-            w.block_until(wq2, [] () {
+            w.wait_until(wq2, [] () {
                 return wqdata_i == WQTEST_NPROC - 1;
             }, guard);
 
             wqdata_flag = true;
-            wq.wake_all();
+            wq.notify_all();
 
-            w.block_until(wq2, [] () {
+            w.wait_until(wq2, [] () {
                 return wqdata_i == 0;
             }, guard);
 
             wqdata_flag = false;
-            wq.wake_all();
+            wq.notify_all();
 
             if (i % 32 == 31) {
                 wqr.check(i);
@@ -219,16 +217,16 @@ static void wq_tester() {
         for (unsigned i = 0; i != WQTEST4_NOP; ++i) {
             spinlock_guard guard(wqdata_lock);
             if (++wqdata_i == WQTEST_NPROC - 1) {
-                wq2.wake_all();
+                wq2.notify_all();
             }
 
             waiter w;
-            w.block_until(wq, [] () {
+            w.wait_until(wq, [] () {
                 return wqdata_flag == true;
             }, guard);
 
             --wqdata_i;
-            wq2.wake_all();
+            wq2.notify_all();
 
             if (re() < re.max() / 128) {
                 guard.unlock();
@@ -238,7 +236,7 @@ static void wq_tester() {
                 pause();
             }
 
-            w.block_until(wq, [] () {
+            w.wait_until(wq, [] () {
                 return wqdata_flag == false;
             }, guard);
         }
@@ -265,7 +263,7 @@ static void wq_tester() {
                 }
             }
             spinlock_guard guard(wqdata_lock);
-            wq.wake_all();
+            wq.notify_all();
             ++n;
         }
     } else if (id == 1) {
@@ -273,7 +271,7 @@ static void wq_tester() {
             waiter w;
             ++n;
             spinlock_guard guard(wqdata_lock);
-            w.block_until(wq, [] () {
+            w.wait_until(wq, [] () {
                 return n % 2 == 0;
             }, guard);
         }
@@ -282,7 +280,7 @@ static void wq_tester() {
     // That completes the test
     if (id == 0) {
         phase = 1000;
-        console_printf(COLOR_SUCCESS, "ktestwait succeeded!\n");
+        console_printf(CS_SUCCESS "ktestwait succeeded!\n");
     }
 
     // block forever as if faulted (but do not free memory)
@@ -296,7 +294,7 @@ int ktest_wait_queues() {
         start_ticks = ticks;
         for (int i = 0; i < WQTEST_NPROC; ++i) {
             wqt_proc[i] = knew<proc>();
-            wqt_proc[i]->init_kernel(-1, wq_tester);
+            wqt_proc[i]->init_kernel(wq_tester);
             if (i == 0 || i == ncpu - 1 || ncpu == 1) {
                 cpus[0].enqueue(wqt_proc[i]);
             } else {

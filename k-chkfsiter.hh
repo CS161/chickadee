@@ -12,7 +12,6 @@ class chkfs_fileiter {
     // The caller must have a reference on `ino`.
     chkfs_fileiter(chkfs::inode* ino, off_t off = 0);
     NO_COPY_OR_ASSIGN(chkfs_fileiter);
-    ~chkfs_fileiter();
 
     // Return the inode
     inline chkfs::inode* inode() const;
@@ -29,7 +28,7 @@ class chkfs_fileiter {
     inline blocknum_t blocknum() const;
     // Return a buffer cache entry containing the current file offset’s data.
     // Returns nullptr if there is no block stored for the current offset.
-    inline bcentry* get_disk_entry() const;
+    inline bcref load() const;
     // Return the file offset relative to the current block
     inline unsigned block_relative_offset() const;
 
@@ -59,9 +58,9 @@ class chkfs_fileiter {
     //
     // This function can call:
     // * `chkfsstate::allocate_extent`, to allocate an indirect extent
-    // * `bufcache::get_disk_entry`, to find indirect-extent blocks
-    // * `bcentry::get_write` and `bcentry::put_write`, to obtain write
-    //   references to inode and/or indirect-extent entries
+    // * `bufcache::load`, to find indirect-extent blocks
+    // * `bcslot::lock_buffer` and `bcslot::unlock_buffer`, to acquire write
+    //   locks for blocks containing inode and/or indirect-extent entries
     int insert(blocknum_t first, uint32_t count = 1);
 
 
@@ -73,8 +72,8 @@ class chkfs_fileiter {
     chkfs::extent* eptr_;           // pointer into buffer cache to
                                     // extent for `off_`
 
-    // bcentry containing indirect extent block for `eidx_`
-    bcentry* indirect_entry_ = nullptr;
+    // bcref for indirect extent block for `eidx_`
+    bcref indirect_slot_;
 };
 
 
@@ -83,12 +82,6 @@ inline chkfs_fileiter::chkfs_fileiter(chkfs::inode* ino, off_t off)
     assert(ino_);
     if (off != 0) {
         find(off);
-    }
-}
-
-inline chkfs_fileiter::~chkfs_fileiter() {
-    if (indirect_entry_) {
-        indirect_entry_->put();
     }
 }
 
@@ -114,9 +107,9 @@ inline auto chkfs_fileiter::blocknum() const -> blocknum_t {
         return 0;
     }
 }
-inline bcentry* chkfs_fileiter::get_disk_entry() const {
+inline bcref chkfs_fileiter::load() const {
     blocknum_t bn = blocknum();
-    return bn ? bufcache::get().get_disk_entry(bn) : nullptr;
+    return bn ? bufcache::get().load(bn) : bcref();
 }
 
 inline chkfs_fileiter& chkfs_fileiter::operator+=(ssize_t delta) {

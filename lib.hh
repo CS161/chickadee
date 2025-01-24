@@ -70,9 +70,9 @@ struct rand_engine {
     int operator()(int min, int max);
 };
 
-// from_chars
+// from_chars, to_chars
 //    C++-style functions that parse integers from the start of a string,
-//    with error detection.
+//    or unparse integers into a string, with error detection.
 struct from_chars_result {
     const char* ptr;
     int ec;
@@ -81,6 +81,15 @@ from_chars_result from_chars(const char* first, const char* last,
                              long& value, int base = 10);
 from_chars_result from_chars(const char* first, const char* last,
                              unsigned long& value, int base = 10);
+using to_chars_result = from_chars_result;
+to_chars_result to_chars(char* first, char* last,
+                         long value, int base = 10);
+to_chars_result to_chars(char* first, char* last,
+                         unsigned long value, int base = 10);
+inline to_chars_result to_chars(char* first, char* last,
+                                int value, int base = 10) {
+    return to_chars(first, last, long(value), base);
+}
 
 
 // Return the offset of `member` relative to the beginning of a struct type
@@ -331,6 +340,7 @@ struct bitset_view {
 #define E_NOSPC         -28        // No space left on device
 #define E_NOSYS         -38        // Invalid system call number
 #define E_NXIO          -6         // No such device or address
+#define E_OVERFLOW      -75        // Value too large for data type
 #define E_PERM          -1         // Operation not permitted
 #define E_PIPE          -32        // Broken pipe
 #define E_RANGE         -34        // Out of range
@@ -365,6 +375,15 @@ inline bool is_error(uintptr_t r) {
 #define LSEEK_SIZE          3    // Do not seek; return file size
 
 
+// System call structures
+
+struct usage {
+    unsigned long time;
+    size_t free_pages;
+    size_t allocated_pages;
+};
+
+
 // CGA console printing
 
 #define CONSOLE_COLUMNS     80
@@ -373,6 +392,7 @@ inline bool is_error(uintptr_t r) {
 #define CROW(cpos)          ((cpos) / 80)
 #define CCOL(cpos)          ((cpos) % 80)
 #define END_CPOS            (CONSOLE_ROWS * CONSOLE_COLUMNS)
+
 extern volatile uint16_t console[CONSOLE_ROWS * CONSOLE_COLUMNS];
 
 // current position of the cursor (80 * ROW + COL)
@@ -383,73 +403,121 @@ extern volatile int cursorpos;
 #define CONSOLE_MEMVIEWER   1
 extern volatile int consoletype;
 
+// Console colors
+//    `COLOR_*` constants are CGA colors: numbers between 0x0000 and 0xFF00.
+//    Bits 8-11 set the foreground color and bits 12-15 set the background.
+//    https://en.wikipedia.org/wiki/Color_Graphics_Adapter
+//    They can be passed to `console_puts` or a `%C` format specification.
+//
+//    `CS_*` constants are ANSI terminal escape sequences, and are typically
+//    prefixed to a print format, as in `console_printf(CS_WHITE "hello\n")`.
+//    https://en.wikipedia.org/wiki/ANSI_escape_code
+
+#define COLOR_GRAY          0x0700    // gray foreground, black background
+#define COLOR_WHITE         0x0F00    // white foreground, black background
+#define COLOR_ERROR         0xCF00    // white foreground, red background
+#define COLOR_SUCCESS       0x0A00    // green foreground, black background
+
+#define CS_NORMAL           "\x1b[m"
+#define CS_WHITE            "\x1b[1m"
+#define CS_GREEN            "\x1b[32m"
+#define CS_ERROR            "\x1b[41;1m"
+#define CS_SUCCESS          "\x1b[32;1m"
+#define CS_ECHO             "\x1b[36m"
+
+
 // console_clear
 //    Erases the console and moves the cursor to the upper left (CPOS(0, 0)).
 void console_clear();
 
-#define COLOR_ERROR         0xC000
-#define COLOR_SUCCESS       0x0A00
 
-
-// console_puts(cursor, color, s, len)
+// console_puts(cpos, color, s, len)
 //    Write a string to the CGA console. Writes exactly `len` characters.
 //
-//    The `cursor` argument is a cursor position, such as `CPOS(r, c)`
-//    for row number `r` and column number `c`. The `color` argument
-//    is the initial color used to print; 0x0700 is a good choice
-//    (grey on black).
+//    The `cpos` argument is a cursor position, such as `CPOS(r, c)`
+//    for row number `r` and column number `c`. `cpos == -1` prints at the
+//    current cursor position. The `color` argument is an initial color.
 //
 //    Returns the final position of the cursor.
 int console_puts(int cpos, int color, const char* s, size_t len);
 
 
-// console_printf(cursor, color, format, ...)
-//    Format and print a message to the CGA console.
+// console_printf(cpos, format, ...)
+//    Print a formatted message to the CGA console.
 //
-//    The `format` argument supports some of the C printf function's escapes:
-//    %d (to print an integer in decimal notation), %u (to print an unsigned
-//    integer in decimal notation), %x (to print an unsigned integer in
-//    hexadecimal notation), %c (to print a character), and %s (to print a
-//    string). It also takes field widths and precisions like '%10s'.
+//    The `format` argument supports some of the C printf function’s format
+//    specifications: `%d` prints an integer in decimal notation, `%u` prints
+//    an unsigned integer in decimal notation, `%x` prints an unsigned integer
+//    in hexadecimal notation, `%c` prints a character, and `%s` prints a
+//    string. Field widths and precisions are also supported.
 //
-//    The `cursor` argument is a cursor position, such as `CPOS(r, c)` for
+//    The `cpos` argument is a cursor position, such as `CPOS(r, c)` for
 //    row number `r` and column number `c`.
 //
-//    The `color` argument is the initial color used to print. 0x0700 is a
-//    good choice (grey on black). The `format` escape %C changes the color
-//    being printed; it takes an integer from the parameter list.
+//    The initial color is gray on black. To change the color, use a color
+//    escape sequence such as `CS_ERROR`, or a format specification `%C`,
+//    which reads an integer color from the parameter list.
 //
 //    Returns the final position of the cursor.
-int console_printf(int cpos, int color, const char* format, ...);
+int console_printf(int cpos, const char* format, ...);
 
 // console_vprintf(cpos, color, format val)
 //    The vprintf version of console_printf.
-int console_vprintf(int cpos, int color, const char* format, va_list val);
+int console_vprintf(int cpos, const char* format, va_list val);
 
-// Helper versions that default to printing white-on-black at the cursor.
-void console_printf(int color, const char* format, ...);
+// console_printf(format, ...)
+//    Print a formatted message to the console at the current cursor position.
 void console_printf(const char* format, ...);
 
 
 // Generic print library
 
+struct printer;
+
+struct ansi_escape_buffer {
+    char buf_[12];
+    int len_ = 0;
+    inline bool putc(unsigned char c, printer& pr);
+    void flush(printer& pr);
+    [[gnu::noinline, gnu::cold]] void putc_impl(unsigned char c, printer& pr);
+};
+
 struct printer {
-    virtual void putc(unsigned char c, int color) = 0;
-    void vprintf(int color, const char* format, va_list val);
+    int color_ = COLOR_GRAY;
+    virtual void putc(unsigned char c) = 0;
+    void printf(const char* format, ...);
+    void vprintf(const char* format, va_list val);
+};
+
+struct console_printer : public printer {
+    volatile uint16_t* cell_;
+    bool scroll_;
+    ansi_escape_buffer ebuf_;
+    console_printer(int cpos, bool scroll);
+    void putc(unsigned char c) override;
+    void scroll();
+    void move_cursor();
 };
 
 
-// error_printf(cursor, color, format, ...)
-//    Like `console_printf`, but `color` defaults to `COLOR_ERROR`, and
+// error_printf([cursor,] format, ...)
+//    Like `console_printf`, but the initial color is black on red, and
 //    in the kernel, the message is also printed to the log.
-__attribute__((noinline, cold))
-int error_printf(int cpos, int color, const char* format, ...);
-__attribute__((noinline, cold))
-int error_vprintf(int cpos, int color, const char* format, va_list val);
-__attribute__((noinline, cold))
-void error_printf(int color, const char* format, ...);
-__attribute__((noinline, cold))
+[[gnu::noinline, gnu::cold]]
 void error_printf(const char* format, ...);
+[[gnu::noinline, gnu::cold]]
+void error_printf(int cpos, const char* format, ...);
+[[gnu::noinline, gnu::cold]]
+void error_vprintf(int cpos, const char* format, va_list val);
+
+
+inline bool ansi_escape_buffer::putc(unsigned char c, printer& pr) {
+    if (len_ < 0 || (len_ == 0 && c != '\x1b' /* ESC */)) {
+        return false;
+    }
+    putc_impl(c, pr);
+    return true;
+}
 
 
 // Type information
@@ -483,7 +551,7 @@ template <typename T> constexpr char printfmt<T*>::spec[];
             assert_fail(__FILE__, __LINE__, #x, ## __VA_ARGS__);        \
         }                                                               \
     } while (false)
-__attribute__((noinline, noreturn, cold))
+[[noreturn, gnu::noinline, gnu::cold]]
 void assert_fail(const char* file, int line, const char* msg,
                  const char* description = nullptr);
 
@@ -506,13 +574,13 @@ void assert_fail(const char* file, int line, const char* msg,
 #define assert_ge(x, y) assert_op(x, >=, y)
 
 template <typename T>
-__attribute__((noinline, noreturn, cold))
+[[noreturn, gnu::noinline, gnu::cold]]
 void assert_op_fail(const char* file, int line, const char* msg,
                     const T& x, const char* op, const T& y) {
     char fmt[48];
     snprintf(fmt, sizeof(fmt), "%%s:%%d: expected %%%s %s %%%s\n",
              printfmt<T>::spec, op, printfmt<T>::spec);
-    error_printf(CPOS(22, 0), COLOR_ERROR, fmt, file, line, x, y);
+    error_printf(CPOS(22, 0), fmt, file, line, x, y);
     assert_fail(file, line, msg);
 }
 
@@ -525,14 +593,14 @@ void assert_op_fail(const char* file, int line, const char* msg,
             assert_memeq_fail(__FILE__, __LINE__, "memcmp(" #x ", " #y ", " #sz ") == 0", __x, __y, __sz); \
         }                                                               \
     } while (0)
-__attribute__((noinline, noreturn, cold))
+[[noreturn, gnu::noinline, gnu::cold]]
 void assert_memeq_fail(const char* file, int line, const char* msg,
                        const char* x, const char* y, size_t sz);
 
 
 // panic(format, ...)
 //    Print the message determined by `format` and fail.
-__attribute__((noinline, noreturn, cold))
+[[noreturn, gnu::noinline, gnu::cold]]
 void panic(const char* format, ...);
 
 #if CHICKADEE_KERNEL

@@ -5,7 +5,8 @@
 #include "k-list.hh"
 #include "k-lock.hh"
 #include "k-memrange.hh"
-#include "k-waitstruct.hh"
+#include "k-wait.hh"
+#include <expected>
 #if CHICKADEE_PROCESS
 #error "kernel.hh should not be used by process code."
 #endif
@@ -50,8 +51,8 @@ struct __attribute__((aligned(4096))) proc {
     inline bool contains(uintptr_t addr) const;
     inline bool contains(void* ptr) const;
 
-    void init_user(pid_t pid, x86_64_pagetable* pt);
-    void init_kernel(pid_t pid, void (*f)());
+    void init_user(x86_64_pagetable* pt);
+    void init_kernel(void (*f)());
 
     static int load(proc_loader& ld);
 
@@ -91,10 +92,19 @@ struct proc_loader {
     inline proc_loader(x86_64_pagetable* pt)
         : pagetable_(pt) {
     }
-    virtual ssize_t get_page(uint8_t** pg, size_t off) = 0;
-    virtual void put_page() = 0;
-};
 
+    struct buffer {
+        uint8_t* data;
+        size_t size;
+        inline buffer(uint8_t* d, size_t s)
+            : data(d), size(s) {
+        }
+    };
+    using get_page_type = std::expected<buffer, int>;
+
+    virtual get_page_type get_page(size_t off) = 0;
+    virtual void put_page(buffer) = 0;
+};
 
 
 // CPU state type
@@ -131,11 +141,13 @@ struct __attribute__((aligned(4096))) cpustate {
 
     void exception(regstate* reg);
 
-    void enqueue(proc* p);
-    [[noreturn]] void schedule(proc* yielding_from);
+    [[noreturn]] void schedule();
 
     void enable_irq(int irqno);
     void disable_irq(int irqno);
+
+    void enqueue(proc* p);
+    void reenqueue(proc* p);
 
  private:
     void init_cpu_hardware();
@@ -191,11 +203,11 @@ extern std::atomic<unsigned long> ticks;        // number of ticks since boot
 
 
 // Physical memory size
-#define MEMSIZE_PHYSICAL        0x200000
+#define MEMSIZE_PHYSICAL        0x200000UL
 // Virtual memory size
-#define MEMSIZE_VIRTUAL         0x300000
+#define MEMSIZE_VIRTUAL         0x300000UL
 
-enum memtype_t {
+enum memtype_t : uint8_t {
     mem_nonexistent = 0,
     mem_available = 1,
     mem_kernel = 2,
@@ -341,6 +353,13 @@ inline __attribute__((malloc)) T* knew(Args&&... args) {
     return new (std::nothrow) T(std::forward<Args>(args)...);
 }
 
+// knew_array<T>(n)
+//    Like `new (std::nothrow) T[n]`.
+template <typename T>
+inline __attribute__((malloc)) T* knew_array(size_t n) {
+    return new (std::nothrow) T[n];
+}
+
 // init_kalloc
 //    Initialize stuff needed by `kalloc`. Called from `init_hardware`,
 //    after `physical_ranges` is initialized.
@@ -362,7 +381,7 @@ extern ahcistate* sata_disk;
 extern x86_64_pagetable early_pagetable[3];
 
 // Allocate and initialize a new, empty page table
-x86_64_pagetable* kalloc_pagetable();
+x86_64_pagetable* knew_pagetable();
 
 // Change current page table
 void set_pagetable(x86_64_pagetable* pagetable);
@@ -394,11 +413,11 @@ __noinline void log_printf(const char* format, ...);
 __noinline void log_vprintf(const char* format, va_list val);
 
 
-// log_backtrace
+// log_print_backtrace
 //    Print a backtrace to the host's `log.txt` file, either for the current
-//    stack or for a given stack range.
-void log_backtrace(const char* prefix = "");
-void log_backtrace(const char* prefix, uintptr_t rsp, uintptr_t rbp);
+//    stack or for the stack active in `p`.
+void log_print_backtrace();
+void log_print_backtrace(const proc* p);
 
 
 // lookup_symbol(addr, name, start)
@@ -491,12 +510,12 @@ inline bool proc::resumable() const {
 inline void proc::unblock() {
     int s = ps_blocked;
     if (pstate_.compare_exchange_strong(s, ps_runnable)) {
-        cpus[runq_cpu_].enqueue(this);
+        cpus[runq_cpu_].reenqueue(this);
     }
 }
 
 // proc::lock_pagetable_read()
-//    Obtain a “read lock” on this process’s page table. While the “read
+//    Acquire a “read lock” on this process’s page table. While the “read
 //    lock” is held, it is illegal to remove or change existing valid
 //    mappings in that page table, or to free page table pages.
 inline irqstate proc::lock_pagetable_read() {
@@ -505,4 +524,7 @@ inline irqstate proc::lock_pagetable_read() {
 inline void proc::unlock_pagetable_read(irqstate&) {
 }
 
+
+// Tell `k-wait.hh` that it may define inline functions when included again
+#define CHICKADEE_PROC_DECLARATION 1
 #endif

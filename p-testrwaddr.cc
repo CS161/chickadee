@@ -1,6 +1,8 @@
+#define CHICKADEE_OPTIONAL_PROCESS 1
 #include "u-lib.hh"
 
 void process_main() {
+    // check a normal read
     const char msg1[] = "Type a few characters and press return:\n";
     ssize_t w = sys_write(1, msg1, strlen(msg1));
     assert_eq(static_cast<size_t>(w), strlen(msg1));
@@ -11,12 +13,6 @@ void process_main() {
 
 
     // check invalid addresses
-    w = sys_write(1, reinterpret_cast<const char*>(0x40000000UL), 0);
-    assert_eq(w, 0);
-
-    w = sys_write(1, reinterpret_cast<const char*>(VA_LOWEND), 0);
-    assert_eq(w, 0);
-
     w = sys_write(1, msg1, 0xFFFFFFFFFFFFFFFFUL);
     assert_eq(w, E_FAULT);
 
@@ -27,12 +23,6 @@ void process_main() {
     assert_eq(w, E_FAULT);
 
 
-    r = sys_read(0, reinterpret_cast<char*>(0x40000000UL), 0);
-    assert_eq(r, 0);
-
-    r = sys_read(0, reinterpret_cast<char*>(VA_LOWEND), 0);
-    assert_eq(r, 0);
-
     r = sys_read(0, buf, 0xFFFFFFFFFFFFFFFFUL);
     assert_eq(r, E_FAULT);
 
@@ -41,6 +31,21 @@ void process_main() {
 
     r = sys_read(0, reinterpret_cast<char*>(rdrbp()), 16384);
     assert_eq(r, E_FAULT);
+
+
+    // invalid addresses, but valid calls: It should be OK to read or
+    // write 0 bytes at any low-canonical address, mapped or not.
+    w = sys_write(1, reinterpret_cast<const char*>(0x40000000UL), 0);
+    assert_eq(w, 0);
+
+    w = sys_write(1, reinterpret_cast<const char*>(VA_LOWEND), 0);
+    assert_eq(w, 0);
+
+    r = sys_read(0, reinterpret_cast<char*>(0x40000000UL), 0);
+    assert_eq(r, 0);
+
+    r = sys_read(0, reinterpret_cast<char*>(VA_LOWEND), 0);
+    assert_eq(r, 0);
 
 
     // ensure we can get right up to the end of low canonical memory
@@ -59,6 +64,6 @@ void process_main() {
     assert_gt(r, 0);
 
 
-    console_printf("testrwaddr succeeded.\n");
+    console_printf(CS_SUCCESS "testrwaddr succeeded!\n");
     sys_exit(0);
 }

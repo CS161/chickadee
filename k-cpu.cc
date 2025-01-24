@@ -10,6 +10,8 @@ int ncpu;
 //    by the relevant CPU.
 
 void cpustate::init() {
+    assert(this_cpu() == this);
+    assert(current() == nullptr);
     // Note that the `cpu::cpu` constructor has already been called.
 
     {
@@ -25,7 +27,6 @@ void cpustate::init() {
         assert(reinterpret_cast<uintptr_t>(&syscall_scratch_) == addr + 16);
     }
 
-    assert(self_ == this && !current_);
     cpuindex_ = this - cpus;
     runq_lock_.clear();
     idle_task_ = nullptr;
@@ -55,29 +56,12 @@ void cpustate::disable_irq(int irqno) {
 }
 
 
-// cpustate::enqueue(p)
-//    Enqueue `p` on this CPU's run queue. Acquires `runq_lock_`. Does nothing
-//    if `p` is on a run queue or is currently running on this CPU; otherwise
-//    `p` must be resumable (or not runnable).
-
-void cpustate::enqueue(proc* p) {
-    spinlock_guard guard(runq_lock_);
-    if (p->runq_cpu_ == -1) {
-        p->runq_cpu_ = cpuindex_;
-    }
-    if (current_ != p && !p->runq_links_.is_linked()) {
-        assert(p->resumable() || p->pstate_ != proc::ps_runnable);
-        runq_.push_back(p);
-    }
-}
-
-
-// cpustate::schedule(yielding_from)
+// cpustate::schedule()
 //    Run a process, or the current CPU's idle task if no runnable
-//    process exists. If `yielding_from != nullptr`, then do not
-//    run `yielding_from` unless no other runnable process exists.
+//    process exists. Prefers to run a process that is not the most
+//    recent process.
 
-void cpustate::schedule(proc* yielding_from) {
+void cpustate::schedule() {
     assert(contains(rdrsp()));     // running on CPU stack
     assert(is_cli());              // interrupts are currently disabled
     assert(spinlock_depth_ == 0);  // no spinlocks are held
@@ -86,23 +70,22 @@ void cpustate::schedule(proc* yielding_from) {
     if (!idle_task_) {
         init_idle_task();
     }
-    // don't immediately re-run idle task
-    if (current_ == idle_task_) {
-        yielding_from = idle_task_;
-    }
 
     // increment schedule counter
     ++nschedule_;
 
-    // find a runnable process
+    // find a runnable process (preferring one different from `current_`)
+    bool first_try = true;
     while (!current_
            || current_->pstate_ != proc::ps_runnable
-           || current_ == yielding_from) {
+           || first_try) {
+        first_try = false;
+
         proc* prev = current_;
 
         runq_lock_.lock_noirq();
 
-        // re-enqueue old current if necessary
+        // reschedule old current if necessary
         if (prev && prev->pstate_ == proc::ps_runnable) {
             assert(prev->resumable());
             if (!prev->runq_links_.is_linked()) {
@@ -114,14 +97,42 @@ void cpustate::schedule(proc* yielding_from) {
         current_ = runq_.empty() ? idle_task_ : runq_.pop_front();
 
         runq_lock_.unlock_noirq();
-
-        // no need to skip `yielding_from` if no other runnable procs
-        yielding_from = nullptr;
     }
 
     // run `current_`
     set_pagetable(current_->pagetable_);
     current_->resume(); // does not return
+}
+
+
+// cpustate::enqueue(p)
+//    Claim new task `p` for this CPU and enqueue it on this CPU's run queue.
+//    Acquires `runq_lock_`. `p` must belong to any CPU, and must be resumable
+//    (or not runnable).
+
+void cpustate::enqueue(proc* p) {
+    assert(p->runq_cpu_ == -1);
+    assert(!p->runq_links_.is_linked());
+    assert(p->resumable() || p->pstate_ != proc::ps_runnable);
+    spinlock_guard guard(runq_lock_);
+    p->runq_cpu_ = cpuindex_;
+    runq_.push_back(p);
+}
+
+
+// cpustate::reenqueue(p)
+//    Enqueue `p` on this CPU's run queue. Acquires `runq_lock_`. `p` must
+//    belong to this CPU (its `runq_cpu_` must equal `cpuindex_`). Does
+//    nothing if `p` is currently running or is already scheduled on this
+//    CPU's run queue; otherwise `p` must be resumable (or not runnable).
+
+void cpustate::reenqueue(proc* p) {
+    assert(p->runq_cpu_ == cpuindex_);
+    spinlock_guard guard(runq_lock_);
+    if (current_ != p && !p->runq_links_.is_linked()) {
+        assert(p->resumable() || p->pstate_ != proc::ps_runnable);
+        runq_.push_back(p);
+    }
 }
 
 
@@ -141,6 +152,7 @@ void idle() {
 void cpustate::init_idle_task() {
     assert(!idle_task_);
     idle_task_ = knew<proc>();
-    idle_task_->init_kernel(-1, idle);
+    idle_task_->init_kernel(idle);
     idle_task_->runq_cpu_ = cpuindex_;
+    // Note that the idle task is not actually on the run queue.
 }

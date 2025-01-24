@@ -1,6 +1,7 @@
 #ifndef CHICKADEE_K_DEVICES_HH
 #define CHICKADEE_K_DEVICES_HH
 #include "kernel.hh"
+#include "k-wait.hh"
 
 // keyboardstate: keyboard buffer and keyboard interrupts
 
@@ -83,19 +84,23 @@ struct memfile {
                    unsigned char* last);
     inline memfile(const char* name, const char* data);
 
-    // return true iff this `memfile` is not being used
+    // Test if this `memfile` is unused
     inline bool empty() const;
 
-    // set file length to `len`; return 0 or an error like `E_NOSPC` on failure
+    // Set file length to `len`; return 0 or an error like `E_NOSPC` on failure
     int set_length(size_t len);
 
-    // memfile::initfs[] is the init file system built in to the kernel.
+    // memfile::initfs[] is the initial file system built in to the kernel
     static constexpr unsigned initfs_size = 64;
     static memfile initfs[initfs_size];
 
-    // look up the memfile named `name`, creating it if it does not exist
-    // and `create == true`. Return an index into `initfs` or an error code.
-    static int initfs_lookup(const char* name, bool create = false);
+    // Return the index in `initfs` of the memfile named `name`.
+    // When the named memfile is not found, the behavior depends on `flag`:
+    // if `flag == required`, the function asserts failure; if `flag ==
+    // create`, the named memfile is created; and otherwise, an error code
+    // is returned.
+    enum lookup_flag { optional = 0, required, create };
+    static int initfs_lookup(const char* name, lookup_flag flag = optional);
 };
 
 inline memfile::memfile()
@@ -135,8 +140,8 @@ struct memfile_loader : public proc_loader {
         assert(mf_index >= 0 && unsigned(mf_index) < memfile::initfs_size);
         memfile_ = &memfile::initfs[mf_index];
     }
-    ssize_t get_page(uint8_t** pg, size_t off) override;
-    void put_page() override;
+    get_page_type get_page(size_t off) override;
+    void put_page(buffer) override;
 };
 
 #endif

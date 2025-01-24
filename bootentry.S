@@ -7,7 +7,7 @@
 #   Then it jumps to address 0x7C00 and the OS starts running!
 #
 #   This file contains the code loaded at that address.
-#   The `boot_start` routine switches the CPU out of compatibility mode,
+#   The `boot_entry` routine switches the CPU out of compatibility mode,
 #   then calls `boot` from `boot.cc` to finish the booting process.
 #
 #   There is no need to understand this code in detail!
@@ -20,34 +20,35 @@
 # For Your Information: COMPATIBILITY MODES
 #
 #   The Intel x86 architecture has many compatibility modes, going back to
-#   the 8086, which supported only 16-bit addresses.  When the BIOS calls
-#   into the OS, it is running in the "most compatible" mode, 16-bit real
+#   the 8086, which supported only 16-bit addresses. In the CPU we expect,
+#   the BIOS starts the OS while running in the oldest mode, 16-bit real
 #   mode. The machine acts like addresses are only 16 bits long,
 #   there's no paging support, and there isn't even any support for
 #   user-mode applications. The following weird magic transitions the
 #   processor to 64-bit mode and sets up a page table suitable for initial
-#   kernel execution.
+#   kernel execution. More recent iterations of 64-bit processors boot
+#   directly into 64-bit mode.
 #
 ###############################################################################
 
 /* import constants from kernel.hh and x86-64.h */
 #include "obj/k-asm.h"
 
-.globl boot_start                               # Entry point
-boot_start:
+.globl boot_entry                       # Entry point
+boot_entry:
         .code16                         # This runs in real mode
         cli                             # Disable interrupts
         cld                             # String operations increment
 
         # All segments are initially 0.
         # Set up the stack pointer, growing downward from 0x7c00.
-        movw    $boot_start, %sp
+        movw    $boot_entry, %sp
 
 notify_bios64:
         # Notify the BIOS (the machine's firmware) to optimize itself
         # for x86-64 code. https://wiki.osdev.org/X86-64
         movw    $0xEC00, %ax
-        movw    $2, %dx
+        movw    $2, %bx
         int     $0x15
 
 init_boot_pagetable:

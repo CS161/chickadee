@@ -7,15 +7,15 @@
 # include <assert.h>
 # include <inttypes.h>
 #endif
-#ifdef CHICKADEE_KERNEL
-struct bcentry;
+#if CHICKADEE_KERNEL
+struct bcslot;
 #endif
 
 namespace chkfs {
 
 using blocknum_t = uint32_t;      // type of block numbers
 using inum_t = int32_t;           // type of inode numbers
-using mlock_t = uint8_t;          // underlying type of `inode::mlock`
+using mlock_t = uint32_t;         // underlying type of `inode::mlock`
 
 // block size
 static constexpr size_t blocksize = 4096;
@@ -69,18 +69,22 @@ struct inode {
     extent direct[ndirect];       // extents
     extent indirect;
 
-#ifdef CHICKADEE_KERNEL
-    // return the buffer cache entry containing this buffer-cached inode
-    bcentry* entry();
+#if CHICKADEE_KERNEL
+    // The following functions assume that `this` is located in the kernel
+    // buffer cache. They should only be called on inodes with a corresponding
+    // `chkfs_iref`.
+
+    // return the buffer cache slot containing this buffer-cached inode
+    bcslot* slot() const;
     // drop reference to this buffer-cached inode
-    void put();
-    // obtain/release locks; the lock_ functions may yield, so cannot be
+    void decrement_reference_count();
+    // acquire or release locks; the lock_ functions may yield, so cannot be
     // called with spinlocks
     void lock_read();
     void unlock_read();
     void lock_write();
     void unlock_write();
-    bool has_write_lock() const;
+    bool is_write_locked() const;
 #endif
 };
 
@@ -115,6 +119,7 @@ struct jblockref {              // component of `jmetablock`
     uint32_t bchecksum;         // CRC32C checksum of block data
     uint16_t bflags;            // see `jbf_` constants
 };
+
 struct jmetablock {
     uint64_t magic;             // must equal `chkfs::journalmagic`
     uint32_t checksum;          // CRC32C checksum of block starting at `seq`
@@ -130,6 +135,7 @@ struct jmetablock {
 
     inline bool is_valid_meta() const;
 };
+
 enum {
     // jmetablock::flags bits
     jf_meta = 0x01,             // this block is a metablock (mandatory)

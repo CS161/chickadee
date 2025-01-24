@@ -27,7 +27,9 @@ struct irqstate {
         return s;
     }
     void restore() {
-        wreflags(flags_);
+        if (flags_ & EFLAGS_IF) {
+            sti();
+        }
         flags_ = 0;
     }
     void clear() {
@@ -63,7 +65,7 @@ struct spinlock {
         if (r) {
             adjust_this_cpu_spinlock_depth(1);
         } else {
-            irqs.clear();
+            irqs.restore();
         }
         return r;
     }
@@ -137,6 +139,80 @@ struct spinlock_guard {
     spinlock& lock_;
     irqstate irqs_;
     bool locked_;
+};
+
+
+template <typename T>
+struct ref_ptr {
+    using element_type = T;
+    using pointer = T*;
+
+    T* e_;
+
+
+    ref_ptr()
+        : e_(nullptr) {
+    }
+
+    ref_ptr(T* e)
+        : e_(e) {
+    }
+
+    ref_ptr(ref_ptr<T>&& x)
+        : e_(x.e_) {
+        x.e_ = nullptr;
+    }
+
+    ref_ptr(const ref_ptr<T>&) = delete;
+
+    ~ref_ptr() {
+        reset();
+    }
+
+
+    T* get() const noexcept {
+        return e_;
+    }
+
+    explicit constexpr operator bool() {
+        return e_ != nullptr;
+    }
+
+
+    T& operator*() const noexcept {
+        assert(e_);
+        return *e_;
+    }
+
+    T* operator->() const noexcept {
+        assert(e_);
+        return e_;
+    }
+
+
+    T* release() {
+        T* e = e_;
+        e_ = nullptr;
+        return e;
+    }
+
+    ref_ptr<T>& operator=(ref_ptr<T>&& x) {
+        if (x.e_ != e_) {
+            reset(x.e_);
+            x.e_ = nullptr;
+        }
+        return *this;
+    }
+
+    void reset(T* x = nullptr) noexcept {
+        if (e_) {
+            e_->decrement_reference_count();
+        }
+        e_ = x;
+    }
+
+
+    ref_ptr<T>& operator=(const ref_ptr<T>&) = delete;
 };
 
 #endif

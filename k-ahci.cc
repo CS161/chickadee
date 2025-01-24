@@ -66,7 +66,8 @@ void ahcistate::issue_ncq(int slot, idecommand cmd, size_t sector,
     dma_.ch[slot].buf_byte_pos = 0;
 
     // ensure all previous writes have made it out to memory
-    std::atomic_thread_fence(std::memory_order_release);
+    // before we write the `portregs` in the next step
+    std::atomic_thread_fence(std::memory_order_acq_rel);
 
     pr_->ncq_active_mask = 1U << slot;  // tell interface NCQ slot used
     pr_->command_mask = 1U << slot;     // tell interface command available
@@ -104,11 +105,11 @@ int ahcistate::read_or_write(idecommand command, void* buf, size_t sz,
     // `sz` and `off` must be sector-aligned
     assert(sz % sectorsize == 0 && off % sectorsize == 0);
 
-    // obtain lock
+    // acquire lock
     auto irqs = lock_.lock();
 
     // block until ready for command
-    waiter().block_until(wq_, [&] () {
+    waiter().wait_until(wq_, [&] () {
             return !slots_outstanding_mask_;
         }, lock_, irqs);
 
@@ -122,7 +123,7 @@ int ahcistate::read_or_write(idecommand command, void* buf, size_t sz,
     lock_.unlock(irqs);
 
     // wait for response
-    waiter().block_until(wq_, [&] () {
+    waiter().wait_until(wq_, [&] () {
             return r != E_AGAIN;
         });
     return r;
@@ -132,7 +133,7 @@ int ahcistate::read_or_write(idecommand command, void* buf, size_t sz,
 // FUNCTIONS FOR HANDLING INTERRUPTS
 
 void ahcistate::handle_interrupt() {
-    // obtain lock, read data
+    // acquire lock, read data
     auto irqs = lock_.lock();
 
     // check interrupt reason, clear interrupt
@@ -158,7 +159,7 @@ void ahcistate::handle_interrupt() {
 
     // wake waiters
     lapicstate::get().ack();
-    wq_.wake_all();
+    wq_.notify_all();
 }
 
 void ahcistate::handle_error_interrupt() {

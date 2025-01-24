@@ -17,7 +17,7 @@ void vmiter::down() {
     }
 }
 
-void vmiter::real_find(uintptr_t va, bool stepping) {
+void vmiter::find_impl(uintptr_t va, bool stepping) {
     if (stepping && va == 0) {
         lbits_ = done_lbits;
         perm_ = 0;
@@ -45,7 +45,7 @@ void vmiter::next() {
     if (lbits_ > PAGEOFFBITS && !perm()) {
         lbits = lbits_;
     }
-    real_find((va_ | lbits_mask(lbits)) + 1, true);
+    find_impl((va_ | lbits_mask(lbits)) + 1, true);
 }
 
 int vmiter::try_map(uintptr_t pa, int perm) {
@@ -86,14 +86,21 @@ int vmiter::try_map(uintptr_t pa, int perm) {
 
 
 uint64_t vmiter::range_perm(size_t sz) const {
-    uint64_t p = perm();
-    uintptr_t sva = va_;
-    while (p && sz > last_va() - va()) {
-        sz -= last_va() - va();
-        const_cast<vmiter*>(this)->next_range();
-        p &= va() ? perm() : 0;
+    uint64_t p = sz > 0 ? perm() : uint64_t(-1);
+    if (!p || sz <= range_size()) {
+        return p;
     }
-    const_cast<vmiter*>(this)->find(sva);
+    vmiter copy(*this);
+    copy.next_range();
+    return copy.range_perm_impl(p, sz - range_size());
+}
+
+uint64_t vmiter::range_perm_impl(uint64_t p, size_t sz) {
+    while (p != 0 && sz > 0) {
+        p &= va() ? perm() : 0;
+        sz -= min(sz, range_size());
+        next_range();
+    }
     return p;
 }
 
@@ -108,29 +115,28 @@ void ptiter::down(bool skip) {
     while (lbits_ < vmiter::done_lbits) {
         if (!skip && (*pep_ & (PTE_P | PTE_PS)) == PTE_P) {
             if (lbits_ == stop_lbits) {
-                break;
-            } else {
-                lbits_ -= PAGEINDEXBITS;
-                uintptr_t pa = *pep_ & PTE_PAMASK;
-                x86_64_pagetable* pt = pa2kptr<x86_64_pagetable*>(pa);
-                pep_ = &pt->entry[(va_ >> lbits_) & 0x1FF];
+                return;
             }
-        } else {
-            uintptr_t va = (va_ | vmiter::lbits_mask(lbits_)) + 1;
-            if ((va ^ va_) & ~vmiter::lbits_mask(lbits_ + PAGEINDEXBITS)) {
-                // up one level
-                if (va == 0 && lbits_ == vmiter::initial_lbits) {
-                    lbits_ = vmiter::done_lbits;
-                    break;
-                }
-                stop_lbits = lbits_ + PAGEINDEXBITS;
-                lbits_ = vmiter::initial_lbits;
-                pep_ = &pt_->entry[(va_ >> lbits_) & 0x1FF];
-            } else {
-                ++pep_;
-                va_ = va_is_canonical(va) ? va : VA_HIGHMIN;
-            }
-            skip = false;
+            lbits_ -= PAGEINDEXBITS;
+            uintptr_t pa = *pep_ & PTE_PAMASK;
+            x86_64_pagetable* pt = pa2kptr<x86_64_pagetable*>(pa);
+            pep_ = &pt->entry[(va_ >> lbits_) & 0x1FF];
+            continue;
         }
+        uintptr_t va = (va_ | vmiter::lbits_mask(lbits_)) + 1;
+        if ((va ^ va_) & ~vmiter::lbits_mask(lbits_ + PAGEINDEXBITS)) {
+            // up one level
+            if (va == 0 && lbits_ == vmiter::initial_lbits) {
+                lbits_ = vmiter::done_lbits;
+                return;
+            }
+            stop_lbits = lbits_ + PAGEINDEXBITS;
+            lbits_ = vmiter::initial_lbits;
+            pep_ = &pt_->entry[(va_ >> lbits_) & 0x1FF];
+        } else {
+            ++pep_;
+            va_ = va_is_canonical(va) ? va : VA_HIGHMIN;
+        }
+        skip = false;
     }
 }

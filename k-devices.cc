@@ -189,7 +189,7 @@ void keyboardstate::maybe_echo(int ch) {
                 cursorpos = cursorpos - 1;
             }
         } else if (ch != 0x04) {
-            console_printf(0x0300, "%c", ch);
+            console_printf(CS_ECHO "%c", ch);
         }
         consolestate::get().lock_.unlock_noirq();
     }
@@ -247,13 +247,12 @@ void consolestate::cursor(bool show) {
 
 // memfile functions
 
-// memfile::initfs_lookup(name, namelen, create)
+// memfile::initfs_lookup(name, flag)
 //    Search `memfile::initfs` for a file named `name`. Return the
 //    index of that `memfile` if found; this will be >= 0 and <
-//    `memfile::initfs_size`. If not found, and `create == true`,
-//    attempt to create and initialize a new file and return its
-//    index. Return an error code on failure.
-int memfile::initfs_lookup(const char* name, bool create) {
+//    `memfile::initfs_size`. If not found, the behavior depends on
+//    `flag`.
+int memfile::initfs_lookup(const char* name, lookup_flag flag) {
     memfile* empty = nullptr;
     size_t namelen = min(strlen(name), size_t(namesize) - 1);
 
@@ -269,8 +268,11 @@ int memfile::initfs_lookup(const char* name, bool create) {
         }
     }
 
-    if (!create) {
-        // file not found
+    // if here, file not found
+    if (flag == required) {
+        error_printf("memfile `%.*s` not found\n", namelen, name);
+        assert(false);
+    } else if (flag != create) {
         return E_NOENT;
     } else if (!empty) {
         // no space in directory
@@ -330,17 +332,15 @@ int memfile::set_length(size_t len) {
 // These functions fulfill the requirements of `proc_loader` using a
 // `memfile`. See `k-proc.cc` for more on `proc_loader`s.
 
-ssize_t memfile_loader::get_page(uint8_t** pg, size_t off) {
+auto memfile_loader::get_page(size_t off) -> get_page_type {
     if (!memfile_) {
-        return E_NOENT;
+        return std::unexpected(E_NOENT);
     } else if (off >= memfile_->len_) {
-        return 0;
-    } else {
-        *pg = memfile_->data_ + off;
-        return memfile_->len_ - off;
+        return std::unexpected(E_NXIO);
     }
+    return buffer(memfile_->data_ + off, memfile_->len_ - off);
 }
 
-void memfile_loader::put_page() {
+void memfile_loader::put_page(buffer) {
     // no need to do anything
 }
